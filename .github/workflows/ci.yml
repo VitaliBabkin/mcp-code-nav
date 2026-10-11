@@ -28,34 +28,70 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
-  # The suite against the real clangd, clang-query, gopls and TypeScript 7 native server. MCP_CODE_NAV_LIVE_REQUIRE
-  # turns a missing tool into a failure instead of a silent skip. The job is advisory: continue-on-error.
+  # The suite against the real clangd, clang-query, gopls and TypeScript 7 native server, once with the minimum
+  # version of every tool and once with the latest. The minimums are the README's Requirements table: change both
+  # together. MCP_CODE_NAV_LIVE_REQUIRE turns a missing tool into a failure instead of a silent skip. The job is
+  # advisory (continue-on-error) until it has been seen green on a hosted runner.
   live:
-    name: Live tests (real language servers)
+    name: Live tests (${{ matrix.label }})
     runs-on: ubuntu-latest
     continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: minimum tool versions
+            node: 20
+            go: "1.21.13"
+            gopls: v0.15.0
+            clangd: "22.1.0"
+            clang-tools: 14
+            typescript: 7.0.1-rc
+          - label: latest tool versions
+            node: 22
+            go: stable
+            gopls: latest
+            clangd: latest
+            clang-tools: 20
+            typescript: latest
     env:
       MCP_CODE_NAV_LIVE_REQUIRE: all
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
           cache: npm
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
-      - name: Install clangd, clang-query and a C++ compiler
+          go-version: ${{ matrix.go }}
+      - name: Install clang-query
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-18 clangd-18 clang-tools-18
-          sudo ln -sf /usr/bin/clangd-18 /usr/local/bin/clangd
-          sudo ln -sf /usr/bin/clang-query-18 /usr/local/bin/clang-query
+          sudo apt-get install -y clang-${{ matrix.clang-tools }} clang-tools-${{ matrix.clang-tools }}
+          sudo ln -sf /usr/bin/clang-query-${{ matrix.clang-tools }} /usr/local/bin/clang-query
+      - name: Install clangd
+        run: |
+          tag="${{ matrix.clangd }}"
+          if [ "$tag" = latest ]; then
+            tag=$(curl -fsSL https://api.github.com/repos/clangd/clangd/releases/latest | jq -r .tag_name)
+          fi
+          curl -fsSL -o "$RUNNER_TEMP/clangd.zip" "https://github.com/clangd/clangd/releases/download/${tag}/clangd-linux-${tag}.zip"
+          unzip -q "$RUNNER_TEMP/clangd.zip" -d "$RUNNER_TEMP/clangd"
+          echo "$RUNNER_TEMP/clangd/clangd_${tag}/bin" >> "$GITHUB_PATH"
       - name: Install gopls
         run: |
-          go install golang.org/x/tools/gopls@latest
+          go install golang.org/x/tools/gopls@${{ matrix.gopls }}
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Install the TypeScript 7 native server
-        run: npm install -g typescript@7
+        run: npm install -g typescript@${{ matrix.typescript }}
+      - name: Tool versions
+        run: |
+          node --version
+          go version
+          gopls version
+          clangd --version
+          clang-query --version
+          npm ls -g typescript
       - run: npm ci
       - run: npm run test:live

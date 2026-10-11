@@ -92,8 +92,14 @@ A live file whose tool is missing skips its cases, so a pass on a bare machine p
 `MCP_CODE_NAV_LIVE_REQUIRE=all` (or a comma-separated list such as `gopls,tsgo`) to make a missing tool fail the run.
 Changing behaviour that depends on a real binary requires running the matching live files with that tool installed. If a
 tool your change needs is not installed, install it or, when you cannot, say in the pull request (or your report) which
-live files were skipped and why. Do not report a skipped live run as a pass. CI's `live` job installs clang, clangd and
-clang-query, Go with gopls, and `typescript@7` (`npm install -g typescript@7`).
+live files were skipped and why. Do not report a skipped live run as a pass. The minimum version of every tool is the
+README's Requirements table, and the live suite has to pass at those minimums. CI's `live` job runs twice, once with
+every tool at its minimum and once with every tool at its latest release: clang-query from `apt`, clangd from its GitHub
+release, Go with gopls (`go install golang.org/x/tools/gopls@<version>`), and `typescript@<version>` installed globally.
+The job is advisory (`continue-on-error`) until it has been seen green on a hosted runner. Raising a minimum, or finding
+that the suite no longer passes at one, changes the README table and the `live` matrix in `.github/workflows/ci.yml` in
+the same commit. The `clang-cl` cases of `find-derived-classes.live.test.ts` (the MSVC-style note format) skip
+when `clang-cl` is not on `PATH`; the CI runners have none, so those cases run only on a developer machine.
 
 ## Review
 

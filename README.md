@@ -18,7 +18,23 @@ your sources.
 
 - Node.js 20 or newer.
 - The language servers for the languages you want. Each is optional; a tool whose server is missing returns an error that
-  says how to install it. The servers are looked up like this:
+  says how to install it. The versions below are what the live suite (`npm run test:live`, see
+  [WORKFLOW.md](WORKFLOW.md)) passes against on Linux: the minimum is the oldest release the suite passes on, and one
+  release below it fails. The server does not check these versions at run time, so an older tool is used as it is.
+
+| Tool                       | Minimum                   | Tested with                                                    |
+| -------------------------- | ------------------------- | -------------------------------------------------------------- |
+| Node.js                    | 20                        | 20.20.2, 22                                                    |
+| `clangd`                   | 22.1.0                    | 22.1.0, 23.1.0                                                 |
+| `clang-query`              | 14                        | 14.0.6, 18.1.3, 20.1.2, 22.1.8                                 |
+| `gopls`                    | v0.15.0 (with Go 1.21)    | v0.15.0 with Go 1.21.13, v0.23.0 with Go 1.27.2                |
+| TypeScript 7 native server | `typescript@7.0.1-rc`     | 7.0.1-rc, 7.0.2                                                |
+
+Why `clangd` 22: older releases (18 to 21 were run) differ from 22 in two things this server relies on. A call-hierarchy
+query on an override does not list the call sites written against the base declaration, and the index directory has no
+`.gitignore` of its own, so the answer to `cpp_find_callers` on a virtual method is smaller than the documented one and
+the index shows up in `git status`. A `gopls` older than v0.15.0 (v0.14.2 was run) fails to resolve a method under both
+receiver spellings. The servers are looked up like this:
 
 | Server                 | How it is found                                                                                            |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------- |
