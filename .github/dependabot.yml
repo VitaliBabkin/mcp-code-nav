@@ -7,8 +7,16 @@ updates:
     groups:
       dev-dependencies:
         dependency-type: development
+    # Majors that need a deliberate change: typescript-eslint caps typescript, vitest 5 and @types/node 26 need
+    # Node 22 while the declared minimum is Node 20, zod 4 changes the schema API the tools are built on.
     ignore:
       - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: vitest
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: zod
         update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
