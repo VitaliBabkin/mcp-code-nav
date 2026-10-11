@@ -74,10 +74,12 @@ jobs:
           sudo apt-get install -y clang-${{ matrix.clang-tools }} clang-tools-${{ matrix.clang-tools }}
           sudo ln -sf /usr/bin/clang-query-${{ matrix.clang-tools }} /usr/local/bin/clang-query
       - name: Install clangd
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           tag="${{ matrix.clangd }}"
           if [ "$tag" = latest ]; then
-            tag=$(curl -fsSL https://api.github.com/repos/clangd/clangd/releases/latest | jq -r .tag_name)
+            tag=$(gh api repos/clangd/clangd/releases/latest --jq .tag_name)
           fi
           curl -fsSL -o "$RUNNER_TEMP/clangd.zip" "https://github.com/clangd/clangd/releases/download/${tag}/clangd-linux-${tag}.zip"
           unzip -q "$RUNNER_TEMP/clangd.zip" -d "$RUNNER_TEMP/clangd"
