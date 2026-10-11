@@ -14,6 +14,62 @@ Every answer says what it could **not** see (a `scope` block: files no project i
 warming up, a module boundary, and so on) instead of presenting a partial result as complete. The server never writes to
 your sources.
 
+## Quick start
+
+1. Check Node: `node --version` must print 20 or newer.
+2. Install the language server for each language you want, at least the minimum in the [Requirements](#requirements)
+   table. All are optional; install only the ones you use.
+3. Clone and build (details in [Install and build from a clone](#install-and-build-from-a-clone)):
+
+   ```sh
+   git clone https://github.com/VitaliBabkin/mcp-code-nav.git
+   cd mcp-code-nav
+   npm ci
+   npm run build
+   ```
+
+4. Register `dist/index.js` in your MCP client as described in
+   [Register it in an MCP client](#register-it-in-an-mcp-client).
+5. Check that the server starts and lists its tools, from the repository root (a POSIX shell; on PowerShell save the
+   script body as `check.cjs` and run `node check.cjs dist/index.js`):
+
+   ```sh
+   node - dist/index.js <<'EOF'
+   const { spawn } = require("node:child_process");
+   const server = spawn("node", [process.argv[2]], { stdio: ["pipe", "pipe", "inherit"] });
+   const send = (message) => server.stdin.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n");
+   let buffer = "";
+   server.stdout.on("data", (chunk) => {
+     buffer += chunk;
+     for (const line of buffer.split("\n").slice(0, -1)) {
+       const reply = JSON.parse(line);
+       if (reply.id === 1) {
+         console.log("server:", reply.result.serverInfo.name, reply.result.serverInfo.version);
+         send({ method: "notifications/initialized" });
+         send({ id: 2, method: "tools/list" });
+       } else if (reply.id === 2) {
+         console.log(reply.result.tools.length, "tools:", reply.result.tools.map((t) => t.name).join(", "));
+         server.kill();
+       }
+     }
+     buffer = buffer.slice(buffer.lastIndexOf("\n") + 1);
+   });
+   send({
+     id: 1,
+     method: "initialize",
+     params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "check", version: "0" } },
+   });
+   EOF
+   ```
+
+   It prints two start-up lines from the server on stderr, then `server: mcp-code-nav <version>` and
+   `15 tools:` followed by the tool names. This proves the build and the protocol handshake only; it starts no
+   language server, so it does not tell you whether `clangd`, `gopls` or `tsgo` is installed. The first real call does.
+
+A first call: ask your agent, for example, "who calls `Store.save` in `/src/web`?". It should pick `ts_find_callers`
+with `{"sourceRoots": ["/src/web"], "file": "src/store.ts", "symbol": "Store.save"}`. If the TypeScript 7 server is
+missing, the result is an error that says how to install it. See [Using it](#using-it) for what to expect from answers.
+
 ## Requirements
 
 - Node.js 20 or newer.
@@ -108,8 +164,8 @@ Diagnostics go to stderr; stdout belongs to the protocol.
 ## Tools
 
 Every tool takes `sourceRoots` (the directories it may read; relative paths resolve against exactly one of them) and,
-for the Go and TypeScript tools, an optional `timeBudgetMs`. The C++ tools take a `projectRoot` instead (the build
-directory with `compile_commands.json`) and `sourceRoots` defaults to its source tree.
+for the Go and TypeScript tools, an optional `timeBudgetMs`. The C++ tools also take a `projectRoot` (the build
+directory with `compile_commands.json`); for them `sourceRoots` is optional and defaults to its source tree.
 
 | Tool                        | Question it answers                                                    | Example arguments                                                                           |
 | --------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -130,6 +186,43 @@ directory with `compile_commands.json`) and `sourceRoots` defaults to its source
 | `ts_find_implementations`   | Who implements this interface or extends this class                    | `{"sourceRoots": ["/src/web"], "file": "src/store.ts", "symbol": "Storage"}`                |
 
 The authoritative argument schemas and descriptions are what the server publishes through `tools/list`.
+
+## Using it
+
+**When to use these instead of grep.** Reach for a tool when the question is about a symbol, not a string: the outline
+of a file before you read it (`*_file_symbols`), where a name is declared (`*_find_symbol`), every real use of a symbol
+as opposed to comments, strings and same-named identifiers (`*_find_references`), who calls a function
+(`*_find_callers`), and who implements an interface or extends a class (`go_find_implementations`,
+`ts_find_implementations`). For a C++ class hierarchy always use `cpp_find_derived_classes`: it answers transitively
+(or direct-only on request), where a single-level guess misses grandchildren. Keep grep for text: a log message, a
+config key, a comment.
+
+**C++ `projectRoot`.** Pass the directory that holds `compile_commands.json`, from a build run on this host. A
+database made in Docker, WSL or on another OS names paths this host cannot open: `cpp_find_derived_classes` then fails
+and the clangd tools degrade, so use grep for that project. Without a database `cpp_file_symbols` still answers from a
+default-flags parse and says so.
+
+**Reading `scope`.** Every answer states what it could not see. Check it before trusting an empty or short result:
+
+- TypeScript: files that no `tsconfig` project includes (often tests) are not searched. When
+  `scope.uncoveredSources.mentioning` lists files, the answer is incomplete: grep those files.
+- C++: `scope.index.state` is `quiescent`, `building` or `unknown`. An empty answer from a `building` or `unknown` index
+  is an error, not a result; call again once indexing has settled. `scope.index` also reports sources that changed on
+  disk since the index was read, and `scope.limits` names caps, for example a listing that hit its cap. For
+  `cpp_find_derived_classes`, `sweep.uncoveredSources` names sources under `sourceRoots` that no compile-database entry
+  compiles.
+- Go: an answer covers one module, under this host's `GOOS` and `GOARCH`; a `go.work` beside it is reported, not
+  spanned.
+- Counts are exact even when a listing is capped.
+
+**Cold and warming up.** A language server starts on the first call that needs it, so that call is slower; a project
+is loaded or indexed in the background. Until a server can prove it is ready for a kind of question, an empty answer is
+returned as an error that says why, never as "nothing found" (see [PRINCIPLES.md](PRINCIPLES.md), rule 1). Retry
+after a moment. A request left unanswered for 180 seconds is cancelled (see
+[Cancellation](#cancellation-timeouts-and-server-diagnostics)).
+
+**Nothing is written to your sources.** The server only reads them. The one thing it causes to appear in a project is
+clangd's own index under `.cache/clangd` in `projectRoot`, beside a `.gitignore` clangd writes itself.
 
 ## Trust model
 
