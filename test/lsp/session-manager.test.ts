@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clangdConfig, goplsConfig } from "../../src/lsp/server-config.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
@@ -49,7 +50,7 @@ describe("LspSessionManager", () => {
     manager.get(join(root, "sub", ".."), clangdConfig);
     await manager.get(root, clangdConfig).documentSymbol(join(root, "a.cpp"));
     const initialize = server.requests.find(([method]) => method === "initialize");
-    expect(initialize?.[1]).toMatchObject({ rootUri: expect.stringContaining(resolve(root).replace(/\\/g, "/")) });
+    expect(initialize?.[1]).toMatchObject({ rootUri: pathToFileURL(resolve(root)).toString() });
   });
 
   it("disposeAll kills every child and forgets every session", async () => {
