@@ -1,8 +1,22 @@
 # mcp-code-nav
 
-An [MCP](https://modelcontextprotocol.io) server that gives an AI coding agent compiler-grade code navigation instead of
-grep: file outlines, where a name is declared, every reference to a symbol, who calls a function, and who implements an
-interface or derives from a class. It drives real language servers behind one stdio server:
+[![CI](https://github.com/VitaliBabkin/mcp-code-nav/actions/workflows/ci.yml/badge.svg)](https://github.com/VitaliBabkin/mcp-code-nav/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+**Your AI coding agent greps. This server answers.** Who calls this function, every real use of this symbol, who
+implements this interface or derives from this class: asked of the real language server instead of guessed from text,
+and every answer says what it could not see. It is an [MCP](https://modelcontextprotocol.io) server for C++, Go and
+TypeScript.
+
+On our measurements (five questions, two real code bases, blind agents, details in [What it saves](#what-it-saves)):
+
+| Question                         | Agent with grep only         | Agent with mcp-code-nav | Tokens |
+| -------------------------------- | ---------------------------- | ----------------------- | ------ |
+| Go: who calls a common method    | correct, 16 tool calls       | correct, 2 tool calls   | -78%   |
+| C++: every use of a method       | 6 of 7 found                 | 7 of 7                  | -70%   |
+| C++: who calls a virtual method  | 5 found plus 2 false callers | exact                   | -66%   |
+
+Try it in five minutes: [Quick start](#quick-start). It drives real language servers behind one stdio server:
 
 | Language   | Backend                                         | Tools                                                                                                              |
 | ---------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
