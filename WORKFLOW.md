@@ -6,7 +6,8 @@ version. This file is the single home of the gate list, the test commands and th
 
 ## Setup
 
-Node.js 20 or newer (CI runs 20 and 22) and npm. Language servers are needed only for the live suite and for trying your
+Node.js 20 or newer (CI runs 20 and 22) and npm; installing, linting and testing need Node.js 20.19 or newer, because
+vite 8 requires `^20.19.0 || >=22.12.0`. Language servers are needed only for the live suite and for trying your
 change by hand; install them as the README's Requirements section describes, or point the `MCP_CODE_NAV_*` variables
 listed under Tests at existing binaries.
 

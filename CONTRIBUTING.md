@@ -2,7 +2,7 @@
 
 Thanks for helping. The short version:
 
-1. Fork, branch, `npm ci`.
+1. Fork, branch, `npm ci` (development needs Node.js 20.19 or newer).
 2. Make the change with tests. Bug fixes come with a regression test that fails before the fix.
 3. Run the gates and make them pass; the list, and when to also run the live suite, is in
    [WORKFLOW.md](WORKFLOW.md).
