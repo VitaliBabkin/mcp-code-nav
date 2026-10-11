@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { defaultSpawnLsp } from "../../src/lsp/process.js";
+import { defaultSpawnLsp, NonRejectingStreamMessageWriter } from "../../src/lsp/process.js";
 import { clangdConfig, type LanguageServerConfig } from "../../src/lsp/server-config.js";
 import { LspSession } from "../../src/lsp/session.js";
 import { drainStderr, STDERR_TAIL_CHARS, stderrNote, StderrTail } from "../../src/lsp/stderr-tail.js";
@@ -60,6 +60,19 @@ describe("stderrNote", () => {
   it("names the server and carries the text", () => {
     expect(stderrNote("gopls", "panic: boom")).toContain("gopls stderr");
     expect(stderrNote("gopls", "panic: boom")).toContain("panic: boom");
+  });
+});
+
+describe("NonRejectingStreamMessageWriter", () => {
+  it("resolves, and reports through onError, when the stream cannot be written to", async () => {
+    const stream = new PassThrough();
+    const writer = new NonRejectingStreamMessageWriter(stream);
+    const errors: unknown[] = [];
+    writer.onError(([error]) => errors.push(error));
+    stream.destroy();
+
+    await expect(writer.write({ jsonrpc: "2.0", method: "initialized", params: {} })).resolves.toBeUndefined();
+    expect(errors).toHaveLength(1);
   });
 });
 

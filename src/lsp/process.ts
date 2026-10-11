@@ -146,6 +146,23 @@ function gatedConnection(connection: MessageConnection, spawned: Promise<void>):
 }
 
 /**
+ * A writer whose failed write resolves instead of rejecting. vscode-jsonrpc's `sendRequest` rethrows a failed write
+ * from inside an async promise executor (connection.js:1137-1148), where nobody can catch it: a child that dies between
+ * `'spawn'` and our write (EPIPE on Linux) would otherwise surface as an unhandled rejection that takes the whole MCP
+ * server down. The failure is still reported to `onError`; the child's exit then disposes the connection, which rejects
+ * every pending request, so no caller waits on a write that was lost.
+ */
+export class NonRejectingStreamMessageWriter extends StreamMessageWriter {
+  override async write(msg: Parameters<StreamMessageWriter["write"]>[0]): Promise<void> {
+    try {
+      await super.write(msg);
+    } catch {
+      // Already delivered to `onError` by the base class.
+    }
+  }
+}
+
+/**
  * One block on this server's own stderr when a child ends on its own (not by `kill()`), so a crash leaves its last
  * words in the diagnostics even when no request was in flight to carry them.
  */
@@ -173,7 +190,7 @@ export const defaultSpawnLsp: SpawnLsp = (root, config) => {
   });
   const connection = createMessageConnection(
     new StreamMessageReader(child.stdout),
-    new StreamMessageWriter(child.stdin),
+    new NonRejectingStreamMessageWriter(child.stdin),
   );
   connection.listen();
   const lifecycle = attachLifecycleHandlers(child, connection, attempt);
