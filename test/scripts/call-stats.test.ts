@@ -20,7 +20,9 @@ import {
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "call-stats");
 const logs = join(fixtures, "logs");
 const missing = join(fixtures, "no-such-directory");
-const HOME = join("D:", "home");
+// Absolute on every platform (a bare "D:" prefix is only a drive on Windows).
+const ABS_ROOT = resolve(tmpdir(), "mcp-code-nav-abs-fixture");
+const HOME = join(ABS_ROOT, "home");
 
 function options(over: Partial<StatsOptions> = {}): StatsOptions {
   return {
@@ -111,7 +113,7 @@ function transcriptsDir(): string {
 
 describe("defaultLogDir", () => {
   it("follows the switch the server follows, and falls back to the default when the log is off", () => {
-    const scratch = join("D:", "scratch");
+    const scratch = join(ABS_ROOT, "scratch");
     expect(defaultLogDir({ MCP_CODE_NAV_CALL_LOG: scratch }, HOME)).toBe(scratch);
     expect(defaultLogDir({}, HOME)).toBe(join(HOME, ".mcp-code-nav", "calls"));
     expect(defaultLogDir({ MCP_CODE_NAV_CALL_LOG: "off" }, HOME)).toBe(join(HOME, ".mcp-code-nav", "calls"));

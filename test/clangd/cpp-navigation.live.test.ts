@@ -500,7 +500,8 @@ describe("cpp_find_references and cpp_find_callers against a real clangd binary"
     expect(refused.isError).toBe(true);
     // Which declaring location the index names is not stable, so the refusal is
     // pinned as naming one of the two, inside the boundary it refuses to cross — not as naming the header.
-    expect(textOf(refused)).toMatch(/is declared in "[^"]*\\(?:shape\.h|circle\.cpp)"/);
+    // The separator class accepts the host's own (`\` on Windows, `/` elsewhere): the path is quoted verbatim.
+    expect(textOf(refused)).toMatch(/is declared in "[^"]*[\\/](?:shape\.h|circle\.cpp)"/);
     expect(textOf(refused)).toContain("outside every declared source root");
     expect(textOf(refused)).toContain("reported and never opened");
     expect(refused.structuredContent).toBeUndefined();

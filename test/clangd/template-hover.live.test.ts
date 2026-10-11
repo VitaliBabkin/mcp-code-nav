@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { collapseLineBreaks } from "../helpers/markdown.js";
 import { textDocumentId } from "../../src/lsp/document-uri.js";
 import { LspSession } from "../../src/lsp/session.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
@@ -163,11 +164,13 @@ describe("a template declaration's description against a real clangd binary", ()
     const found = payloadOf(await asked("Holder"));
 
     expect(found).toMatchObject({ name: "gizmo::Holder", kind: "class", file: header, range: { startLine: 7 } });
+    // The prose is compared with line breaks collapsed on both sides: clangd 18 separates its parts with a hard break,
+    // later releases with a blank line.
     // Verbatim, because the rendering is the answer: the parameter list is part of what clangd shows, and
     // the prose keeps the size line only for a type whose layout is fixed — a primary template's is not.
     expect(found.signature).toBe("// In namespace gizmo\ntemplate <class T> class Holder {}");
-    expect(found.documentation).toBe(
-      "### class `Holder`\n\n---\nHolds a value of the type it was given.\n\n---",
+    expect(collapseLineBreaks(found.documentation)).toBe(
+      collapseLineBreaks("### class `Holder`\n\n---\nHolds a value of the type it was given.\n\n---"),
     );
     expect(found.descriptionUnavailable).toBeUndefined();
   }, 30_000);
@@ -184,7 +187,9 @@ describe("a template declaration's description against a real clangd binary", ()
     // `// In Holder<T>` is clangd saying whose member this is while it is still unspecialised, and the
     // return arrow is its rendering of the signature's result — the return type is the template parameter.
     expect(found.signature).toBe("// In Holder<T>\npublic: T value() const");
-    expect(found.documentation).toBe("### instance-method `value`\n\n---\n→ `T`\n\nThe stored value.\n\n---");
+    expect(collapseLineBreaks(found.documentation)).toBe(
+      collapseLineBreaks("### instance-method `value`\n\n---\n→ `T`\n\nThe stored value.\n\n---"),
+    );
     expect(found.descriptionUnavailable).toBeUndefined();
   }, 30_000);
 
@@ -196,8 +201,8 @@ describe("a template declaration's description against a real clangd binary", ()
     // `<int>`, which is what distinguishes it from the primary at the same spelling.
     expect(found).toMatchObject({ name: "gizmo::Holder<int>", kind: "class", file: header, range: { startLine: 16 } });
     expect(found.signature).toBe("// In namespace gizmo\ntemplate <> class Holder<int> {}");
-    expect(found.documentation).toBe(
-      "### class `Holder<int>`\n\n---\nSize: 4 bytes, alignment 4 bytes\n\nThe integral case, rounded.\n\n---",
+    expect(collapseLineBreaks(found.documentation)).toBe(
+      collapseLineBreaks("### class `Holder<int>`\n\n---\nSize: 4 bytes, alignment 4 bytes\n\nThe integral case, rounded.\n\n---"),
     );
   }, 30_000);
 
@@ -209,7 +214,9 @@ describe("a template declaration's description against a real clangd binary", ()
     expect(specialized.signature).toBe("// In Holder<int>\npublic: int value() const");
     // The specialization's member carries no doc comment, so the prose is clangd's own result line and
     // nothing more: no invented documentation.
-    expect(specialized.documentation).toBe("### instance-method `value`\n\n---\n→ `int`\n\n---");
+    expect(collapseLineBreaks(specialized.documentation)).toBe(
+      collapseLineBreaks("### instance-method `value`\n\n---\n→ `int`\n\n---"),
+    );
     expect(primary.name).toBe("gizmo::Holder::value");
     expect(primary.signature).toBe("// In Holder<T>\npublic: T value() const");
   }, 30_000);
@@ -222,9 +229,11 @@ describe("a template declaration's description against a real clangd binary", ()
     // from, and renders it substituted to `int`. This is the description of a call site, not of a
     // declaration — which is why `cpp_find_symbol` asks at a declaration's own identifier instead.
     expect(answer.contents.kind).toBe("markdown");
-    expect(answer.contents.value).toBe(
-      "### instance-method `value`\n\nprovided by `\"holder.h\"`\n\n---\n→ `int`\n\n---\n" +
-        "```cpp\n// In Holder<int>\npublic: int value() const\n```",
+    expect(collapseLineBreaks(answer.contents.value)).toBe(
+      collapseLineBreaks(
+        "### instance-method `value`\n\nprovided by `\"holder.h\"`\n\n---\n→ `int`\n\n---\n" +
+          "```cpp\n// In Holder<int>\npublic: int value() const\n```",
+      ),
     );
   }, 30_000);
 });

@@ -1,3 +1,5 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveCallLogConfig } from "../../src/call-log/config.js";
 
@@ -12,10 +14,9 @@ describe("resolveCallLogConfig", () => {
   });
 
   it("turns on for an absolute directory the caller named", () => {
-    expect(resolveCallLogConfig({ MCP_CODE_NAV_CALL_LOG: "D:\\scratch\\calls" })).toEqual({
-      kind: "on",
-      dir: "D:\\scratch\\calls",
-    });
+    // Built from the temp directory so it is absolute on the host: "D:\\..." is only absolute on Windows.
+    const dir = join(tmpdir(), "scratch", "calls");
+    expect(resolveCallLogConfig({ MCP_CODE_NAV_CALL_LOG: dir })).toEqual({ kind: "on", dir });
   });
 
   it("refuses a relative directory, which would mean whatever directory the client started us in", () => {

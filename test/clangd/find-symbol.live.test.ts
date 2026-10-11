@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { collapseLineBreaks } from "../helpers/markdown.js";
 import { flattenOutline } from "../../src/clangd/outline.js";
 import { textDocumentId } from "../../src/lsp/document-uri.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
@@ -142,8 +143,11 @@ describe("cpp_find_symbol's hover description against a real clangd binary", () 
     // block this server reads as the signature is that rendering and the prose beside it carries clangd's
     // own layout line. Nothing here is reordered or guessed to make the answer read tidier.
     expect(found.signature).toBe("// In namespace gizmo\nclass Widget {}");
-    expect(found.documentation).toBe(
-      "### class `Widget`\n\n---\nSize: 1 byte, alignment 1 byte\n\nDraws the frame and keeps its geometry.\n\n---",
+    // Line breaks are collapsed on both sides: clangd 18 separates the parts with a hard break, later releases with a blank line.
+    expect(collapseLineBreaks(found.documentation)).toBe(
+      collapseLineBreaks(
+        "### class `Widget`\n\n---\nSize: 1 byte, alignment 1 byte\n\nDraws the frame and keeps its geometry.\n\n---",
+      ),
     );
     expect(found.descriptionUnavailable).toBeUndefined();
   }, 30_000);
