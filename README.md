@@ -224,6 +224,30 @@ after a moment. A request left unanswered for 180 seconds is cancelled (see
 **Nothing is written to your sources.** The server only reads them. The one thing it causes to appear in a project is
 clangd's own index under `.cache/clangd` in `projectRoot`, beside a `.gitignore` clangd writes itself.
 
+## What it saves
+
+Measured on two real, private code bases (one Go, one C++): five questions, each put to two blind agents, one run per
+agent. One agent had only `Read`, `Glob`, `Grep` and `Bash`; the other had the same plus the matching tool. Every answer
+was checked against a hand-verified ground truth. Tokens are the whole run (input, cache and output), which includes a
+fixed floor of about 190k from the harness itself, so the real difference in the work is larger than the percentages.
+
+| Question                                          | Grep only                        | With the tool          | Tool calls | Tokens |
+| ------------------------------------------------- | -------------------------------- | ---------------------- | ---------- | ------ |
+| Go: where is a function declared                  | correct                          | correct                | 3 -> 2     | +1%    |
+| Go: every use of a name                           | correct                          | correct                | 4 -> 3     | -19%   |
+| Go: who calls a common method (9 callers)         | correct                          | correct                | 16 -> 2    | -78%   |
+| C++: every use of a method (7 uses)               | 6 of 7, one use in a header missed | 7 of 7               | 12 -> 3    | -70%   |
+| C++: who calls a virtual method (5 callers)       | 5 of 5 plus 2 false callers      | exact, no false caller | 22 -> 4    | -66%   |
+
+Reading it: where one `grep` finds the answer (a declaration), the tool gains nothing. It pays for questions about
+uses and callers, and in C++ it is the difference between a right and a wrong answer, because grep matches text:
+the missed use and the two false callers are what text search does. The tool-call counts for the tool arm include the
+step that loads the tool's schema.
+
+The sample is small: five questions, two code bases, one run per arm, and the agents were Haiku-class. The TypeScript
+tools have not been measured this way yet. Treat the table as an indication, not a benchmark, and measure on your own
+code: the optional [call log](#call-log-and-privacy) records what each call cost.
+
 ## Trust model
 
 Treat `projectRoot`, its `compile_commands.json` and its `mcp-code-nav.config.json` as trusted input: they are read,
