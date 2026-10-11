@@ -16,11 +16,9 @@ export default defineConfig({
      * default concurrency (one file per spare core) a server shutting down in one file lands while another
      * file is spawning servers, and the cleanup that loses that race reports `could not remove` rather than a
      * wrong answer. Serialising the files removes the race instead of out-waiting it — no deletion here gets a
-     * longer retry budget or a quieter failure. Both pools are capped because either one answers for `pool`.
+     * longer retry budget or a quieter failure. The worker cap is pool-independent, so it holds for any `pool`.
      */
-    poolOptions: {
-      forks: { minForks: 1, maxForks: 1 },
-      threads: { minThreads: 1, maxThreads: 1 },
-    },
+    maxWorkers: 1,
+    fileParallelism: false,
   },
 });
