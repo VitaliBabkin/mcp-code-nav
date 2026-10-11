@@ -1,0 +1,4 @@
+{"type":"assistant","timestamp":"2026-09-30T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"A","name":"mcp__mcp-code-nav__cpp_find_symbol","input":{"name":"Widget","projectRoot":"D:\\build"}}]}}
+{"type":"user","timestamp":"2026-09-30T10:00:02.100Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"A","content":[{"type":"text","text":"1 declaration"}]}]}}
+{"type":"assistant","timestamp":"2026-09-30T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"B","name":"mcp__mcp-code-nav__cpp_file_symbols","input":{"projectRoot":"D:\\build","file":123}}]}}
+{"type":"user","timestamp":"2026-09-30T10:00:02.200Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"B","is_error":true,"content":[{"type":"text","text":"MCP error -32602: Input validation error: Invalid arguments for tool cpp_file_symbols [InputValidationError] expected a string"}]}]}}

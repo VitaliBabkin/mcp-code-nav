@@ -1,0 +1,4 @@
+{
+  "extends": "./no-such-base.json",
+  "include": ["src"]
+}

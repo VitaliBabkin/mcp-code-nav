@@ -1,0 +1,8 @@
+{"type":"assistant","timestamp":"2026-09-17T10:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"P1","name":"mcp__mcp-code-nav__cpp_find_symbol","input":{"name":"Old","projectRoot":"D:\\build"}}]}}
+{"type":"user","timestamp":"2026-09-17T10:00:00.100Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"P1","is_error":true,"content":[{"type":"text","text":"no symbol \"Old\" in the outline of src/a.cpp"}]}]}}
+{"type":"assistant","timestamp":"2026-09-17T10:00:01.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"P2","name":"mcp__mcp-code-nav__cpp_find_symbol","input":{"name":"Older","projectRoot":"D:\\build"}}]}}
+{"type":"user","timestamp":"2026-09-17T10:00:01.100Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"P2","is_error":true,"content":[{"type":"text","text":"no symbol \"Older\" in the outline of src/a.cpp"}]}]}}
+{"type":"assistant","timestamp":"2026-09-20T10:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"A","name":"mcp__mcp-code-nav__cpp_find_symbol","input":{"name":"Qux","projectRoot":"D:\\build"}}]}}
+{"type":"user","timestamp":"2026-09-20T10:00:00.100Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"A","is_error":true,"content":[{"type":"text","text":"no symbol \"Qux\" in the outline of src/a.cpp"}]}]}}
+{"type":"assistant","timestamp":"2026-09-20T10:00:01.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"G","name":"Grep","input":{"pattern":"Qux","path":"D:\\repo"}}]}}
+{"type":"user","timestamp":"2026-09-20T10:00:01.100Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"G","content":[{"type":"text","text":"src/a.cpp:1: class Qux"}]}]}}

@@ -1,0 +1,4 @@
+{"type":"assistant","timestamp":"2026-09-20T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"R1","name":"Read","input":{"file_path":"D:\\repo\\src\\a.cpp"}}]}}
+{"type":"user","timestamp":"2026-09-20T10:00:02.100Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"R1","content":[{"type":"text","text":"class Qux"}]}]}}
+{"type":"assistant","timestamp":"2026-09-20T10:00:03.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"B1","name":"Bash","input":{"command":"rg Qux src"}}]}}
+{"type":"user","timestamp":"2026-09-20T10:00:03.100Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"B1","content":[{"type":"text","text":"src/a.cpp:1"}]}]}}

@@ -1,0 +1,5 @@
+{
+  "extends": "./gone.json",
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.unreadable.json" }, { "path": "./tsconfig.good.json" }]
+}

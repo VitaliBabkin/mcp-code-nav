@@ -1,0 +1,4 @@
+{"type":"assistant","timestamp":"2026-09-30T11:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"a01","name":"mcp__mcp-code-nav__go_file_symbols","input":{"file":"main.go"}}]}}
+{"type":"user","timestamp":"2026-09-30T11:00:00.400Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"a01","is_error":true,"content":[{"type":"text","text":"\"D:\\repo\\main.go\" is not inside a Go module"}]}]}}
+{"type":"assistant","timestamp":"2026-09-30T11:00:01.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"a02","name":"mcp__mcp-code-nav__go_file_symbols","input":{"file":"main.go","sourceRoots":["D:\\repo\\backend"]}}]}}
+{"type":"user","timestamp":"2026-09-30T11:00:01.200Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"a02","content":[{"type":"text","text":"9 symbols"}]}]}}

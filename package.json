@@ -1,0 +1,71 @@
+{
+  "name": "mcp-code-nav",
+  "version": "0.1.0",
+  "description": "MCP server for code navigation: symbol outlines, definitions, references, callers and implementations for C++ (clangd, clang-query), Go (gopls) and TypeScript (TypeScript 7 native server).",
+  "license": "MIT",
+  "author": "Vitali Babkin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VitaliBabkin/mcp-code-nav.git"
+  },
+  "homepage": "https://github.com/VitaliBabkin/mcp-code-nav#readme",
+  "bugs": {
+    "url": "https://github.com/VitaliBabkin/mcp-code-nav/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "code-navigation",
+    "lsp",
+    "clangd",
+    "gopls",
+    "typescript",
+    "cpp",
+    "go"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "mcp-code-nav": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "bundle": "tsx scripts/bundle.ts",
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint src scripts",
+    "prepublishOnly": "npm run build",
+    "start": "node dist/index.js",
+    "stats": "tsx scripts/call-stats.ts",
+    "test": "vitest run",
+    "test:live": "vitest run --config vitest.live.config.ts",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "jsonc-parser": "3.3.1",
+    "minimatch": "10.2.5",
+    "vscode-jsonrpc": "9.0.2",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "esbuild": "^0.28.1",
+    "eslint": "10.11.0",
+    "eslint-plugin-sonarjs": "4.2.1",
+    "tsx": "4.23.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.0",
+    "vitest": "2.1.9"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true
+  }
+}

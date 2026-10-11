@@ -1,0 +1,2 @@
+Not a call log. The report reads calls-*.jsonl only, and this file is here to keep it honest about that.
+{"v":1,"type":"call","run":"r9","seq":1,"ts":"2026-09-30T10:00:01.000Z","tool":"not_a_real_tool","lang":"cpp","project":"D:\\build","args":{},"argKeys":[],"ms":1,"inflight":0,"outcome":"ok","errorClass":null,"errorHead":null,"limits":[],"results":0,"capped":false,"cache":null,"indexState":null,"spawned":false,"readyWaitMs":null,"textBytes":1}

@@ -1,0 +1,7 @@
+{
+  "extends": "./compiler-options.json",
+  "compilerOptions": {
+    "allowJs": true
+  },
+  "include": ["src"]
+}
