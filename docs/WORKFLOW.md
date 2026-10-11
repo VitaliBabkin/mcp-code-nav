@@ -1,7 +1,7 @@
 # Workflow
 
 How to get a change into `mcp-code-nav`. The rules a change must respect are in [PRINCIPLES.md](PRINCIPLES.md); the
-shape of the code is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). [CONTRIBUTING.md](CONTRIBUTING.md) is the short
+shape of the code is in [ARCHITECTURE.md](ARCHITECTURE.md). [CONTRIBUTING.md](../CONTRIBUTING.md) is the short
 version. This file is the single home of the gate list, the test commands and the problem-report checklist.
 
 ## Setup

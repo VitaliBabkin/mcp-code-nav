@@ -5,7 +5,7 @@ export default defineConfig({
     include: ["test/**/*.test.ts"],
     // Live-binary integration tests (`*.live.test.ts`) spawn real clangd/clang-query and are
     // excluded from the default run — see `npm run test:live` and the "Tests" section of
-    // WORKFLOW.md. Everything else here is vitest's own default exclude list, restated because
+    // docs/WORKFLOW.md. Everything else here is vitest's own default exclude list, restated because
     // setting `exclude` at all replaces it rather than extending it.
     exclude: [
       "**/node_modules/**",

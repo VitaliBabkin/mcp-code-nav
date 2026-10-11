@@ -21,7 +21,7 @@ const ALLOWED: readonly { readonly file: string; readonly line: RegExp; readonly
     line: /"author":/,
     reason: "the package author field names the publisher; it is the public name chosen for the release",
   },
-  ...["package.json", "README.md", "WORKFLOW.md"].map((file) => ({
+  ...["package.json", "README.md", "docs/WORKFLOW.md"].map((file) => ({
     file,
     line: /(github\.com\/|--repo )VitaliBabkin\/mcp-code-nav/,
     reason: "the public repository URL contains the publisher's account name",

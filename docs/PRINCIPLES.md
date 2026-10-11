@@ -73,7 +73,7 @@ single-level LSP `textDocument/implementation` call; that is the one class of qu
 C++ keyword; a bind location that yields none is a `failedFiles` entry, never a row. A fix to name extraction ships with
 a live regression test on a template fixture, run with `clang++` and also with `clang-cl` where that driver is
 available (Windows); say in the pull request which drivers you ran. The extraction rules are in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+[ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 4. Validate input before it reaches a process or the disk
 

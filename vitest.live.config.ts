@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 /**
  * Separate config for the live-binary integration suite (`*.live.test.ts`) — spawns the real
  * `clangd`/`clang-query` binaries, excluded from the default `npm test` run (see `vitest.config.ts`
- * and the "Tests" section of WORKFLOW.md). Run explicitly via `npm run test:live`.
+ * and the "Tests" section of docs/WORKFLOW.md). Run explicitly via `npm run test:live`.
  */
 export default defineConfig({
   test: {

@@ -5,26 +5,26 @@ Thanks for helping. The short version:
 1. Fork, branch, `npm ci` (development needs Node.js 20.19 or newer).
 2. Make the change with tests. Bug fixes come with a regression test that fails before the fix.
 3. Run the gates and make them pass; the list, and when to also run the live suite, is in
-   [WORKFLOW.md](WORKFLOW.md).
+   [WORKFLOW.md](docs/WORKFLOW.md).
 4. Open a pull request describing what changed and why.
 
 The details are in two documents:
 
-- [WORKFLOW.md](WORKFLOW.md): setup, the pull request flow, the live test suite and the tools it needs, review, how to
-  add a tool for a new language, commit messages.
-- [PRINCIPLES.md](PRINCIPLES.md): the rules every change must keep (no silent empty results, input validation, narrow
-  scope, process hygiene, test expectations).
+- [WORKFLOW.md](docs/WORKFLOW.md): setup, the pull request flow, the live test suite and the tools it needs, review,
+  how to add a tool for a new language, commit messages.
+- [PRINCIPLES.md](docs/PRINCIPLES.md): the rules every change must keep (no silent empty results, input validation,
+  narrow scope, process hygiene, test expectations).
 
 AI coding assistants: see [AGENTS.md](AGENTS.md).
 
 ## Releases
 
 Maintainers release by tagging `vX.Y.Z` on `main` after green CI, with the same version in `package.json`; the release
-workflow does the rest. See "Releasing" in [WORKFLOW.md](WORKFLOW.md).
+workflow does the rest. See "Releasing" in [WORKFLOW.md](docs/WORKFLOW.md).
 
 ## Reporting problems
 
-What to include in a problem report is in [WORKFLOW.md](WORKFLOW.md) under "Reporting problems".
+What to include in a problem report is in [WORKFLOW.md](docs/WORKFLOW.md) under "Reporting problems".
 
 ## Security
 

@@ -62,4 +62,4 @@ good as that location.
 
 The default suite replaces the language server with a scripted fake (`test/helpers/fake-lsp.ts`, `fake-clangd.ts`,
 `fake-go.ts`) and injects `spawn`, `exec`, file reads and sleeps, so it is deterministic and runs in seconds. The live
-suite exercises the same code paths against the real tools; see `WORKFLOW.md`.
+suite exercises the same code paths against the real tools; see `docs/WORKFLOW.md`.

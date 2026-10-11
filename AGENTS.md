@@ -4,10 +4,10 @@
 references, callers, implementations) for C++ (clangd, clang-query), Go (gopls) and TypeScript (the TypeScript 7 native
 server, tsgo). TypeScript, ESM, strict mode, Node 20+.
 
-The rules live in [PRINCIPLES.md](PRINCIPLES.md) (what a change must keep) and [WORKFLOW.md](WORKFLOW.md) (how to get it
-merged, the gate list, the live suite, how to report problems). Read PRINCIPLES.md before changing behaviour under
-`src/`; a rename or a typo fix does not need it. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains the structure and
-the module layout.
+The rules live in [PRINCIPLES.md](docs/PRINCIPLES.md) (what a change must keep) and
+[WORKFLOW.md](docs/WORKFLOW.md) (how to get it merged, the gate list, the live suite, how to report problems). Read
+PRINCIPLES.md before changing behaviour under `src/`; a rename or a typo fix does not need it.
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains the structure and the module layout.
 
 Orientation: one file per tool in `src/tools/`, named `<lang>-<question>.ts`; tests mirror `src/` under `test/`;
 `*.live.test.ts` files need real language servers.

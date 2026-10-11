@@ -107,8 +107,8 @@ missing, the result is an error that says how to install it. See [Using it](#usi
 - Node.js 20 or newer.
 - The language servers for the languages you want. Each is optional; a tool whose server is missing returns an error that
   says how to install it. The versions below are what the live suite (`npm run test:live`, see
-  [WORKFLOW.md](WORKFLOW.md)) passes against on Linux: the minimum is the oldest release the suite passes on, and one
-  release below it fails. The server does not check these versions at run time, so an older tool is used as it is.
+  [WORKFLOW.md](docs/WORKFLOW.md)) passes against on Linux: the minimum is the oldest release the suite passes on, and
+  one release below it fails. The server does not check these versions at run time, so an older tool is used as it is.
 
 | Tool                       | Minimum                   | Tested with                                                    |
 | -------------------------- | ------------------------- | -------------------------------------------------------------- |
@@ -250,7 +250,7 @@ default-flags parse and says so.
 
 **Cold and warming up.** A language server starts on the first call that needs it, so that call is slower; a project
 is loaded or indexed in the background. Until a server can prove it is ready for a kind of question, an empty answer is
-returned as an error that says why, never as "nothing found" (see [PRINCIPLES.md](PRINCIPLES.md), rule 1). Retry
+returned as an error that says why, never as "nothing found" (see [PRINCIPLES.md](docs/PRINCIPLES.md), rule 1). Retry
 after a moment. A request left unanswered for 180 seconds is cancelled (see
 [Cancellation](#cancellation-timeouts-and-server-diagnostics)).
 
@@ -339,8 +339,8 @@ npm test
 ```
 
 The gates, the live suite against the real language servers and how to report a problem are in
-[WORKFLOW.md](WORKFLOW.md). See also [CONTRIBUTING.md](CONTRIBUTING.md), [PRINCIPLES.md](PRINCIPLES.md) (the rules a
-change must keep) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+[WORKFLOW.md](docs/WORKFLOW.md). See also [CONTRIBUTING.md](CONTRIBUTING.md), [PRINCIPLES.md](docs/PRINCIPLES.md) (the
+rules a change must keep) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## License
 
