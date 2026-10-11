@@ -102,6 +102,13 @@ that the suite no longer passes at one, changes the README table and the `live` 
 the same commit. The `clang-cl` cases of `find-derived-classes.live.test.ts` (the MSVC-style note format) skip
 when `clang-cl` is not on `PATH`; the CI runners have none, so those cases run only on a developer machine.
 
+## Releasing
+
+A maintainer cuts a release by pushing a tag `vX.Y.Z` on a commit of `main` whose `package.json` version is `X.Y.Z` and
+whose CI is green. `.github/workflows/release.yml` then runs the three gates, fails when the tag and the version differ,
+bundles the server, checks that the bundle starts (`scripts/check-bundle.cjs`), attests its provenance and publishes a
+GitHub Release with `mcp-code-nav.js` and `SHA256SUMS`.
+
 ## Review
 
 Authors: expect review on correctness first: does the change keep every rule in `PRINCIPLES.md`, in particular that no

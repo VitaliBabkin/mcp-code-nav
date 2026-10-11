@@ -23,7 +23,7 @@ const ALLOWED: readonly { readonly file: string; readonly line: RegExp; readonly
   },
   ...["package.json", "README.md", "WORKFLOW.md"].map((file) => ({
     file,
-    line: /github\.com\/VitaliBabkin\/mcp-code-nav/,
+    line: /(github\.com\/|--repo )VitaliBabkin\/mcp-code-nav/,
     reason: "the public repository URL contains the publisher's account name",
   })),
 ];

@@ -30,6 +30,24 @@ your sources.
 
 ## Quick start
 
+**Or download a prebuilt release.** Nothing to clone or build: Node.js 20 or newer is the only requirement besides the
+language servers you use (see [Requirements](#requirements)).
+
+1. Download `mcp-code-nav.js` from the [Releases page](https://github.com/VitaliBabkin/mcp-code-nav/releases), together
+   with `SHA256SUMS` if you want to verify it.
+2. Optionally verify it, in the download directory:
+
+   ```sh
+   sha256sum -c SHA256SUMS
+   gh attestation verify mcp-code-nav.js --repo VitaliBabkin/mcp-code-nav
+   ```
+
+3. Register `/absolute/path/to/mcp-code-nav.js` in your MCP client as described in
+   [Register it in an MCP client](#register-it-in-an-mcp-client). To check the start-up, run the script from step 5 of
+   the build path below with `node - mcp-code-nav.js` in place of `node - dist/index.js`.
+
+To build from source instead (the path for contributors):
+
 1. Check Node: `node --version` must print 20 or newer.
 2. Install the language server for each language you want, at least the minimum in the [Requirements](#requirements)
    table. All are optional; install only the ones you use.
@@ -137,7 +155,8 @@ This produces `dist/index.js`. Optionally, `npm run bundle` writes a single self
 
 ## Register it in an MCP client
 
-The server speaks MCP over stdio. For a client that uses the common `mcpServers` JSON format:
+The server speaks MCP over stdio. Point `args` at the downloaded `mcp-code-nav.js`, or at `dist/index.js` of your build.
+For a client that uses the common `mcpServers` JSON format:
 
 ```json
 {

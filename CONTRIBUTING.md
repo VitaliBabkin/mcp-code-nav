@@ -17,6 +17,11 @@ The details are in two documents:
 
 AI coding assistants: see [AGENTS.md](AGENTS.md).
 
+## Releases
+
+Maintainers release by tagging `vX.Y.Z` on `main` after green CI, with the same version in `package.json`; the release
+workflow does the rest. See "Releasing" in [WORKFLOW.md](WORKFLOW.md).
+
 ## Reporting problems
 
 What to include in a problem report is in [WORKFLOW.md](WORKFLOW.md) under "Reporting problems".
