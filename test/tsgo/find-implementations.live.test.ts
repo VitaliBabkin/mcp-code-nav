@@ -263,11 +263,14 @@ describe("ts_find_implementations against the real tsgo", () => {
       try {
         const result = await ask(manager, "LABEL");
         expect(resultView(result).isError).toBe(true);
+        expect(resultView(result).structuredContent).toEqual({
+          reason: "symbol-kind-unsupported",
+          retryable: false,
+        });
         expect(textOf(result)).toContain('ts_find_implementations failed: "LABEL" is a variable');
         expect(textOf(result)).toContain(
           "only an interface, class, method or property has implementations",
         );
-        expect(result).not.toHaveProperty("structuredContent");
         // The gate is this server's own read of the outline, so it can refuse before anything is asked.
         expect(log.methods).toEqual(["initialize", "textDocument/documentSymbol"]);
       } finally {

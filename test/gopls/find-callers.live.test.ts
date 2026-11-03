@@ -163,11 +163,19 @@ describe("go_find_callers against a real gopls binary", () => {
 
       const struct = await ask(manager, [navRoot], usesFile, "Store");
       expect(resultView(struct).isError).toBe(true);
+      expect(resultView(struct).structuredContent).toEqual({
+        reason: "symbol-kind-unsupported",
+        retryable: false,
+      });
       expect(textOf(struct)).toContain("is a struct");
       expect(textOf(struct)).toMatch(/only a function or a method has callers/);
 
       const iface = await ask(manager, [navRoot], storageFile, "Reader");
       expect(resultView(iface).isError).toBe(true);
+      expect(resultView(iface).structuredContent).toEqual({
+        reason: "symbol-kind-unsupported",
+        retryable: false,
+      });
       expect(textOf(iface)).toContain("is an interface");
     },
     600_000,

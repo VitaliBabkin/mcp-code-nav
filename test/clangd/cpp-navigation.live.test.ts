@@ -627,7 +627,7 @@ describe("cpp_find_references and cpp_find_callers against a real clangd binary"
       expect(textOf(refused)).toMatch(/is declared in "[^"]*[\\/](?:shape\.h|circle\.cpp)"/);
       expect(textOf(refused)).toContain("outside every declared source root");
       expect(textOf(refused)).toContain("reported and never opened");
-      expect(refused.structuredContent).toBeUndefined();
+      expect(refused.structuredContent).toEqual({ reason: "path-escape", retryable: false });
 
       // And neither unscoped answer changed what the session holds. `shape.h` was read to name rows and to
       // answer the questions, always transiently, so a following `cpp_find_symbol` still has to go to the index —
@@ -740,7 +740,10 @@ describe("cpp_find_references and cpp_find_callers against a real clangd binary"
       for (const [tool, answer] of refused) {
         expect(answer.isError, tool).toBe(true);
         expect(textOf(answer), tool).toBe(hintText(tool, tmp));
-        expect(answer.structuredContent, tool).toBeUndefined();
+        expect(answer.structuredContent, tool).toEqual({
+          reason: "compile-db-missing",
+          retryable: false,
+        });
       }
     },
     180_000,

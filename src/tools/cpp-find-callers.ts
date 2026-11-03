@@ -11,7 +11,7 @@ import {
   cppAnswerScope,
   cppQuestionDeclaration,
   missingCompileDbHint,
-  noIndexDeclarationText,
+  noIndexDeclarationRefusal,
   outsideEveryRoot,
   outsideSubjectText,
   resolveCppDeclaration,
@@ -46,6 +46,7 @@ import {
   REFERENCE_SITES_PER_FILE_LIMIT,
 } from "./navigation-limits.js";
 import { candidateText, capsText, type Step, withArticle } from "./navigation-text.js";
+import { reasonOfError } from "./reason-of-error.js";
 import { CppAddressShape } from "./cpp-navigation-shared.js";
 import { CLANGD_DISK_CLAUSE } from "./shared.js";
 import { messageOf } from "../error-message.js";
@@ -109,7 +110,8 @@ function unexpected(symbol: string, received: unknown, part?: string): string {
 /** An answer that is not a list of items is a refusal, not an empty caller set. */
 function asItems(result: unknown, symbol: string): Step<unknown[]> {
   if (result === null || result === undefined) return { ok: true, value: [] };
-  if (!Array.isArray(result)) return { ok: false, error: unexpected(symbol, result) };
+  if (!Array.isArray(result))
+    return { ok: false, error: unexpected(symbol, result), reason: "unexpected-answer" };
   return { ok: true, value: result };
 }
 
@@ -133,7 +135,7 @@ function readItem(
   const file = pathOfUri(item.uri);
   const start = rangeStart(item.range);
   if (file === undefined || start === undefined)
-    return { ok: false, error: unexpected(symbol, raw, part) };
+    return { ok: false, error: unexpected(symbol, raw, part), reason: "unexpected-answer" };
   return { ok: true, value: reportedLocation(file, start, outside, keyOf(file)) };
 }
 
@@ -151,7 +153,8 @@ function preparedItem(
   if (!items.ok) return items;
   const keyOf = locationKeyFactory();
   const only = items.value[0];
-  if (items.value.length === 0) return { ok: false, error: noItemText(symbol) };
+  if (items.value.length === 0)
+    return { ok: false, error: noItemText(symbol), reason: "unexpected-answer" };
   if (items.value.length > 1) {
     const lines = items.value.map((value) => describedItem(value)).join("\n");
     return {
@@ -159,6 +162,7 @@ function preparedItem(
       error:
         `${TOOL} failed: clangd offered ${String(items.value.length)} call-hierarchy items for "${symbol}", and ` +
         `picking one would be a guess, so they are listed:\n${lines}`,
+      reason: "symbol-ambiguous",
     };
   }
   const position = readItem(symbol, outside, keyOf, only, "the call-hierarchy item");
@@ -176,7 +180,8 @@ function describedItem(value: unknown): string {
 
 function callSitesOf(value: unknown, symbol: string): Step<CallerSite[]> {
   if (value === null || value === undefined) return { ok: true, value: [] };
-  if (!Array.isArray(value)) return { ok: false, error: unexpected(symbol, value) };
+  if (!Array.isArray(value))
+    return { ok: false, error: unexpected(symbol, value), reason: "unexpected-answer" };
   const sites: CallerSite[] = [];
   for (const [index, range] of value.entries()) {
     const start = rangeStart(range);
@@ -184,6 +189,7 @@ function callSitesOf(value: unknown, symbol: string): Step<CallerSite[]> {
       return {
         ok: false,
         error: unexpected(symbol, value[index], `call site ${String(index + 1)}`),
+        reason: "unexpected-answer",
       };
     sites.push({
       line: start.line + 1,
@@ -352,7 +358,8 @@ async function callersAnswer(
 export async function runCppFindCallers(sessions: LspSessionManager, raw: CppFindCallersInputType) {
   try {
     const missingDb = await missingCompileDbHint(raw.projectRoot);
-    if (missingDb !== undefined) return errorResult(`${TOOL} failed: ${missingDb}`);
+    if (missingDb !== undefined)
+      return errorResult(`${TOOL} failed: ${missingDb}`, "compile-db-missing");
 
     const { roots, input } = withEffectiveRoots(raw);
     const session = sessions.get(input.projectRoot, clangdConfig);
@@ -360,7 +367,7 @@ export async function runCppFindCallers(sessions: LspSessionManager, raw: CppFin
     // process has been up: a ceiling taken at import would be spent before its first question was asked.
     const budget = budgetOf(NAVIGATION_CEILING_MS);
     const resolved = await resolveCppDeclaration(TOOL, session, input, roots.block);
-    if (!resolved.ok) return errorResult(resolved.error);
+    if (!resolved.ok) return errorResult(resolved.error, resolved.reason);
     const outside = outsideEveryRoot(input.projectRoot, input.sourceRoots);
     const reading = await session.indexDriftReading(input.sourceRoots);
 
@@ -377,14 +384,22 @@ export async function runCppFindCallers(sessions: LspSessionManager, raw: CppFin
         const declaration = target.value.declaration;
         if (declaration === undefined) return { ok: true, value: { target: target.value } };
         if (!CALLABLE_KINDS.has(declaration.kind))
-          return { ok: false, error: refusedKind(declaration) };
+          return {
+            ok: false,
+            error: refusedKind(declaration),
+            reason: "symbol-kind-unsupported",
+          };
         if (declaration.namePosition === undefined)
-          return { ok: false, error: noPositionText(declaration) };
+          return { ok: false, error: noPositionText(declaration), reason: "unexpected-answer" };
         // As in `cpp_find_references`: the hierarchy is answered from the AST of the declaring document, which the
         // index branch may have just named from a file beyond the boundary. `callHierarchy/incomingCalls` needs
         // no document and is asked against the item, so it stays outside the hold.
         if (outside(declaration.file))
-          return { ok: false, error: outsideSubjectText(TOOL, input.name, declaration) };
+          return {
+            ok: false,
+            error: outsideSubjectText(TOOL, input.name, declaration),
+            reason: "path-escape",
+          };
         const position = declaration.namePosition;
         const prepared = await session.withTransientDocument(declaration.file, (holding) =>
           holding.send<unknown>("textDocument/prepareCallHierarchy", {
@@ -406,24 +421,23 @@ export async function runCppFindCallers(sessions: LspSessionManager, raw: CppFin
         };
       },
     );
-    if (!asked.ok) return errorResult(asked.error);
+    if (!asked.ok) return errorResult(asked.error, asked.reason);
     const declaration = asked.value.declaration;
     if (declaration === undefined) {
-      return errorResult(
-        noIndexDeclarationText(
-          TOOL,
-          input.name,
-          input.projectRoot,
-          index,
-          asked.value.target.capped,
-        ),
+      const refusal = noIndexDeclarationRefusal(
+        TOOL,
+        input.name,
+        input.projectRoot,
+        index,
+        asked.value.target.capped,
       );
+      return errorResult(refusal.error, refusal.reason);
     }
 
     const entries = callerEntries(asked.value.incoming, input.name, outside);
-    if (!entries.ok) return errorResult(entries.error);
+    if (!entries.ok) return errorResult(entries.error, entries.reason);
     if (entries.value.length === 0 && index !== "quiescent") {
-      return errorResult(emptyWhileNotQuiescent(input.name, index));
+      return errorResult(emptyWhileNotQuiescent(input.name, index), "not-ready");
     }
 
     const payload = await callersAnswer(
@@ -435,7 +449,7 @@ export async function runCppFindCallers(sessions: LspSessionManager, raw: CppFin
     );
     return successResult(payload, humanSummary(payload));
   } catch (e) {
-    return errorResult(`${TOOL} failed: ${messageOf(e)}`);
+    return errorResult(`${TOOL} failed: ${messageOf(e)}`, reasonOfError(e));
   }
 }
 

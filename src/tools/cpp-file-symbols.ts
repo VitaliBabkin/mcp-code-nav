@@ -13,6 +13,7 @@ import {
 } from "./cpp-navigation-shared.js";
 import { PathInput } from "./input-limits.js";
 import type { NavigationLimit } from "./navigation-limits.js";
+import { reasonOfError } from "./reason-of-error.js";
 import { cppSourceRoots, type CppSourceRootsBlock } from "../clang-query/derived-source-roots.js";
 import {
   CLANGD_DISK_CLAUSE,
@@ -59,6 +60,7 @@ function emptyDegradedParse(
   return errorResult(
     `${missingDb} Without it, a default-flags parse of "${absoluteFile}" found no symbols, which does not show ` +
       "the file is empty.",
+    "compile-db-missing",
   );
 }
 
@@ -80,7 +82,8 @@ export async function runCppFileSymbols(
   try {
     const missingDb = await missingCompileDbHint(input.projectRoot);
     const degraded = missingDb !== undefined;
-    if (degraded && !isDirectory(input.projectRoot)) return errorResult(missingDb);
+    if (degraded && !isDirectory(input.projectRoot))
+      return errorResult(missingDb, "compile-db-missing");
 
     // Nothing is derived without a database: the degraded call resolves against projectRoot and what was declared.
     const block = degraded
@@ -101,7 +104,7 @@ export async function runCppFileSymbols(
           file: input.file,
           sourceRoots: block,
         });
-        return errorResult(`cpp_file_symbols failed: ${e.message}${fix}`);
+        return errorResult(`cpp_file_symbols failed: ${e.message}${fix}`, reasonOfError(e));
       }
       throw e;
     }
@@ -116,6 +119,7 @@ export async function runCppFileSymbols(
       return errorResult(
         `cpp_file_symbols failed: "${absoluteFile}" produced no symbols while clangd's index for this ` +
           "project was not yet confirmed warm — this is not confirmed to be a genuinely empty file, retry once the index has warmed up.",
+        "not-ready",
       );
     }
     const symbols: OutlineSymbol[] =
@@ -136,6 +140,7 @@ export async function runCppFileSymbols(
     const hint = sourceRoots === undefined ? "" : fileNotFoundHint(e, sourceRoots);
     return errorResult(
       `cpp_file_symbols failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}${hint}`,
+      reasonOfError(e),
     );
   }
 }

@@ -1,7 +1,8 @@
+import { type ErrorReason, reasonFields } from "./error-reason.js";
+
 /**
- * Success result: duplicated `text` block plus `structuredContent`, per `mcp-tool-response-contract.md`'s
- * backwards-compatibility rule. `text` overrides the JSON dump for callers whose first read is the prose;
- * `structuredContent` is the same object either way.
+ * Success result: the `text` block duplicates `structuredContent` for clients that read only the prose. `text`
+ * overrides the JSON dump for callers whose first read is the prose; `structuredContent` is the same object either way.
  */
 export function successResult<T>(structuredContent: T, text?: string) {
   return {
@@ -10,17 +11,24 @@ export function successResult<T>(structuredContent: T, text?: string) {
   };
 }
 
-/** Execution error: `isError: true` inside a normal result, never a thrown JSON-RPC error — see `mcp-tool-response-contract.md`. */
-export function errorResult(text: string) {
-  return { isError: true as const, content: [{ type: "text" as const, text }] };
-}
-
-/** An execution that produced usable but incomplete data: `isError: true` so the caller branches, payload still carried. */
-export function partialResult<T>(text: string, structuredContent: T) {
+/**
+ * Execution error: `isError: true` inside a normal result, never a thrown JSON-RPC error. The prose says why for a
+ * reader; `reason` and `retryable` say it for a caller that branches.
+ */
+export function errorResult(text: string, reason: ErrorReason) {
   return {
     isError: true as const,
     content: [{ type: "text" as const, text }],
-    structuredContent,
+    structuredContent: reasonFields(reason),
+  };
+}
+
+/** An execution that produced usable but incomplete data: `isError: true` so the caller branches, payload still carried. */
+export function partialResult<T extends object>(text: string, reason: ErrorReason, payload: T) {
+  return {
+    isError: true as const,
+    content: [{ type: "text" as const, text }],
+    structuredContent: { ...payload, ...reasonFields(reason) },
   };
 }
 

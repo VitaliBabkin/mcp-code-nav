@@ -42,6 +42,8 @@ A new backend or query class states its readiness proof before it ships, and a t
 - Every `isError: true` text names why: cold index, ignored path, path escape, ambiguous match, no match, missing
   language server, `clang-query` compile failure. A caller (human or agent) must be able to decide what to do next
   without re-deriving the cause from a generic message.
+- The cause is also in `structuredContent.reason`, so a caller that branches reads it without parsing the text. The
+  reason is set where the text is written; a failure with no `reason` is the MCP SDK's refusal of the request as sent.
 - A partial answer is `isError: true` with the partial payload attached and a block stating how much of the scope was
   covered. It is never an empty success.
 - A missing binary, a crashed child or a bad configuration becomes a tool error with an install hint. It never takes the

@@ -10,6 +10,7 @@ import { renamedImportOf, subjectIdentity } from "./ts-alias-identity.js";
 import { REFERENCE_FILES_LIMIT, REFERENCE_SITES_PER_FILE_LIMIT } from "./navigation-limits.js";
 import { capsText } from "./navigation-text.js";
 import { NameInput, PathInput } from "./input-limits.js";
+import { reasonOfError } from "./reason-of-error.js";
 import { resolutionNote } from "./shared.js";
 import {
   OUTSIDE_WORKSPACE_REASON,
@@ -225,7 +226,7 @@ export async function runTsFindReferences(
     const opened = await openTsQuery(TOOL, sessions, input, deps, (resolved) => {
       resolution = resolved;
     });
-    if (!opened.ok) return errorResult(opened.error);
+    if (!opened.ok) return errorResult(opened.error, opened.reason);
     const query = opened.value;
     // tsgo is always asked with `includeDeclaration: true`: with false it drops every location it flags as a
     // definition in any group of the search, which is import and re-export specifiers as well as the subject's
@@ -244,7 +245,7 @@ export async function runTsFindReferences(
       params,
       `answer the query for "${input.symbol}"`,
     );
-    if (!answered.ok) return errorResult(answered.error);
+    if (!answered.ok) return errorResult(answered.error, answered.reason);
     const locations = toReported(
       "tsgo",
       TOOL,
@@ -252,7 +253,7 @@ export async function runTsFindReferences(
       tsFileExternal(query.workspaceRoot),
       input.symbol,
     );
-    if (!locations.ok) return errorResult(locations.error);
+    if (!locations.ok) return errorResult(locations.error, locations.reason);
     // Before the grouping, the caps and the naming, so every count says what the listing holds.
     const identity = await subjectIdentity(TOOL, query, input.symbol);
     const kept = input.includeDeclaration
@@ -281,7 +282,10 @@ export async function runTsFindReferences(
     const { summary, text } = humanSummary(payload);
     return successResult(withSummary(summary, payload), text);
   } catch (e) {
-    return errorResult(`${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`);
+    return errorResult(
+      `${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`,
+      reasonOfError(e),
+    );
   }
 }
 

@@ -551,6 +551,10 @@ describe("runTsFindSymbol", () => {
 
       const bare = await h.run({ symbol: "run" });
       expect(resultView(bare).isError).toBe(true);
+      expect(resultView(bare).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(bare)).toContain('no declaration named "run" was found');
     });
 
@@ -559,6 +563,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ symbol: "Absent" });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(out)).toContain(
         `no declaration named "Absent" was found in the outline of "${h.main}"`,
       );
@@ -675,6 +683,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ symbol: "scaled.compute", anchor: h.ws });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(out)).toContain(
         'no declaration named "scaled.compute" was found in the whole workspace',
       );
@@ -743,6 +755,10 @@ describe("runTsFindSymbol", () => {
         100,
       );
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "budget-exceeded",
+        retryable: true,
+      });
       expect(textOf(out)).toContain("100 ms budget");
       expect(textOf(out)).toContain("tsgo did not start");
       expect(h.server.methods).not.toContain(SYMBOL_METHOD);
@@ -798,6 +814,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ symbol: "run", anchor: h.ws });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(out)).toContain('no declaration named "run" was found');
     });
 
@@ -885,6 +905,10 @@ describe("runTsFindSymbol", () => {
       h.indexOfSize(TS_WORKSPACE_SYMBOL_CAP_WATERMARK, [indexed(h.main, "Nearby", 12, 3, 16)]);
       const capped = await h.run({ symbol: "Absent", anchor: h.ws });
       expect(resultView(capped).isError).toBe(true);
+      expect(resultView(capped).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(capped)).toContain(
         'no declaration named "Absent" was found in the whole workspace',
       );
@@ -894,6 +918,10 @@ describe("runTsFindSymbol", () => {
       h.indexOfSize(TS_WORKSPACE_SYMBOL_CAP_WATERMARK - 1, [indexed(h.main, "Nearby", 12, 3, 16)]);
       const uncapped = await h.run({ symbol: "Absent", anchor: h.ws });
       expect(resultView(uncapped).isError).toBe(true);
+      expect(resultView(uncapped).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(uncapped)).not.toMatch(/ranked out/);
     });
 
@@ -918,6 +946,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ symbol: "area", anchor: h.ws });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "unexpected-answer",
+        retryable: false,
+      });
       expect(textOf(out)).toMatch(/cannot read/);
       expect(textOf(out)).toMatch(/entry 1/);
     });
@@ -931,9 +963,12 @@ describe("runTsFindSymbol", () => {
         100,
       );
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "budget-exceeded",
+        retryable: true,
+      });
       expect(textOf(out)).toContain('search the workspace for "area"');
       expect(textOf(out)).toMatch(/do not read this as an empty answer/);
-      expect(out).not.toHaveProperty("structuredContent");
     });
 
     it("refuses an answer from a tsgo that was replaced while the search was in flight", async () => {
@@ -943,6 +978,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ symbol: "area", anchor: h.ws });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "session-lost",
+        retryable: true,
+      });
       expect(textOf(out)).toMatch(/tsgo restarted during the query about "area"/);
       expect(h.servers).toHaveLength(2);
     });
@@ -990,6 +1029,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ symbol: "area", anchor: h.ws });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "input-invalid",
+        retryable: false,
+      });
       expect(textOf(out)).toContain("no project anchor could be opened");
       expect(textOf(out)).toContain(join(h.ws, "tsconfig.json"));
       expect(textOf(out)).toContain("error TS5083");
@@ -1002,6 +1045,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ symbol: "area", anchor: h.ws });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "input-invalid",
+        retryable: false,
+      });
       expect(textOf(out)).toContain("no project anchor could be opened");
       expect(textOf(out)).toContain("lists no member file");
       expect(h.server.methods).not.toContain(SYMBOL_METHOD);
@@ -1017,6 +1064,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ symbol: "area", anchor: h.ws });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "input-invalid",
+        retryable: false,
+      });
       expect(textOf(out)).toContain("no project anchor could be opened");
       expect(textOf(out)).toContain("no project map");
       expect(h.server.methods).not.toContain(SYMBOL_METHOD);
@@ -1029,6 +1080,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ anchor: join(h.ws, "gone.ts") });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "file-not-found",
+        retryable: false,
+      });
       expect(textOf(out)).toMatch(/the anchor ".*gone\.ts" does not exist/);
       expect(h.servers).toHaveLength(0);
     });
@@ -1038,6 +1093,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ anchor: join(h.tmp, "outside") });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "path-escape",
+        retryable: false,
+      });
       expect(textOf(out)).toMatch(/escapes every declared root/);
       expect(h.servers).toHaveLength(0);
     });
@@ -1048,6 +1107,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ anchor: join(h.ws, "README.md") });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "input-invalid",
+        retryable: false,
+      });
       expect(textOf(out)).toContain("is not a TypeScript or JavaScript source");
       expect(h.servers).toHaveLength(0);
     });
@@ -1071,6 +1134,7 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ sourceRoots: [h.tmp], anchor: plain });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({ reason: "no-module", retryable: false });
       expect(textOf(out)).toMatch(/is not inside an npm package/);
       expect(textOf(out)).toContain(plain);
       expect(h.servers).toHaveLength(0);
@@ -1082,6 +1146,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ sourceRoots: [pkg], anchor: pkg });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "path-escape",
+        retryable: false,
+      });
       expect(textOf(out)).toMatch(/outside every declared sourceRoots entry/);
       expect(textOf(out)).toContain(join(h.ws, "packages", "ui"));
     });
@@ -1103,6 +1171,10 @@ describe("runTsFindSymbol", () => {
           miss,
         );
         expect(resultView(out).isError).toBe(true);
+        expect(resultView(out).structuredContent).toEqual({
+          reason: "server-unavailable",
+          retryable: false,
+        });
         expect(textOf(out)).toContain("no TypeScript 7 native server was found");
         expect(textOf(out)).not.toMatch(/budget/);
       }
@@ -1187,8 +1259,11 @@ describe("runTsFindSymbol", () => {
       expect(resultView(out).isError).toBe(true);
       expect(textOf(out)).toContain(`no declaration named "ONLY_HERE" was found`);
       expect(textOf(out).endsWith(`\n${CLAUSE(orphan)}`)).toBe(true);
-      // An error result is text only and carries no summary key.
-      expect(out).not.toHaveProperty("structuredContent");
+      // The structured content of an error is its reason alone: no summary key rides beside it.
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
     });
 
     it("appends the clause to a file anchor's refusal too, building the map only for that refusal", async () => {
@@ -1197,6 +1272,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ symbol: "ONLY_HERE" });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(out).endsWith(`\n${CLAUSE(orphan)}`)).toBe(true);
       expect(h.server.methods).not.toContain(SYMBOL_METHOD);
     });
@@ -1208,6 +1287,10 @@ describe("runTsFindSymbol", () => {
       for (const symbol of ["ONLY_HERE.", "A..b", " "]) {
         const out = await h.run({ symbol });
         expect(resultView(out).isError).toBe(true);
+        expect(resultView(out).structuredContent).toEqual({
+          reason: "symbol-not-found",
+          retryable: false,
+        });
         expect(textOf(out)).not.toContain("were not searched");
         expect(textOf(out)).not.toContain("mention");
       }
@@ -1218,6 +1301,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ symbol: "Absent" });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(out)).toMatch(/is not an answer this call can give\.$/);
       expect(textOf(out)).not.toContain("were not searched");
     });
@@ -1229,6 +1316,10 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ symbol: "ONLY_HERE" });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(out)).toMatch(/is not an answer this call can give\.$/);
     });
   });

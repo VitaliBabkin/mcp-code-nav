@@ -196,6 +196,7 @@ describe("sweep.uncoveredSources", () => {
       });
     const out = await run({ exec: hanging, timeBudgetMs: 20 });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toMatchObject({ reason: "budget-exceeded", retryable: true });
     expect(out.structuredContent?.incomplete).toEqual({
       sweptTus: 0,
       totalTus: 1,
@@ -358,6 +359,7 @@ describe("a files-scoped call diagnoses its own entries against the database", (
   it("names the blind-spot files in the uniform-failure text instead of only blaming the binary", async () => {
     const out = await run({ files: ["typo.cpp"], exec: brokenExec });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "sweep-failed", retryable: false });
     const text = out.content[0]?.text ?? "";
     expect(text).toBe(
       "cpp_find_derived_classes failed on all 1 translation units with the same error, so the empty result is a " +

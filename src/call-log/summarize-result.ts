@@ -1,7 +1,8 @@
 /** What the transport tap reads out of a wire message: the logged arguments, and everything derived from a response. */
 import { Buffer } from "node:buffer";
 import { z } from "zod";
-import { classifyError } from "./error-class.js";
+import type { ErrorReason } from "../error-reason.js";
+import { classifyError, reasonOf } from "./error-class.js";
 import { CallRecord, LOGGED_ARG_KEYS, RESULT_COUNT_SELECTORS } from "./record.js";
 
 /** A value the log can carry in plaintext — exactly the shape `ArgValue` in `record.ts` admits. */
@@ -31,6 +32,11 @@ export type CallSummary = {
 };
 
 type DerivedFields = Omit<CallSummary, "outcome" | "errorClass" | "errorHead" | "textBytes">;
+type FailureFields = Pick<CallSummary, "errorClass" | "errorHead">;
+
+/** The two keys every error result carries in `structuredContent`, which are not a payload. */
+const REASON_KEYS: ReadonlySet<string> = new Set(["reason", "retryable"]);
+const NOT_A_FAILURE: FailureFields = { errorClass: null, errorHead: null };
 
 /**
  * Allow-listed argument values plus the names of everything else, so an unexpected parameter stays countable
@@ -72,7 +78,8 @@ function fitsRecord(record: z.infer<typeof CallRecord>): boolean {
 
 /**
  * Reads one outgoing JSON-RPC message as a call outcome. A JSON-RPC error response is `protocol-error` and
- * carries no payload fields, because the SDK answered before any tool ran.
+ * carries no payload fields, because the SDK answered before any tool ran. A failed result is `partial` when it
+ * carries a payload beside its reason, and `error` when the reason is all it carries.
  */
 export function summarizeCall(
   tool: string,
@@ -84,7 +91,7 @@ export function summarizeCall(
   if (jsonRpcError !== undefined && message?.["result"] === undefined) {
     return {
       outcome: "protocol-error",
-      ...classify(textOf(jsonRpcError, "message") ?? ""),
+      ...failure(textOf(jsonRpcError, "message") ?? "", null),
       ...derive(undefined, tool, args),
       textBytes: 0,
     };
@@ -93,16 +100,34 @@ export function summarizeCall(
   const result = asRecord(message?.["result"]);
   const structured = asRecord(result?.["structuredContent"]);
   const failed = result?.["isError"] === true;
+  const payload = failed ? failurePayload(structured) : structured;
   return {
-    outcome: !failed ? "ok" : structured === undefined ? "error" : "partial",
-    ...classify(failed ? firstTextBlock(result) : ""),
-    ...derive(structured, tool, args),
+    outcome: !failed ? "ok" : payload === undefined ? "error" : "partial",
+    ...(failed ? failure(firstTextBlock(result), reasonOf(structured?.["reason"])) : NOT_A_FAILURE),
+    ...derive(payload, tool, args),
     textBytes: textBytesOf(result),
   };
 }
 
-function classify(text: string): { errorClass: string | null; errorHead: string | null } {
-  return text === "" ? { errorClass: null, errorHead: null } : classifyError(text);
+/**
+ * A failure's class is the reason its result names, and only where it names none is its text read. The head is
+ * always the text's, so a symbol named like another class's anchor is still logged under its own reason.
+ */
+function failure(text: string, reason: ErrorReason | null): FailureFields {
+  if (text === "") return { errorClass: reason, errorHead: null };
+  const classified = classifyError(text);
+  return { errorClass: reason ?? classified.errorClass, errorHead: classified.errorHead };
+}
+
+/** What a failed result carries beside its reason, or nothing when the reason is all it carries. */
+function failurePayload(
+  structured: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (structured === undefined) return undefined;
+  const payload = Object.fromEntries(
+    Object.entries(structured).filter(([key]) => !REASON_KEYS.has(key)),
+  );
+  return Object.keys(payload).length === 0 ? undefined : payload;
 }
 
 function derive(

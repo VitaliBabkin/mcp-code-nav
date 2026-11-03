@@ -413,6 +413,7 @@ describe("runGoFindSymbol", () => {
 
     const lower = await h.run({ symbol: "(*hidden).ping", anchor: h.mod });
     expect(lower.isError).toBe(true);
+    expect(lower.structuredContent).toEqual({ reason: "symbol-not-found", retryable: false });
 
     h.index([indexed(h.file, "hidden.ping", 6, 22)]);
     const dotted = await h.run({ symbol: "hidden.ping", anchor: h.mod });
@@ -696,6 +697,7 @@ describe("runGoFindSymbol", () => {
     h.indexOfSize(WORKSPACE_SYMBOL_CAP_WATERMARK, [indexed(h.file, "Nearby", 12, 3)]);
     const capped = await h.run({ symbol: "Absent", anchor: h.mod });
     expect(capped.isError).toBe(true);
+    expect(capped.structuredContent).toEqual({ reason: "symbol-not-found", retryable: false });
     expect(textOf(capped)).toContain('no declaration named "Absent" was found in the whole module');
     expect(textOf(capped)).toContain("The match is exact, not fuzzy");
     expect(textOf(capped)).toContain("may have been ranked out of it");
@@ -703,6 +705,7 @@ describe("runGoFindSymbol", () => {
     h.indexOfSize(WORKSPACE_SYMBOL_CAP_WATERMARK - 1, [indexed(h.file, "Nearby", 12, 3)]);
     const uncapped = await h.run({ symbol: "Absent", anchor: h.mod });
     expect(uncapped.isError).toBe(true);
+    expect(uncapped.structuredContent).toEqual({ reason: "symbol-not-found", retryable: false });
     expect(textOf(uncapped)).not.toMatch(/ranked out/);
   });
 
@@ -712,6 +715,7 @@ describe("runGoFindSymbol", () => {
 
     const out = await h.run({ symbol: "Absent" });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "symbol-not-found", retryable: false });
     expect(textOf(out)).toContain(
       `no declaration named "Absent" was found in the top-level declarations of "${h.file}"`,
     );
@@ -725,6 +729,7 @@ describe("runGoFindSymbol", () => {
     const h = harness();
     const out = await h.run({ anchor: join(h.mod, "gone.go") });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "file-not-found", retryable: false });
     expect(textOf(out)).toMatch(/the anchor ".*gone\.go" does not exist/);
     expect(h.server.methods).toEqual([]);
   });
@@ -733,6 +738,7 @@ describe("runGoFindSymbol", () => {
     const h = harness();
     const out = await h.run({ anchor: join(h.tmp, "outside") });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "path-escape", retryable: false });
     expect(textOf(out)).toMatch(/escapes every declared root/);
     expect(h.server.methods).toEqual([]);
   });
@@ -745,6 +751,7 @@ describe("runGoFindSymbol", () => {
 
     const out = await h.run({ sourceRoots: [h.tmp], anchor: plain });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "no-module", retryable: false });
     expect(textOf(out)).toMatch(/is not inside a Go module/);
     expect(textOf(out)).toContain(plain);
     expect(h.server.methods).toEqual([]);
@@ -758,6 +765,7 @@ describe("runGoFindSymbol", () => {
 
     const out = await h.run({ sourceRoots: [pkg], anchor: pkg });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "path-escape", retryable: false });
     expect(textOf(out)).toMatch(/outside every declared sourceRoots entry/);
     expect(textOf(out)).toContain(resolve(h.mod));
   });
@@ -768,6 +776,7 @@ describe("runGoFindSymbol", () => {
 
     const out = await runUntilBudgetExpires(() => h.run({ anchor: h.mod, timeBudgetMs: 40 }), 40);
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "not-ready", retryable: true });
     expect(textOf(out)).toMatch(/initial workspace load/);
     expect(textOf(out)).toContain("40 ms budget");
     expect(h.server.methods).not.toContain(SYMBOL_METHOD);
@@ -780,6 +789,7 @@ describe("runGoFindSymbol", () => {
 
     const out = await runUntilBudgetExpires(() => h.run({ anchor: h.mod, timeBudgetMs: 40 }), 40);
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "budget-exceeded", retryable: true });
     expect(textOf(out)).toContain('search the module for "Storage"');
     expect(textOf(out)).toMatch(/do not read this as an empty answer/);
   });
@@ -805,6 +815,7 @@ describe("runGoFindSymbol", () => {
 
     const out = await h.run({ anchor: h.mod });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "session-lost", retryable: true });
     expect(textOf(out)).toMatch(/gopls restarted during the query/);
     // The retried search really was answered — what is refused is the proof, not the reply.
     expect(h.server.methods.filter((method) => method === SYMBOL_METHOD)).toHaveLength(2);
@@ -818,6 +829,7 @@ describe("runGoFindSymbol", () => {
 
     const out = await h.run({ anchor: h.mod });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "input-invalid", retryable: false });
     expect(textOf(out)).toContain(`"${tagged}"`);
     expect(textOf(out)).toMatch(/Commonly a build constraint/);
   });
@@ -829,6 +841,7 @@ describe("runGoFindSymbol", () => {
 
     const out = await h.run({ anchor: h.mod });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "unexpected-answer", retryable: false });
     expect(textOf(out)).toMatch(/cannot read/);
     expect(textOf(out)).toMatch(/entry 1/);
   });
@@ -864,6 +877,7 @@ describe("runGoFindSymbol", () => {
 
       const out = await h.run({ anchor });
       expect(out.isError).toBe(true);
+      expect(out.structuredContent).toEqual({ reason: "server-unavailable", retryable: false });
       expect(textOf(out)).toContain("Cannot start gopls");
       expect(textOf(out)).toContain("MCP_CODE_NAV_GOPLS");
       expect(textOf(out)).not.toMatch(/budget/);

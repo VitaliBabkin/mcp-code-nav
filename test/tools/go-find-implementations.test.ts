@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LspDocumentSymbol } from "../../src/clangd/outline.js";
 import type { ModuleSnapshotFn } from "../../src/lsp/module-freshness.js";
 import type { SpawnLsp } from "../../src/lsp/process.js";
-import { goplsConfig } from "../../src/lsp/server-config.js";
+import { goplsConfig, LanguageServerUnavailableError } from "../../src/lsp/server-config.js";
 import type { LspSession } from "../../src/lsp/session.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { runGoFindImplementations } from "../../src/tools/go-find-implementations.js";
@@ -514,6 +514,7 @@ describe("runGoFindImplementations", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "unexpected-answer", retryable: false });
     expect(textOf(out)).toMatch(/cannot read/);
     expect(textOf(out)).toContain('"Storage"');
     expect(textOf(out)).toMatch(/entry 1/);
@@ -670,6 +671,7 @@ describe("runGoFindImplementations", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "input-invalid", retryable: false });
     expect(textOf(out)).toContain(`"${tagged}"`);
     expect(textOf(out)).toMatch(/Commonly a build constraint/);
     expect(textOf(out)).toContain("//go:build");
@@ -685,6 +687,7 @@ describe("runGoFindImplementations", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "input-invalid", retryable: false });
     expect(textOf(out)).toMatch(/exactly the exclusion `scope.osArchExcluded` reports/);
   });
 
@@ -695,6 +698,8 @@ describe("runGoFindImplementations", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    // A refusal that is neither a missing package nor a restart is passed up as the defect it is.
+    expect(out.structuredContent).toEqual({ reason: "internal", retryable: false });
     expect(textOf(out)).toContain("no identifier found");
     expect(textOf(out)).not.toMatch(/build constraint/);
   });
@@ -727,6 +732,7 @@ describe("runGoFindImplementations", () => {
 
     const out = await h.run({ timeBudgetMs: 40 });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "not-ready", retryable: true });
     expect(textOf(out)).toMatch(/initial workspace load/);
     expect(textOf(out)).toContain("40 ms budget");
     expect(h.server.methods).not.toContain("textDocument/implementation");
@@ -764,6 +770,7 @@ describe("runGoFindImplementations", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "session-lost", retryable: true });
     expect(textOf(out)).toMatch(/gopls restarted during the query/);
     expect(textOf(out)).toMatch(/initial workspace load has not been proven/);
     // The retried query really was answered — what is refused is the proof, not the reply.
@@ -779,6 +786,7 @@ describe("runGoFindImplementations", () => {
 
     const out = await h.run({ symbol: "Handler" });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "symbol-kind-unsupported", retryable: false });
     expect(textOf(out)).toMatch(/named func type/);
     expect(textOf(out)).toMatch(/cannot be decided/);
     expect(h.server.methods).not.toContain("textDocument/implementation");
@@ -798,6 +806,10 @@ describe("runGoFindImplementations", () => {
 
       const out = await h.run({ symbol: "Decl" });
       expect(out.isError).toBe(true);
+      expect(out.structuredContent).toEqual({
+        reason: "symbol-kind-unsupported",
+        retryable: false,
+      });
       expect(textOf(out)).toContain(`is a ${kindName}`);
       expect(textOf(out)).toMatch(/only named types and interfaces have a direction/);
     },
@@ -818,6 +830,7 @@ describe("runGoFindImplementations", () => {
     await h.ready();
     const bare = await h.run({ symbol: "Save" });
     expect(bare.isError).toBe(true);
+    expect(bare.structuredContent).toEqual({ reason: "symbol-not-found", retryable: false });
     expect(textOf(bare)).toMatch(/no top-level declaration named "Save"/);
   });
 
@@ -828,6 +841,7 @@ describe("runGoFindImplementations", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "symbol-ambiguous", retryable: false });
     expect(textOf(out)).toMatch(/matches 2 top-level declarations/);
     expect(textOf(out)).toContain(`Storage (interface) at ${h.file}:14`);
     expect(textOf(out)).toContain(`Storage (struct) at ${h.file}:61`);
@@ -839,6 +853,7 @@ describe("runGoFindImplementations", () => {
 
     const out = await h.run({ symbol: "Absent" });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "symbol-not-found", retryable: false });
     expect(textOf(out)).toMatch(/no top-level declaration named "Absent"/);
     expect(textOf(out)).toContain(h.file);
   });
@@ -850,6 +865,7 @@ describe("runGoFindImplementations", () => {
 
     const out = await h.run({ symbol: "Bare" });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "unexpected-answer", retryable: false });
     expect(textOf(out)).toMatch(/no selection range/);
     expect(h.server.methods).not.toContain("textDocument/implementation");
   });
@@ -862,6 +878,7 @@ describe("runGoFindImplementations", () => {
 
     const out = await h.run({ sourceRoots: [plain], file: join(plain, "a.go") });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "no-module", retryable: false });
     expect(textOf(out)).toMatch(/not inside a Go module/);
     expect(h.server.methods).toEqual([]);
   });
@@ -875,6 +892,7 @@ describe("runGoFindImplementations", () => {
 
     const out = await h.run({ sourceRoots: [pkg], file: inPkg });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "path-escape", retryable: false });
     expect(textOf(out)).toMatch(/outside every declared sourceRoots entry/);
     expect(textOf(out)).toContain(resolve(h.mod));
     expect(textOf(out)).toContain(resolve(pkg));
@@ -883,12 +901,16 @@ describe("runGoFindImplementations", () => {
   it("keeps the tried spellings of a relative file when the session throws on the way to an answer", async () => {
     const h = harness({
       spawn: () => {
-        throw new Error('Cannot start gopls: "gopls" on PATH was not found');
+        throw new LanguageServerUnavailableError(
+          { config: goplsConfig, attempted: "gopls", fromOverride: false },
+          { message: 'Cannot start gopls: "gopls" on PATH was not found' },
+        );
       },
     });
 
     const out = await h.run({ sourceRoots: [h.tmp, h.mod], file: "storage.go" });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "server-unavailable", retryable: false });
     expect(textOf(out)).toContain("Cannot start gopls");
     expect(textOf(out)).toMatch(/Resolved "storage\.go" to "/);
     expect(textOf(out)).toMatch(/\(tried: "/);

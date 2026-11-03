@@ -20,6 +20,8 @@ export interface ClangQueryExecResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+  /** Set when the `clang-query` binary could not be started at all, not when it ran and failed. */
+  binaryMissing?: boolean;
 }
 
 /** Injection seam for tests — real execution shells out to the `clang-query` binary. */
@@ -44,8 +46,14 @@ export const defaultClangQueryExec: ClangQueryExecFn = async (args, cwd, signal)
     // failure, so it must propagate as a rejection for the sweep's abort handling to recognize it,
     // rather than being folded into a normal (wrong) failedFiles entry below.
     if (signal?.aborted) throw e;
-    const err = e as { stdout?: string; stderr?: string; code?: number };
-    return { stdout: err.stdout ?? "", stderr: err.stderr ?? String(e), exitCode: err.code ?? 1 };
+    const err = e as { stdout?: string; stderr?: string; code?: number | string };
+    return {
+      stdout: err.stdout ?? "",
+      stderr: err.stderr ?? String(e),
+      exitCode: typeof err.code === "number" ? err.code : 1,
+      // A spawn that fails before the process exists carries the code ENOENT and no output at all.
+      binaryMissing: err.code === "ENOENT",
+    };
   }
 };
 
@@ -360,6 +368,8 @@ export interface SweepStats {
 export interface UniformSweepFailure {
   readonly error: string;
   readonly failedTus: number;
+  /** Present only when every failed TU's `clang-query` could not be started: the tool is missing, not the sweep. */
+  readonly binaryMissing?: true;
 }
 
 export interface FindDerivedClassesResult {
@@ -469,6 +479,8 @@ interface SweepAccumulator {
   readonly failedFiles: FailedFile[];
   /** Error of every TU whose outcome is `kind: "failed"`; one identical string across all of them is the uniform-failure signal. */
   readonly failureErrors: string[];
+  /** How many freshly run TUs found no `clang-query` binary to start; a cached outcome never counts. */
+  missingBinaryTus: number;
 }
 
 function mergeOutcome(acc: SweepAccumulator, tu: string, outcome: TuOutcome): void {
@@ -495,13 +507,19 @@ function mergeOutcome(acc: SweepAccumulator, tu: string, outcome: TuOutcome): vo
  * the signal, so nothing matches on `clang-query`'s stderr wording.
  */
 function uniformSweepFailure(
-  failureErrors: readonly string[],
+  acc: SweepAccumulator,
   totalTus: number,
 ): UniformSweepFailure | undefined {
+  const { failureErrors } = acc;
   if (totalTus === 0 || failureErrors.length !== totalTus) return undefined;
   const shared = failureErrors[0];
   if (shared === undefined || !failureErrors.every((error) => error === shared)) return undefined;
-  return { error: shared, failedTus: failureErrors.length };
+  const allMissing = acc.missingBinaryTus === failureErrors.length;
+  return {
+    error: shared,
+    failedTus: failureErrors.length,
+    ...(allMissing ? { binaryMissing: true as const } : {}),
+  };
 }
 
 /**
@@ -541,6 +559,7 @@ export async function findDerivedClasses(
     locations: new Map<string, DerivedClassMatch>(),
     failedFiles: [],
     failureErrors: [],
+    missingBinaryTus: 0,
   };
   const { pending, cachedTus } = replayCachedTus(run, acc);
 
@@ -554,7 +573,7 @@ export async function findDerivedClasses(
     sweptTus < totalTus
       ? { sweptTus, totalTus, reason: abortReason ?? ("time-budget" as const) }
       : undefined;
-  const uniformFailure = incomplete ? undefined : uniformSweepFailure(acc.failureErrors, totalTus);
+  const uniformFailure = incomplete ? undefined : uniformSweepFailure(acc, totalTus);
 
   return {
     matches: Array.from(acc.locations.values()),
@@ -711,6 +730,7 @@ async function sweepPendingTus(
       result,
     );
     mergeOutcome(acc, tu, outcome);
+    if (result.binaryMissing) acc.missingBinaryTus++;
     acc.failedFiles.push(...extractionFailures);
     storeCleanOutcome(run, tu, outcome);
     sweptCount++;

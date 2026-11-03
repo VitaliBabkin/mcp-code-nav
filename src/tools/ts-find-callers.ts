@@ -23,6 +23,7 @@ import { type NamedRow, nameLocations, namedRow } from "./location-naming.js";
 import { CALLERS_LIMIT, REFERENCE_SITES_PER_FILE_LIMIT } from "./navigation-limits.js";
 import { candidateText, capsText, type Step } from "./navigation-text.js";
 import { NameInput, PathInput } from "./input-limits.js";
+import { reasonOfError } from "./reason-of-error.js";
 import { resolutionNote } from "./shared.js";
 import {
   OUTSIDE_WORKSPACE_REASON,
@@ -130,7 +131,7 @@ function readItem(
   const file = pathOfUri(item.uri);
   const start = rangeStart(item.selectionRange) ?? rangeStart(item.range);
   if (file === undefined || start === undefined) {
-    return { ok: false, error: unexpectedCallText(symbol, raw, part) };
+    return { ok: false, error: unexpectedCallText(symbol, raw, part), reason: "unexpected-answer" };
   }
   return {
     ok: true,
@@ -176,10 +177,16 @@ function preparedItem(
   keyOf: (file: string) => string,
 ): Step<unknown> {
   if (result !== null && result !== undefined && !Array.isArray(result)) {
-    return { ok: false, error: unexpectedCallText(symbol, result) };
+    return { ok: false, error: unexpectedCallText(symbol, result), reason: "unexpected-answer" };
   }
   const items: unknown[] = Array.isArray(result) ? result : [];
-  if (items.length === 0) return { ok: false, error: notCallableText(symbol, query.file) };
+  if (items.length === 0) {
+    return {
+      ok: false,
+      error: notCallableText(symbol, query.file),
+      reason: "symbol-kind-unsupported",
+    };
+  }
   if (items.length > 1) {
     const lines = items.map(describedItem).join("\n");
     return {
@@ -187,6 +194,7 @@ function preparedItem(
       error:
         `${TOOL} failed: tsgo offered ${String(items.length)} call-hierarchy items for "${symbol}", and picking one ` +
         `would be a guess, so they are listed:\n${lines}`,
+      reason: "symbol-ambiguous",
     };
   }
   const only = items[0];
@@ -196,7 +204,9 @@ function preparedItem(
 
 function callSitesOf(value: unknown, symbol: string): Step<TsCallSite[]> {
   if (value === null || value === undefined) return { ok: true, value: [] };
-  if (!Array.isArray(value)) return { ok: false, error: unexpectedCallText(symbol, value) };
+  if (!Array.isArray(value)) {
+    return { ok: false, error: unexpectedCallText(symbol, value), reason: "unexpected-answer" };
+  }
   const sites: TsCallSite[] = [];
   for (const [index, range] of value.entries()) {
     const start = rangeStart(range);
@@ -204,6 +214,7 @@ function callSitesOf(value: unknown, symbol: string): Step<TsCallSite[]> {
       return {
         ok: false,
         error: unexpectedCallText(symbol, value[index], `call site ${String(index + 1)}`),
+        reason: "unexpected-answer",
       };
     }
     sites.push({
@@ -226,7 +237,7 @@ function callerEntries(
   keyOf: (file: string) => string,
 ): Step<CallerGroup[]> {
   if (result !== null && result !== undefined && !Array.isArray(result)) {
-    return { ok: false, error: unexpectedCallText(symbol, result) };
+    return { ok: false, error: unexpectedCallText(symbol, result), reason: "unexpected-answer" };
   }
   const byKey = new Map<string, CallerGroup>();
   const entries = Array.isArray(result) ? result : [];
@@ -360,7 +371,7 @@ export async function runTsFindCallers(
     const opened = await openTsQuery(TOOL, sessions, input, deps, (resolved) => {
       resolution = resolved;
     });
-    if (!opened.ok) return errorResult(opened.error);
+    if (!opened.ok) return errorResult(opened.error, opened.reason);
     const query = opened.value;
     const keyOf = locationKeyFactory();
 
@@ -372,9 +383,9 @@ export async function runTsFindCallers(
       { textDocument: textDocumentId(query.file), position: query.subject.position },
       `prepare the call hierarchy for "${input.symbol}"`,
     );
-    if (!prepared.ok) return errorResult(prepared.error);
+    if (!prepared.ok) return errorResult(prepared.error, prepared.reason);
     const item = preparedItem(prepared.value, query, input.symbol, keyOf);
-    if (!item.ok) return errorResult(item.error);
+    if (!item.ok) return errorResult(item.error, item.reason);
 
     const incoming = await tsTypeAwareRequest(
       TOOL,
@@ -384,9 +395,9 @@ export async function runTsFindCallers(
       { item: item.value },
       `return the incoming calls of "${input.symbol}"`,
     );
-    if (!incoming.ok) return errorResult(incoming.error);
+    if (!incoming.ok) return errorResult(incoming.error, incoming.reason);
     const groups = callerEntries(incoming.value, query, input.symbol, keyOf);
-    if (!groups.ok) return errorResult(groups.error);
+    if (!groups.ok) return errorResult(groups.error, groups.reason);
 
     const { capped, callersTruncated, sitesTruncated } = capCallers(groups.value);
     const rows = await buildCallers(query.session, capped, query.file, query.symbols, query.budget);
@@ -415,7 +426,10 @@ export async function runTsFindCallers(
     const { summary, text } = humanSummary(payload);
     return successResult(withSummary(summary, payload), text);
   } catch (e) {
-    return errorResult(`${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`);
+    return errorResult(
+      `${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`,
+      reasonOfError(e),
+    );
   }
 }
 

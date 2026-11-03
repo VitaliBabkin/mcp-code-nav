@@ -31,10 +31,12 @@ import {
   type UncoveredSourcesBlock,
 } from "../clang-query/uncovered-sources.js";
 import { readIgnoredPatterns } from "../config/ignored-paths.js";
+import type { ErrorReason } from "../error-reason.js";
 import { errorResult, partialResult, successResult } from "../mcp-response.js";
 import { pathKey } from "../paths/path-containment.js";
 import { PathEscapeError, resolveWithinAnyRoot } from "../paths/resolve-safe-path.js";
 import { PathInput, PathList } from "./input-limits.js";
+import { reasonOfError } from "./reason-of-error.js";
 import {
   CPP_PROJECT_ROOT_DESCRIPTION,
   isPathResolutionError,
@@ -207,10 +209,14 @@ interface SweepScope {
   readonly translationUnits: string[] | undefined;
 }
 
+/** A call's scope that cannot be resolved: the text it fails with and the reason that text names. */
+interface ScopeFailure {
+  readonly failure: string;
+  readonly reason: ErrorReason;
+}
+
 /** One read of the database serves the derivation, an unscoped sweep's scope and the blind-spot checks. */
-function resolveSweepScope(
-  input: CppFindDerivedClassesInputType,
-): SweepScope | { readonly failure: string } {
+function resolveSweepScope(input: CppFindDerivedClassesInputType): SweepScope | ScopeFailure {
   const listing = listDatabase(input.projectRoot);
   const sourceRoots = cppSourceRoots(input.sourceRoots ?? [], () =>
     deriveSourceRoot(input.projectRoot, "tus" in listing ? listing.tus : undefined),
@@ -223,8 +229,23 @@ function resolveSweepScope(
     if (!isPathResolutionError(e)) throw e;
     const file = e instanceof PathEscapeError ? e.candidate : "";
     const fix = pathFixHint(e, { projectRoot: input.projectRoot, file, sourceRoots });
-    return { failure: `cpp_find_derived_classes failed: ${e.message}${fix}` };
+    return {
+      failure: `cpp_find_derived_classes failed: ${e.message}${fix}`,
+      reason: reasonOfError(e),
+    };
   }
+}
+
+/** A sweep whose every TU failed the same way: a clang-query that never started is the server unavailable. */
+function uniformFailureReason(failure: UniformSweepFailure): ErrorReason {
+  return failure.binaryMissing === true ? "server-unavailable" : "sweep-failed";
+}
+
+/** The client's own cancel stops a sweep the caller asked to stop; running out of the ceiling is the budget. */
+function incompleteReason(
+  reason: NonNullable<FindDerivedClassesResult["incomplete"]>["reason"],
+): ErrorReason {
+  return reason === "cancelled" ? "cancelled" : "budget-exceeded";
 }
 
 export async function runCppFindDerivedClasses(
@@ -234,7 +255,7 @@ export async function runCppFindDerivedClasses(
 ) {
   const derivation: Derivation = input.derivation ?? "transitive";
   const resolved = resolveSweepScope(input);
-  if ("failure" in resolved) return errorResult(resolved.failure);
+  if ("failure" in resolved) return errorResult(resolved.failure, resolved.reason);
   const { listing, sourceRoots, roots, translationUnits } = resolved;
 
   // Computed unconditionally (not only when caching is possible) so a walk that exceeds its bound
@@ -268,7 +289,10 @@ export async function runCppFindDerivedClasses(
     // being empty — an error with no payload that could be read as an answer.
     if (outcome.uniformFailure) {
       const unlisted = unlistedNamedFiles(translationUnits, db);
-      return errorResult(uniformFailureText(outcome.uniformFailure, outcome.failedFiles, unlisted));
+      return errorResult(
+        uniformFailureText(outcome.uniformFailure, outcome.failedFiles, unlisted),
+        uniformFailureReason(outcome.uniformFailure),
+      );
     }
 
     const result = buildSweepPayload(
@@ -282,16 +306,21 @@ export async function runCppFindDerivedClasses(
     // surfaced in `failedFiles` beside whatever the other TUs produced, and `isError` stays false unless the
     // sweep itself was truncated.
     if (outcome.incomplete) {
-      return partialResult(ceilingText(outcome.incomplete, ceilingMs, derivation), result);
+      return partialResult(
+        ceilingText(outcome.incomplete, ceilingMs, derivation),
+        incompleteReason(outcome.incomplete.reason),
+        result,
+      );
     }
     return successResult(result);
   } catch (e) {
     if (e instanceof CompileDbNotFoundError) {
       return errorResult(
         `cpp_find_derived_classes failed: ${await describeMissingCompileDb(e.projectRoot)}`,
+        "compile-db-missing",
       );
     }
-    return errorResult(`cpp_find_derived_classes failed: ${messageOf(e)}`);
+    return errorResult(`cpp_find_derived_classes failed: ${messageOf(e)}`, reasonOfError(e));
   } finally {
     reporter?.dispose();
   }

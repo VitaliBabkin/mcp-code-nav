@@ -246,6 +246,10 @@ describe("an interface beside a namespace of one name", () => {
       const manager = freshManager();
       const bare = await referencesAnswer(manager, mergedFile, "I");
       expect(resultView(bare).isError, textOf(bare)).toBe(true);
+      expect(resultView(bare).structuredContent).toEqual({
+        reason: "symbol-ambiguous",
+        retryable: false,
+      });
       expect(textOf(bare)).toContain("type I (interface)");
       expect(textOf(bare)).toContain("namespace I (namespace)");
 

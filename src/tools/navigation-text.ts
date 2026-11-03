@@ -4,12 +4,13 @@
 // each has to say so in the caller's words, so neither should import the other's prelude to do it.
 
 import { dirname, relative, sep } from "node:path";
+import type { ErrorReason } from "../error-reason.js";
 import type { FreshnessOutcome } from "../lsp/session.js";
 
 /** Either the answer, or the text this tool fails with. Never both, and never a silent narrowing. */
 export type Step<T> =
   | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: string };
+  | { readonly ok: false; readonly error: string; readonly reason: ErrorReason };
 
 /** The gate a tool that refuses no kind passes to a prelude that expects one. */
 export function acceptAnyDeclaration(): Step<void> {

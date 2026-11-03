@@ -996,7 +996,8 @@ describe("cpp_find_derived_classes blind-spot signal through the tool handler ag
     incomplete?: unknown;
     sweep: { totalTus: number };
   } {
-    if ("structuredContent" in out) return out.structuredContent;
+    const payload = out.structuredContent;
+    if ("matches" in payload) return payload;
     // Failing here with the whole error text beats a payload-shape assertion that cannot read.
     throw new Error(`expected a payload, got isError: ${out.content[0]?.text ?? "no text"}`);
   }

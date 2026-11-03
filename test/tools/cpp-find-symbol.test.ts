@@ -154,6 +154,7 @@ describe("runCppFindSymbol", () => {
     );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toContain("ambiguous");
+    expect(out.structuredContent).toEqual({ reason: "symbol-ambiguous", retryable: false });
   });
 
   it("reports no match when neither the file nor its header counterpart has the symbol", async () => {
@@ -174,6 +175,8 @@ describe("runCppFindSymbol", () => {
     );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toContain("no symbol");
+    // The text is the cold-empty refusal ("produced no symbols ... not yet confirmed warm"), not a proven absence.
+    expect(out.structuredContent).toEqual({ reason: "not-ready", retryable: true });
   });
 
   it("asks clangd's index when no file is given and the session has opened nothing", async () => {
@@ -341,6 +344,7 @@ describe("runCppFindSymbol with sourceRoots (out-of-tree build layout)", () => {
     );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toContain("ignoredPaths");
+    expect(out.structuredContent).toEqual({ reason: "path-ignored", retryable: false });
   });
 });
 
@@ -789,6 +793,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
     const failed = resultView(await asked("paint"));
 
     expect(failed.isError).toBe(true);
+    expect(failed.structuredContent).toEqual({ reason: "symbol-ambiguous", retryable: false });
     expect(text(failed)).toContain("is ambiguous in clangd's index for");
     expect(text(failed)).toMatch(/gizmo::Widget::paint \(method\) at .*widget\.h:4/);
     // Widening what is searched is no licence to widen what is returned: no hover was asked, because no
@@ -813,6 +818,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
     const failed = resultView(await asked("Widget"));
 
     expect(failed.isError).toBe(true);
+    expect(failed.structuredContent).toEqual({ reason: "unexpected-answer", retryable: false });
     expect(text(failed)).toContain(
       'clangd answered the project-wide symbol search for "Widget" with entry 1',
     );
@@ -827,6 +833,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
     const failed = resultView(await asked("Gone"));
 
     expect(failed.isError).toBe(true);
+    expect(failed.structuredContent).toEqual({ reason: "symbol-not-found", retryable: false });
     expect(text(failed)).toContain(
       `no declaration named "Gone" was found in clangd's index for "${buildDir}"`,
     );
@@ -845,6 +852,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
     const failed = resultView(await asked("Gone"));
 
     expect(failed.isError).toBe(true);
+    expect(failed.structuredContent).toEqual({ reason: "not-ready", retryable: true });
     expect(text(failed)).toContain("is not reportable as an answer");
     expect(text(failed)).toContain("never reported indexing progress to this session");
   });
@@ -892,6 +900,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
     const failed = resultView(await asked("Widget"));
 
     expect(failed.isError).toBe(true);
+    expect(failed.structuredContent).toEqual({ reason: "unexpected-answer", retryable: false });
     expect(text(failed)).toContain(
       'clangd answered the project-wide symbol search for "Widget" with entry 1',
     );

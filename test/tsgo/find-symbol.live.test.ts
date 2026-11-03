@@ -183,6 +183,10 @@ describe("ts_find_symbol against the real tsgo", () => {
 
       const bare = await ask(manager, "run", shapesFile);
       expect(resultView(bare).isError).toBe(true);
+      expect(resultView(bare).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
     },
     CALL_BUDGET_MS + 30_000,
   );
@@ -259,6 +263,10 @@ describe("ts_find_symbol against the real tsgo", () => {
       // `run` is a member of three classes, and no top-level declaration: a bare name never matches a member.
       const bare = await ask(manager, "run", workspaceRoot);
       expect(resultView(bare).isError, textOf(bare)).toBe(true);
+      expect(resultView(bare).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(bare)).toContain('no declaration named "run" was found in the whole workspace');
 
       // `local` is declared inside `describe()` in consumer.ts, which tsgo lists with containerName `describe`.
@@ -276,11 +284,19 @@ describe("ts_find_symbol against the real tsgo", () => {
 
       const local = await ask(manager, "describe.local", workspaceRoot);
       expect(resultView(local).isError, textOf(local)).toBe(true);
+      expect(resultView(local).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(local)).toContain(
         'no declaration named "describe.local" was found in the whole workspace',
       );
       const bareLocal = await ask(manager, "local", workspaceRoot);
       expect(resultView(bareLocal).isError, textOf(bareLocal)).toBe(true);
+      expect(resultView(bareLocal).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(bareLocal)).toContain(
         'no declaration named "local" was found in the whole workspace',
       );
@@ -340,6 +356,10 @@ describe("ts_find_symbol against the real tsgo", () => {
       const manager = freshManager();
       const out = await ask(manager, "NoSuchDeclaration", workspaceRoot);
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(out)).toContain(
         'no declaration named "NoSuchDeclaration" was found in the whole workspace',
       );
@@ -454,6 +474,10 @@ describe("the workspace/symbol cap watermark", () => {
         // and the two facts together are what a caller needs to hear.
         const capped = await ask(manager, "ge", root, root);
         expect(resultView(capped).isError, textOf(capped)).toBe(true);
+        expect(resultView(capped).structuredContent).toEqual({
+          reason: "symbol-not-found",
+          retryable: false,
+        });
         expect(textOf(capped)).toContain('no declaration named "ge" was found');
         expect(textOf(capped)).toContain("may have been ranked out of it");
       } finally {

@@ -168,6 +168,7 @@ export function toReported(
     return {
       ok: false,
       error: unexpectedAnswerText(server, tool, result, symbol, undefined, LOCATION_ANSWER),
+      reason: "unexpected-answer",
     };
   }
   const rows: ReportedLocation[] = [];
@@ -188,6 +189,7 @@ export function toReported(
           `entry ${String(index + 1)}`,
           LOCATION_ANSWER,
         ),
+        reason: "unexpected-answer",
       };
     }
     rows.push(reportedLocation(file, start, outside, keyOf(file)));

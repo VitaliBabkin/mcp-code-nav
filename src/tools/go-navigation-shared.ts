@@ -185,6 +185,7 @@ function pickTarget(
         `${tool} failed: no top-level declaration named "${symbol}" in "${file}". Only a file's own top-level ` +
         "declarations are searched, and a method is named with its receiver - `(Concrete).Method` or " +
         "`Concrete.Method` - not by its bare name.",
+      reason: "symbol-not-found",
     };
   }
   if (matches.length > 1) {
@@ -193,11 +194,16 @@ function pickTarget(
       error:
         `${tool} failed: "${symbol}" matches ${String(matches.length)} top-level declarations in "${file}"; name one ` +
         `file or a more specific spelling:\n${matches.map((entry) => candidateLine(entry, file)).join("\n")}`,
+      reason: "symbol-ambiguous",
     };
   }
   const only = matches[0];
   if (only === undefined)
-    return { ok: false, error: `${tool} failed: "${symbol}" matched nothing in "${file}"` };
+    return {
+      ok: false,
+      error: `${tool} failed: "${symbol}" matched nothing in "${file}"`,
+      reason: "symbol-not-found",
+    };
   const selection = only.selectionRange;
   if (selection === undefined) {
     return {
@@ -205,6 +211,7 @@ function pickTarget(
       error:
         `${tool} failed: gopls reported no selection range for "${only.name}" in "${file}", so the position of ` +
         "its name is unknown and a type-aware query would be asked about a guessed location.",
+      reason: "unexpected-answer",
     };
   }
   return {
@@ -423,6 +430,7 @@ export async function readModuleOutline(
     return {
       ok: false,
       error: budgetText(tool, opened.budget, `answer the outline of "${file}"`, opened.moduleRoot),
+      reason: "budget-exceeded",
     };
   }
   // gopls's outline is syntactic and never premature, so an empty one is an answer about the file.
@@ -443,6 +451,7 @@ export async function proveWorkspaceReady(
   return {
     ok: false,
     error: readinessText(tool, opened.budget, symbol, opened.moduleRoot, readiness),
+    reason: readiness === "restarted" ? "session-lost" : "not-ready",
   };
 }
 
@@ -569,7 +578,11 @@ export async function describeDeclarations(
     declarations,
   );
   if (described === undefined)
-    return { ok: false, error: restartedText(tool, symbol, opened.moduleRoot) };
+    return {
+      ok: false,
+      error: restartedText(tool, symbol, opened.moduleRoot),
+      reason: "session-lost",
+    };
   return { ok: true, value: described };
 }
 
@@ -632,14 +645,19 @@ export async function typeAwareRequest<T>(
     budget,
   );
   if (answered === undefined)
-    return { ok: false, error: budgetText(tool, budget, what, moduleRoot) };
+    return {
+      ok: false,
+      error: budgetText(tool, budget, what, moduleRoot),
+      reason: "budget-exceeded",
+    };
   if ("refusedFile" in answered) {
     return {
       ok: false,
       error: await noPackageMetadataText(tool, answered.refusedFile, symbol, toolchain, budget),
+      reason: "input-invalid",
     };
   }
   if (!session.isWorkspaceLoaded())
-    return { ok: false, error: restartedText(tool, symbol, moduleRoot) };
+    return { ok: false, error: restartedText(tool, symbol, moduleRoot), reason: "session-lost" };
   return { ok: true, value: answered.value };
 }

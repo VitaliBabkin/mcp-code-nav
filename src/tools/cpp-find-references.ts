@@ -11,7 +11,7 @@ import {
   cppAnswerScope,
   cppQuestionDeclaration,
   missingCompileDbHint,
-  noIndexDeclarationText,
+  noIndexDeclarationRefusal,
   outsideEveryRoot,
   outsideSubjectText,
   resolveCppDeclaration,
@@ -30,6 +30,7 @@ import {
   REFERENCE_SITES_PER_FILE_LIMIT,
 } from "./navigation-limits.js";
 import { capsText, type Step } from "./navigation-text.js";
+import { reasonOfError } from "./reason-of-error.js";
 import { CppAddressShape } from "./cpp-navigation-shared.js";
 import { CLANGD_DISK_CLAUSE } from "./shared.js";
 import { messageOf } from "../error-message.js";
@@ -241,7 +242,8 @@ export async function runCppFindReferences(
 ) {
   try {
     const missingDb = await missingCompileDbHint(raw.projectRoot);
-    if (missingDb !== undefined) return errorResult(`${TOOL} failed: ${missingDb}`);
+    if (missingDb !== undefined)
+      return errorResult(`${TOOL} failed: ${missingDb}`, "compile-db-missing");
 
     const { roots, input } = withEffectiveRoots(raw);
     const session = sessions.get(input.projectRoot, clangdConfig);
@@ -249,7 +251,7 @@ export async function runCppFindReferences(
     // process has been up: a ceiling taken at import would be spent before its first question was asked.
     const budget = budgetOf(NAVIGATION_CEILING_MS);
     const resolved = await resolveCppDeclaration(TOOL, session, input, roots.block);
-    if (!resolved.ok) return errorResult(resolved.error);
+    if (!resolved.ok) return errorResult(resolved.error, resolved.reason);
 
     // The drift push goes first: it is how clangd hears about the disk at all. The window is the answer's own
     // span, and when the declaration itself had to come from clangd's index the symbol query is part of that
@@ -265,12 +267,16 @@ export async function runCppFindReferences(
         const declaration = target.value.declaration;
         if (declaration === undefined) return { ok: true, value: { target: target.value } };
         if (declaration.namePosition === undefined)
-          return { ok: false, error: noPositionText(declaration) };
+          return { ok: false, error: noPositionText(declaration), reason: "unexpected-answer" };
         // The index can place a declaration in a file this session has never opened, and clangd answers a
         // reference query from the AST of the document that declares the symbol. A file beyond the boundary is
         // reported and never opened, so this question has no answer to ask.
         if (outside(declaration.file))
-          return { ok: false, error: outsideSubjectText(TOOL, input.name, declaration) };
+          return {
+            ok: false,
+            error: outsideSubjectText(TOOL, input.name, declaration),
+            reason: "path-escape",
+          };
         const position = declaration.namePosition;
         const locations = await session.withTransientDocument(declaration.file, (holding) =>
           holding.send<unknown>("textDocument/references", {
@@ -282,24 +288,26 @@ export async function runCppFindReferences(
         return { ok: true, value: { target: target.value, declaration, locations } };
       },
     );
-    if (!asked.ok) return errorResult(asked.error);
+    if (!asked.ok) return errorResult(asked.error, asked.reason);
     const declaration = asked.value.declaration;
     if (declaration === undefined) {
-      return errorResult(
-        noIndexDeclarationText(
-          TOOL,
-          input.name,
-          input.projectRoot,
-          index,
-          asked.value.target.capped,
-        ),
+      const refusal = noIndexDeclarationRefusal(
+        TOOL,
+        input.name,
+        input.projectRoot,
+        index,
+        asked.value.target.capped,
       );
+      return errorResult(refusal.error, refusal.reason);
     }
 
     const locations = toReported("clangd", TOOL, asked.value.locations, outside, input.name);
-    if (!locations.ok) return errorResult(locations.error);
+    if (!locations.ok) return errorResult(locations.error, locations.reason);
     if (locations.value.length === 0 && index !== "quiescent") {
-      return errorResult(emptyWhileNotQuiescentText(input.name, index, `from clangd's index`));
+      return errorResult(
+        emptyWhileNotQuiescentText(input.name, index, `from clangd's index`),
+        "not-ready",
+      );
     }
 
     // The outline the rows in the subject's own file are named from, read transiently: a question that named
@@ -321,7 +329,7 @@ export async function runCppFindReferences(
     );
     return successResult(payload, humanSummary(payload));
   } catch (e) {
-    return errorResult(`${TOOL} failed: ${messageOf(e)}`);
+    return errorResult(`${TOOL} failed: ${messageOf(e)}`, reasonOfError(e));
   }
 }
 

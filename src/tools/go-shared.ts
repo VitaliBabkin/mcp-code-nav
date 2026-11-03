@@ -17,6 +17,7 @@ import {
 import { type Budget, budgetOf } from "./budget.js";
 import { PathInput, PathList } from "./input-limits.js";
 import type { Step } from "./navigation-text.js";
+import { reasonOfError } from "./reason-of-error.js";
 
 /** The ceiling on every Go call, whatever it is spent on. */
 const MAX_TIME_BUDGET_MS = 600_000;
@@ -127,7 +128,11 @@ function targetAt(
 ): GoTargetOutcome {
   const module = findModuleRoot(resolution.absolutePath, input.sourceRoots, kind);
   if (module.kind !== "found") {
-    return { ok: false, error: goModuleRootErrorText(tool, module, resolution.absolutePath) };
+    return {
+      ok: false,
+      error: goModuleRootErrorText(tool, module, resolution.absolutePath),
+      reason: module.kind === "outside-roots" ? "path-escape" : "no-module",
+    };
   }
   return {
     ok: true,
@@ -198,6 +203,7 @@ export function anchorKind(tool: string, absolutePath: string): Step<ModuleRootP
     return {
       ok: false,
       error: `${tool} failed: the anchor "${absolutePath}" is neither a file nor a directory, so this server cannot tell which lookup to run.`,
+      reason: "input-invalid",
     };
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
@@ -206,6 +212,7 @@ export function anchorKind(tool: string, absolutePath: string): Step<ModuleRootP
     return {
       ok: false,
       error: `${tool} failed: the anchor "${absolutePath}" ${why}, so nothing was searched.`,
+      reason: reasonOfError(e),
     };
   }
 }

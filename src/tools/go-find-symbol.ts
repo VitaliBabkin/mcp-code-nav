@@ -42,6 +42,7 @@ import type { Step } from "./navigation-text.js";
 import type { SymbolDescription } from "./navigation-limits.js";
 import { NameInput, PathInput } from "./input-limits.js";
 import { resolutionNote } from "./shared.js";
+import { reasonOfError } from "./reason-of-error.js";
 import { messageOf } from "../error-message.js";
 
 const TOOL = "go_find_symbol";
@@ -204,7 +205,11 @@ function symbolEntry(
     rangeStart(location.targetRange);
   const name = typeof entry.name === "string" && entry.name !== "" ? entry.name : undefined;
   if (name === undefined || file === undefined || named === undefined) {
-    return { ok: false, error: unreadableEntryText(raw, symbol, part) };
+    return {
+      ok: false,
+      error: unreadableEntryText(raw, symbol, part),
+      reason: "unexpected-answer",
+    };
   }
   const kind = typeof entry.kind === "number" ? symbolKindName(entry.kind) : "?";
   const containerName =
@@ -248,7 +253,7 @@ function moduleDeclarations(
   symbol: string,
 ): Step<{ declarations: DeclarationSource[]; capped: boolean }> {
   if (result !== null && result !== undefined && !Array.isArray(result)) {
-    return { ok: false, error: unreadableEntryText(result, symbol) };
+    return { ok: false, error: unreadableEntryText(result, symbol), reason: "unexpected-answer" };
   }
   const entries = Array.isArray(result) ? result : [];
   const rows: DeclarationSource[] = [];
@@ -327,7 +332,11 @@ async function fromOneFile(
   if (!outline.ok) return outline;
   const matched = matchDeclarations(symbol, outline.value, file, moduleRoot);
   if (matched.length === 0) {
-    return { ok: false, error: noMatchText(symbol, "document-symbol", file, moduleRoot) };
+    return {
+      ok: false,
+      error: noMatchText(symbol, "document-symbol", file, moduleRoot),
+      reason: "symbol-not-found",
+    };
   }
   const ready = await proveWorkspaceReady(TOOL, opened, symbol);
   if (!ready.ok) return ready;
@@ -381,7 +390,11 @@ async function fromWholeModule(
   const { declarations, capped } = found.value;
   if (declarations.length === 0) {
     const absent = noMatchText(symbol, "workspace-symbol", undefined, moduleRoot);
-    return { ok: false, error: capped ? `${absent} ${capText()}` : absent };
+    return {
+      ok: false,
+      error: capped ? `${absent} ${capText()}` : absent,
+      reason: "symbol-not-found",
+    };
   }
   return answered(opened, symbol, declarations, "workspace-symbol", undefined, capped);
 }
@@ -419,7 +432,7 @@ export async function runGoFindSymbol(
   let resolution: ResolvedPath | undefined;
   try {
     const anchor = resolveGoAnchor(TOOL, sessions, input);
-    if (!anchor.ok) return errorResult(anchor.error);
+    if (!anchor.ok) return errorResult(anchor.error, anchor.reason);
     const { file: anchorPath, kind, moduleRoot } = anchor.value;
     const opened = await openGoModule(
       anchor,
@@ -428,16 +441,17 @@ export async function runGoFindSymbol(
       },
       deps.exec,
     );
-    if (!opened.ok) return errorResult(opened.error);
+    if (!opened.ok) return errorResult(opened.error, opened.reason);
     const search =
       kind === "file"
         ? await fromOneFile(opened.value, input.symbol, anchorPath, moduleRoot)
         : await fromWholeModule(opened.value, input.symbol, moduleRoot);
-    if (!search.ok) return errorResult(search.error);
+    if (!search.ok) return errorResult(search.error, search.reason);
     return successResult(search.value, humanSummary(search.value, input.symbol, anchorPath));
   } catch (e) {
     return errorResult(
       `${TOOL} failed: ${messageOf(e)}${resolutionNote(input.anchor, resolution)}`,
+      reasonOfError(e),
     );
   }
 }

@@ -308,12 +308,12 @@ describe("one record per outcome", () => {
     expect(calls(h.lines).at(-1)?.inflight).toBe(0);
   });
 
-  it("records `isError` without a payload as error, classified from the tool's own text", async () => {
+  it("records `isError` with only its reason as error, classed by that reason", async () => {
     const failure =
       'cpp_file_symbols failed: compile_commands.json not found or unreadable at "D:\\repo"';
     const h = harness();
     h.receive(toolCall(1, "cpp_file_symbols", { projectRoot: "D:\\repo", file: "a.cpp" }));
-    await h.send(answered(1, failure));
+    await h.send(answered(1, failure, { reason: "compile-db-missing", retryable: false }));
 
     expect(h.lines.at(-1)).toMatchObject({
       outcome: "error",
@@ -338,6 +338,8 @@ describe("one record per outcome", () => {
         {
           matches: [{}, {}, {}],
           sweep: { cache: "partial" },
+          reason: "budget-exceeded",
+          retryable: true,
         },
       ),
     );
@@ -362,7 +364,7 @@ describe("one record per outcome", () => {
 
     expect(h.lines.at(-1)).toMatchObject({
       outcome: "protocol-error",
-      errorClass: "other",
+      errorClass: "internal",
       errorHead: "Method not found",
       results: null,
       limits: [],

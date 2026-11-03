@@ -261,6 +261,46 @@ after a moment. A request left unanswered for 180 seconds is cancelled (see
 **Nothing is written to your sources.** The server only reads them. The one thing it causes to appear in a project is
 clangd's own index under `.cache/clangd` in `projectRoot`, beside a `.gitignore` clangd writes itself.
 
+## Reading errors
+
+A failed call is a normal tool result with `isError: true`, never a protocol error. Its text says why, for a person. Its
+`structuredContent` says why for a program, as `{ "reason": "not-ready", "retryable": true }`. A partial answer (today
+only the C++ sweep ceiling, `cpp_find_derived_classes`) carries the same two keys beside its payload.
+
+- `reason` is one of the values in the table below. It adds to the text and replaces nothing in it.
+- `retryable: true` means the identical call, arguments unchanged, may succeed later: the index warms, a child restarts,
+  a budget runs out. `retryable: false` means something must change first: the arguments, the configuration or an
+  installed binary.
+- `retryable` follows from `reason` alone, so a caller that branches on either one reaches the same decision.
+
+| Reason                    | Retryable | Meaning                                                                  |
+| ------------------------- | --------- | ------------------------------------------------------------------------ |
+| `input-invalid`           | `false`   | the arguments fail the schema, or name a file or anchor no tool answers for |
+| `tool-unknown`            | `false`   | no tool has that name                                                    |
+| `path-escape`             | `false`   | the path lies outside every declared root                                |
+| `path-ambiguous`          | `false`   | a relative path exists under more than one root; pass an absolute one    |
+| `path-ignored`            | `false`   | the project's `ignoredPaths` excludes the file                           |
+| `file-not-found`          | `false`   | the named file or anchor does not exist                                  |
+| `no-module`               | `false`   | the path is in no Go module or npm package                               |
+| `compile-db-missing`      | `false`   | `compile_commands.json` is missing or unreadable under `projectRoot`     |
+| `compile-db-invalid`      | `false`   | `compile_commands.json` is not valid JSON or not a compile database      |
+| `server-unavailable`      | `false`   | the language server or `clang-query` could not start; install it         |
+| `symbol-not-found`        | `false`   | the index is proven ready and holds no such declaration                  |
+| `symbol-ambiguous`        | `false`   | several declarations match and the server picks none; select one by kind |
+| `symbol-kind-unsupported` | `false`   | the declaration's kind cannot answer this question                       |
+| `not-ready`               | `true`    | readiness is not proven yet: a cold index or a workspace still loading   |
+| `budget-exceeded`         | `true`    | the call's own time budget or ceiling ran out                            |
+| `request-timeout`         | `true`    | the language server did not answer one request in time; it restarts     |
+| `session-lost`            | `true`    | the language server restarted or died during the call                    |
+| `cancelled`               | `true`    | the client cancelled the call                                            |
+| `sweep-failed`            | `false`   | every translation unit of a `clang-query` sweep failed the same way      |
+| `unexpected-answer`       | `false`   | the language server answered in a shape this server cannot read          |
+| `internal`                | `false`   | a failure no reason above names; report it with its text                 |
+
+The MCP SDK sends `input-invalid` and `tool-unknown` itself, before any tool runs, and attaches no `reason` to them; the
+call log names them from their text. Any error without a `reason` is such a refusal of the request as sent: change the
+request, do not retry it.
+
 ## What it saves
 
 Measured on two real, private code bases (one Go, one C++): five questions, each put to two blind agents, one run per

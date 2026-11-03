@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { goplsConfig, LanguageServerUnavailableError } from "../../src/lsp/server-config.js";
 import { runGoFindCallers } from "../../src/tools/go-find-callers.js";
 import {
   CALLERS_LIMIT,
@@ -572,6 +573,10 @@ describe("runGoFindCallers", () => {
 
       const out = await h.run({ symbol: "Decl" });
       expect(out.isError).toBe(true);
+      expect(out.structuredContent).toEqual({
+        reason: "symbol-kind-unsupported",
+        retryable: false,
+      });
       expect(textOf(out)).toContain(`is ${article}`);
       expect(textOf(out)).toMatch(/only a function or a method has callers/);
       expect(textOf(out)).toContain("go_find_references");
@@ -592,6 +597,7 @@ describe("runGoFindCallers", () => {
 
       const out = await h.run({ symbol: "Do" });
       expect(textOf(out)).not.toMatch(/only a function or a method has callers/);
+      expect(out.structuredContent).toEqual({ reason: "unexpected-answer", retryable: false });
       expect(textOf(out)).toMatch(/no call-hierarchy item/);
       expect(h.server.methods).toContain("textDocument/prepareCallHierarchy");
     },
@@ -609,6 +615,7 @@ describe("runGoFindCallers", () => {
 
       const out = await h.run();
       expect(out.isError).toBe(true);
+      expect(out.structuredContent).toEqual({ reason: "unexpected-answer", retryable: false });
       expect(textOf(out)).toMatch(/no call-hierarchy item/);
       expect(textOf(out)).toMatch(/a mention is not a call/);
       expect(h.server.methods).not.toContain("callHierarchy/incomingCalls");
@@ -623,6 +630,7 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "symbol-ambiguous", retryable: false });
     expect(textOf(out)).toMatch(/offered 2 call-hierarchy items/);
     expect(textOf(out)).toMatch(/picking one would be a guess/);
     expect(textOf(out)).toContain("First (method) at");
@@ -638,6 +646,7 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "unexpected-answer", retryable: false });
     expect(textOf(out)).toMatch(/cannot read/);
     expect(textOf(out)).toMatch(/entry 1/);
     expect(textOf(out)).toContain('"(*Store).Get"');
@@ -651,6 +660,7 @@ describe("runGoFindCallers", () => {
     // a microtask, so a starved host cannot spend the 40 ms before the step under test is reached.
     const out = await runUntilBudgetExpires(() => h.run({ timeBudgetMs: 40 }), 40);
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "not-ready", retryable: true });
     expect(textOf(out)).toMatch(/initial workspace load/);
     expect(textOf(out)).toContain("40 ms budget");
     expect(h.server.methods).not.toContain("textDocument/prepareCallHierarchy");
@@ -666,6 +676,7 @@ describe("runGoFindCallers", () => {
     // step, and the test no longer waits for real time to pass.
     const out = await runUntilBudgetExpires(() => h.run({ timeBudgetMs: 300 }), 300);
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "budget-exceeded", retryable: true });
     expect(textOf(out)).toMatch(/did not return the incoming calls of "\(\*Store\)\.Get"/);
     expect(textOf(out)).toMatch(/do not read this as an empty answer/);
   }, 10_000);
@@ -678,6 +689,7 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "session-lost", retryable: true });
     expect(textOf(out)).toMatch(/gopls restarted during the query/);
     expect(textOf(out)).toMatch(/initial workspace load has not been proven/);
     expect(countOf(h.server, "textDocument/prepareCallHierarchy")).toBe(2);
@@ -691,6 +703,7 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "input-invalid", retryable: false });
     expect(textOf(out)).toContain(`"${tagged}"`);
     expect(textOf(out)).toMatch(/Commonly a build constraint/);
   });
@@ -702,6 +715,7 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "internal", retryable: false });
     expect(textOf(out)).toContain("no identifier found");
     expect(textOf(out)).not.toMatch(/build constraint/);
   });
@@ -712,6 +726,7 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run({ symbol: "Absent" });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "symbol-not-found", retryable: false });
     expect(textOf(out)).toMatch(/no top-level declaration named "Absent"/);
     expect(h.server.methods).not.toContain("textDocument/prepareCallHierarchy");
   });
@@ -723,6 +738,7 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run({ symbol: "Bare" });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "unexpected-answer", retryable: false });
     expect(textOf(out)).toMatch(/no selection range/);
     expect(h.server.methods).not.toContain("textDocument/prepareCallHierarchy");
   });
@@ -736,6 +752,7 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run({ sourceRoots: [pkg], file: inPkg });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "path-escape", retryable: false });
     expect(textOf(out)).toMatch(/outside every declared sourceRoots entry/);
     expect(textOf(out)).toContain(resolve(h.mod));
   });
@@ -747,6 +764,7 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "symbol-ambiguous", retryable: false });
     expect(textOf(out)).toMatch(/matches 2 top-level declarations/);
     expect(textOf(out)).toContain(`(*Store).Get (method) at ${h.file}:22`);
     expect(textOf(out)).toContain(`(*Store).Get (method) at ${h.file}:61`);
@@ -759,6 +777,7 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run({ sourceRoots: [h.tmp, h.mod], file: "store.go" });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "path-ambiguous", retryable: false });
     expect(textOf(out)).toMatch(/exists under more than one declared root/);
     expect(textOf(out)).toContain(resolve(h.tmp));
     expect(textOf(out)).toContain(resolve(join(h.mod, "store.go")));
@@ -772,6 +791,7 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "server-unavailable", retryable: false });
     expect(textOf(out)).toContain("Cannot start gopls");
     expect(textOf(out)).toContain("MCP_CODE_NAV_GOPLS");
     expect(textOf(out)).toContain("go install golang.org/x/tools/gopls@latest");
@@ -780,12 +800,16 @@ describe("runGoFindCallers", () => {
   it("keeps the tried spellings of a relative file when the prelude throws on the way to an answer", async () => {
     const h = harness({
       spawn: () => {
-        throw new Error('Cannot start gopls: "gopls" on PATH was not found');
+        throw new LanguageServerUnavailableError(
+          { config: goplsConfig, attempted: "gopls", fromOverride: false },
+          { message: 'Cannot start gopls: "gopls" on PATH was not found' },
+        );
       },
     });
 
     const out = await h.run({ sourceRoots: [h.tmp, h.mod], file: "store.go" });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "server-unavailable", retryable: false });
     expect(textOf(out)).toContain("Cannot start gopls");
     expect(textOf(out)).toMatch(/Resolved "store\.go" to "/);
     expect(textOf(out)).toMatch(/\(tried: "/);

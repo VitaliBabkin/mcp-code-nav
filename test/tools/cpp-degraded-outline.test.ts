@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LspDocumentSymbol } from "../../src/clangd/outline.js";
-import { classifyError } from "../../src/call-log/error-class.js";
 import { describeMissingCompileDb } from "../../src/clang-query/compile-db-hint.js";
 import type { LspProcess } from "../../src/lsp/process.js";
 import {
@@ -179,7 +178,7 @@ describe("cpp_file_symbols without a compile database", () => {
       `${missing} Without it, a default-flags parse of "${join(projectRoot, "a.cpp")}" found no symbols, which ` +
         "does not show the file is empty.",
     );
-    expect(classifyError(textOf(result)).errorClass).toBe("compile-db-missing");
+    expect(result.structuredContent).toEqual({ reason: "compile-db-missing", retryable: false });
   });
 
   it("is the same error when the process is already warm and the parse is empty", async () => {
@@ -193,7 +192,7 @@ describe("cpp_file_symbols without a compile database", () => {
       `${await describeMissingCompileDb(projectRoot)} Without it, a default-flags parse of ` +
         `"${join(projectRoot, "a.h")}" found no symbols, which does not show the file is empty.`,
     );
-    expect(result.structuredContent).toBeUndefined();
+    expect(result.structuredContent).toEqual({ reason: "compile-db-missing", retryable: false });
   });
 
   it("keeps variant 3's error for a projectRoot that does not exist, and starts nothing", async () => {
@@ -327,7 +326,7 @@ describe("the other four C++ tools without a compile database", () => {
     for (const result of results) {
       expect(result.isError).toBe(true);
       expect(result.content[0]?.text).toContain(head);
-      expect("structuredContent" in result).toBe(false);
+      expect(result.structuredContent).toEqual({ reason: "compile-db-missing", retryable: false });
     }
     expect(spawn).not.toHaveBeenCalled();
   });

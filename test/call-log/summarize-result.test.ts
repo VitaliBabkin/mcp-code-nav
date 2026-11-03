@@ -34,7 +34,13 @@ const goScope = {
   moduleRoot: "D:\\mod",
   freshness: { kind: "unchanged" },
   visibility: "exported",
-  environment: { goos: "windows", goarch: "amd64", cgoEnabled: true, buildTags: [], goWork: null },
+  environment: {
+    goos: "windows",
+    goarch: "amd64",
+    cgoEnabled: true,
+    buildTags: [],
+    goWork: null,
+  },
   osArchExcluded: { count: 0, files: [], namedFileExcluded: false },
   limits: ["one-module", "one-port", "listing-capped"],
 };
@@ -46,7 +52,12 @@ const tsScope = {
   freshness: { kind: "unchanged" },
   server: { version: "7.0.2" },
   workspaceTypescript: null,
-  projects: { count: 1, configs: ["D:\\ws\\tsconfig.json"], failed: [], subsumed: [] },
+  projects: {
+    count: 1,
+    configs: ["D:\\ws\\tsconfig.json"],
+    failed: [],
+    subsumed: [],
+  },
   uncoveredSources: { count: 0, files: [], namedFileUncovered: false },
   limits: ["one-workspace"],
 };
@@ -81,7 +92,15 @@ const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
     payload: {
       resolved: { name: "Foo", kind: "class", file: "D:\\src\\a.cpp", line: 3 },
       totalReferences: 12,
-      files: [{ file: "D:\\src\\a.cpp", external: false, count: 12, sitesTruncated: 0, sites: [] }],
+      files: [
+        {
+          file: "D:\\src\\a.cpp",
+          external: false,
+          count: 12,
+          sitesTruncated: 0,
+          sites: [],
+        },
+      ],
       filesTruncated: 0,
       scope: cppScope,
     },
@@ -89,7 +108,12 @@ const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
   },
   go_find_references: {
     payload: {
-      resolved: { name: "Store", kind: "interface", file: "D:\\mod\\s.go", line: 4 },
+      resolved: {
+        name: "Store",
+        kind: "interface",
+        file: "D:\\mod\\s.go",
+        line: 4,
+      },
       totalReferences: 7,
       files: [],
       filesTruncated: 0,
@@ -99,7 +123,12 @@ const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
   },
   cpp_find_callers: {
     payload: {
-      resolved: { name: "Run", kind: "function", file: "D:\\src\\a.cpp", line: 8 },
+      resolved: {
+        name: "Run",
+        kind: "function",
+        file: "D:\\src\\a.cpp",
+        line: 8,
+      },
       totalCallers: 2,
       callers: [
         {
@@ -123,7 +152,12 @@ const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
   },
   go_find_callers: {
     payload: {
-      resolved: { name: "Open", kind: "method", file: "D:\\mod\\s.go", line: 11 },
+      resolved: {
+        name: "Open",
+        kind: "method",
+        file: "D:\\mod\\s.go",
+        line: 11,
+      },
       totalCallers: 4,
       callers: [],
       callersTruncated: 0,
@@ -134,7 +168,15 @@ const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
   cpp_find_derived_classes: {
     payload: {
       derivation: "transitive",
-      matches: [{ className: "Widget", file: "D:\\src\\w.cpp", line: 4, column: 7, direct: false }],
+      matches: [
+        {
+          className: "Widget",
+          file: "D:\\src\\w.cpp",
+          line: 4,
+          column: 7,
+          direct: false,
+        },
+      ],
       counts: { transitive: 1, direct: 1 },
       sweep: {
         totalTus: 9,
@@ -148,10 +190,21 @@ const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
   },
   go_find_implementations: {
     payload: {
-      resolved: { name: "Store", kind: "interface", file: "D:\\mod\\s.go", line: 4 },
+      resolved: {
+        name: "Store",
+        kind: "interface",
+        file: "D:\\mod\\s.go",
+        line: 4,
+      },
       direction: "implementers-of-interface",
       implementations: [
-        { name: "PgStore", kind: "struct", file: "D:\\mod\\pg.go", line: 9, external: false },
+        {
+          name: "PgStore",
+          kind: "struct",
+          file: "D:\\mod\\pg.go",
+          line: 9,
+          external: false,
+        },
       ],
       truncated: 0,
       scope: {
@@ -163,7 +216,10 @@ const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
     },
     results: 1,
   },
-  ts_file_symbols: { payload: { symbols: [{ name: "Driver" }, { name: "run" }] }, results: 2 },
+  ts_file_symbols: {
+    payload: { symbols: [{ name: "Driver" }, { name: "run" }] },
+    results: 2,
+  },
   ts_find_symbol: {
     payload: {
       declarations: [{ name: "Driver" }, { name: "Driver" }, { name: "Driver" }],
@@ -173,7 +229,12 @@ const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
   },
   ts_find_references: {
     payload: {
-      resolved: { name: "Driver", kind: "class", file: "D:\\ws\\a.ts", line: 3 },
+      resolved: {
+        name: "Driver",
+        kind: "class",
+        file: "D:\\ws\\a.ts",
+        line: 3,
+      },
       totalReferences: 9,
       files: [],
       filesTruncated: 0,
@@ -183,7 +244,12 @@ const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
   },
   ts_find_callers: {
     payload: {
-      resolved: { name: "run", kind: "function", file: "D:\\ws\\a.ts", line: 8 },
+      resolved: {
+        name: "run",
+        kind: "function",
+        file: "D:\\ws\\a.ts",
+        line: 8,
+      },
       totalCallers: 5,
       callers: [],
       callersTruncated: 0,
@@ -193,9 +259,20 @@ const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
   },
   ts_find_implementations: {
     payload: {
-      resolved: { name: "Storage", kind: "interface", file: "D:\\ws\\a.ts", line: 1 },
+      resolved: {
+        name: "Storage",
+        kind: "interface",
+        file: "D:\\ws\\a.ts",
+        line: 1,
+      },
       implementations: [
-        { name: "Driver", kind: "class", file: "D:\\ws\\d.ts", line: 2, external: false },
+        {
+          name: "Driver",
+          kind: "class",
+          file: "D:\\ws\\d.ts",
+          line: 2,
+          external: false,
+        },
       ],
       truncated: 0,
       scope: tsScope,
@@ -361,7 +438,11 @@ describe("withinRecordCap", () => {
 });
 
 describe("summarizeCall", () => {
-  const message = (result: Record<string, unknown>) => ({ jsonrpc: "2.0", id: 1, result });
+  const message = (result: Record<string, unknown>) => ({
+    jsonrpc: "2.0",
+    id: 1,
+    result,
+  });
 
   it("calls an answer without `isError` ok and reads nothing as an error", () => {
     const summary = summarizeCall(
@@ -392,7 +473,11 @@ describe("summarizeCall", () => {
       "cpp_find_derived_classes",
       message({
         content: [{ type: "text", text: "stopped" }],
-        structuredContent: REAL_ANSWERS.cpp_find_derived_classes?.payload,
+        structuredContent: {
+          ...(REAL_ANSWERS.cpp_find_derived_classes?.payload as Record<string, unknown>),
+          reason: "budget-exceeded",
+          retryable: true,
+        },
         isError: true,
       }),
       { projectRoot: "D:\\build" },
@@ -400,10 +485,130 @@ describe("summarizeCall", () => {
 
     expect(summary).toMatchObject({
       outcome: "partial",
-      errorClass: "other",
+      errorClass: "budget-exceeded",
       results: 1,
       cache: "partial",
       project: "D:\\build",
+    });
+  });
+
+  it("calls an `isError` answer whose reason is all it carries an error, with no payload to count", () => {
+    const summary = summarizeCall(
+      "cpp_find_symbol",
+      message({
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: 'cpp_find_symbol failed: no symbol "Bar" found.',
+          },
+        ],
+        structuredContent: { reason: "symbol-not-found", retryable: false },
+      }),
+      { projectRoot: "D:\\build", name: "Bar" },
+    );
+
+    expect(summary).toMatchObject({
+      outcome: "error",
+      errorClass: "symbol-not-found",
+      errorHead: 'cpp_find_symbol failed: no symbol "…" found.',
+      results: null,
+      project: "D:\\build",
+      cache: null,
+    });
+  });
+
+  it("takes the class from the reason, though the text carries another class's anchor phrase", () => {
+    const summary = summarizeCall(
+      "cpp_find_symbol",
+      message({
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: 'cpp_find_symbol failed: symbol "is ambiguous" is not in "D:\\a.cpp".',
+          },
+        ],
+        structuredContent: { reason: "symbol-not-found", retryable: false },
+      }),
+      {},
+    );
+
+    expect(summary.errorClass).toBe("symbol-not-found");
+    expect(summary.errorHead).toBe('cpp_find_symbol failed: symbol "…" is not in "…".');
+  });
+
+  it("takes the class of a failure with no reason from its text, `internal` where no anchor matches", () => {
+    const sdk = summarizeCall(
+      "cpp_file_symbols",
+      message({
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: "Input validation error: Invalid arguments for tool",
+          },
+        ],
+      }),
+      {},
+    );
+    const unnamed = summarizeCall(
+      "cpp_find_symbol",
+      message({
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: "cpp_find_symbol failed: something no producer says",
+          },
+        ],
+      }),
+      {},
+    );
+
+    expect(sdk.errorClass).toBe("input-invalid");
+    expect(unnamed.errorClass).toBe("internal");
+  });
+
+  it("does not log a reason outside ERROR_REASONS as a class, and reads the text instead", () => {
+    const summary = summarizeCall(
+      "cpp_find_symbol",
+      message({
+        isError: true,
+        content: [{ type: "text", text: "Input validation error: nope" }],
+        structuredContent: { reason: "made-up-reason", retryable: false },
+      }),
+      {},
+    );
+
+    expect(summary.errorClass).toBe("input-invalid");
+  });
+
+  it("logs a failure whose text is empty under its reason, with no head", () => {
+    const summary = summarizeCall(
+      "cpp_find_symbol",
+      message({
+        isError: true,
+        content: [{ type: "text", text: "" }],
+        structuredContent: { reason: "session-lost", retryable: true },
+      }),
+      {},
+    );
+
+    expect(summary).toMatchObject({
+      outcome: "error",
+      errorClass: "session-lost",
+      errorHead: null,
+    });
+  });
+
+  it("logs a failure with neither text nor reason with no class and no head, as before reasons", () => {
+    const summary = summarizeCall("cpp_find_symbol", message({ isError: true, content: [] }), {});
+
+    expect(summary).toMatchObject({
+      outcome: "error",
+      errorClass: null,
+      errorHead: null,
     });
   });
 
@@ -417,11 +622,13 @@ describe("summarizeCall", () => {
           { type: "text", text: first },
           { type: "text", text: "ignoredPaths" },
         ],
+        structuredContent: { reason: "path-ignored", retryable: false },
       }),
       {},
     );
 
     expect(summary.errorClass).toBe("path-ignored");
+    expect(summary.errorHead).toBe(`"…" is pre-excluded by this project's ignoredPaths config`);
     expect(summary.textBytes).toBe(Buffer.byteLength(first, "utf8") + "ignoredPaths".length);
   });
 
@@ -453,7 +660,11 @@ describe("summarizeCall", () => {
   it("reads a JSON-RPC error response as protocol-error and derives nothing from a payload", () => {
     const summary = summarizeCall(
       "cpp_file_symbols",
-      { jsonrpc: "2.0", id: 1, error: { code: -32603, message: "Input validation error: nope" } },
+      {
+        jsonrpc: "2.0",
+        id: 1,
+        error: { code: -32603, message: "Input validation error: nope" },
+      },
       {},
     );
 
@@ -502,10 +713,14 @@ describe("summarizeCall", () => {
   });
 
   it("takes a TS answer's project from its workspace root, else the first declared root", () => {
-    const answer = message({ structuredContent: { declarations: [], scope: tsScope } });
+    const answer = message({
+      structuredContent: { declarations: [], scope: tsScope },
+    });
 
     expect(
-      summarizeCall("ts_find_symbol", answer, { sourceRoots: ["D:\\ws\\packages"] }).project,
+      summarizeCall("ts_find_symbol", answer, {
+        sourceRoots: ["D:\\ws\\packages"],
+      }).project,
     ).toBe("D:\\ws");
     expect(
       summarizeCall("ts_find_symbol", message({ structuredContent: { declarations: [] } }), {
@@ -515,7 +730,9 @@ describe("summarizeCall", () => {
   });
 
   it("takes the project from the C++ argument, then the Go module, then the first declared root", () => {
-    const goAnswer = message({ structuredContent: { declarations: [], scope: goScope } });
+    const goAnswer = message({
+      structuredContent: { declarations: [], scope: goScope },
+    });
 
     expect(
       summarizeCall("cpp_find_symbol", message({ structuredContent: { name: "F" } }), {
@@ -545,7 +762,12 @@ describe("summarizeCall", () => {
     expect(
       summarizeCall(
         "cpp_find_symbol",
-        message({ structuredContent: { name: "F", scope: { ...cppScope, projectRoot: long } } }),
+        message({
+          structuredContent: {
+            name: "F",
+            scope: { ...cppScope, projectRoot: long },
+          },
+        }),
         {},
       ).project,
     ).toHaveLength(300);
@@ -553,7 +775,10 @@ describe("summarizeCall", () => {
       summarizeCall(
         "go_find_symbol",
         message({
-          structuredContent: { declarations: [], scope: { ...goScope, moduleRoot: long } },
+          structuredContent: {
+            declarations: [],
+            scope: { ...goScope, moduleRoot: long },
+          },
         }),
         {},
       ).project,

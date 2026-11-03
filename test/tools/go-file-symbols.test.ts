@@ -148,10 +148,32 @@ describe("runGoFileSymbols", () => {
       await runGoFileSymbols(manager, input({ sourceRoots: [mod], file: join(mod, "storage.go") })),
     );
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "server-unavailable", retryable: false });
     expect(out.content[0]?.text).toContain(failure.message);
     expect(out.content[0]?.text).toContain("was not found (ENOENT)");
     expect(out.content[0]?.text).toContain("MCP_CODE_NAV_GOPLS");
     expect(out.content[0]?.text).toContain("go install golang.org/x/tools/gopls@latest");
+  });
+
+  it("reports a child that died mid-request as session-lost, with the request's own text", async () => {
+    let alive = true;
+    const server = fakeServer({
+      alive: () => alive,
+      respond: (method) => {
+        if (method !== "textDocument/documentSymbol") return {};
+        alive = false;
+        throw new Error("Pending response rejected since connection got disposed");
+      },
+    });
+    const manager = new LspSessionManager({ spawn: () => server.process, sleep: async () => {} });
+    const out = resultView(
+      await runGoFileSymbols(manager, input({ sourceRoots: [mod], file: join(mod, "storage.go") })),
+    );
+    expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "session-lost", retryable: true });
+    expect(out.content[0]?.text).toContain(
+      "Pending response rejected since connection got disposed",
+    );
   });
 
   it("fails rather than answering when no go.mod exists above the file, without starting a child", async () => {
@@ -163,6 +185,7 @@ describe("runGoFileSymbols", () => {
       await runGoFileSymbols(manager, input({ sourceRoots: [plain], file: join(plain, "a.go") })),
     );
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "no-module", retryable: false });
     expect(out.content[0]?.text).toMatch(/not inside a Go module/);
     expect(out.content[0]?.text).toContain(plain);
     expect(servers).toHaveLength(0);
@@ -179,6 +202,7 @@ describe("runGoFileSymbols", () => {
       await runGoFileSymbols(manager, input({ sourceRoots: [pkg], file: join(pkg, "a.go") })),
     );
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "path-escape", retryable: false });
     expect(out.content[0]?.text).toMatch(/outside every declared sourceRoots entry/);
     expect(out.content[0]?.text).toContain(resolve(mod));
     expect(out.content[0]?.text).toContain(resolve(pkg));
@@ -202,6 +226,7 @@ describe("runGoFileSymbols", () => {
       ),
     );
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "budget-exceeded", retryable: true });
     expect(out.content[0]?.text).toMatch(/did not answer[\s\S]*30 ms budget/);
     expect(out.content[0]?.text).toMatch(/do not read this as an empty file/);
   });
@@ -219,6 +244,7 @@ describe("runGoFileSymbols", () => {
         ),
       );
       expect(out.isError).toBe(true);
+      expect(out.structuredContent).toEqual({ reason: "path-escape", retryable: false });
       expect(out.content[0]?.text).toMatch(/escapes every declared root/);
     } finally {
       rmSync(elsewhere, { recursive: true, force: true });
@@ -240,6 +266,7 @@ describe("runGoFileSymbols", () => {
       await runGoFileSymbols(manager, input({ sourceRoots: [mod], file: join(mod, "gone.go") })),
     );
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "file-not-found", retryable: false });
     expect(out.content[0]?.text).toMatch(/ENOENT/);
   });
 });

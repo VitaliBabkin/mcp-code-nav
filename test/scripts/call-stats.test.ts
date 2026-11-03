@@ -293,6 +293,63 @@ describe("summarizeLog", () => {
     ]);
   });
 
+  it("lists the heads of both unclassified spellings: `other` from an older build and `internal` from this one", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "mcp-code-nav-stats-legacy-"));
+    try {
+      const run = {
+        v: 1,
+        type: "run",
+        run: "r1",
+        ts: "2026-09-30T10:00:00.000Z",
+        pid: 1,
+        build: "0.1.0",
+        node: "v26.3.0",
+        cwd: "D:/work",
+        protocol: "2025-11-25",
+        client: { name: "claude-code", version: "1.2.3" },
+      };
+      const failure = (seq: number, errorClass: string, errorHead: string) => ({
+        v: 1,
+        type: "call",
+        run: "r1",
+        seq,
+        ts: "2026-09-30T10:00:01.000Z",
+        tool: "cpp_find_symbol",
+        lang: "cpp",
+        project: "D:/build",
+        args: {},
+        argKeys: [],
+        ms: 1,
+        inflight: 0,
+        outcome: "error",
+        errorClass,
+        errorHead,
+        limits: [],
+        results: null,
+        capped: false,
+        cache: null,
+        indexState: null,
+        spawned: null,
+        readyWaitMs: null,
+        textBytes: 10,
+      });
+      const lines = [run, failure(1, "other", "old head"), failure(2, "internal", "new head")];
+      await writeFile(
+        join(dir, "calls-20260930T100000-1.jsonl"),
+        `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`,
+      );
+
+      const log = summarizeLog(await scanCallLog(dir, { from: null, to: null }));
+
+      expect(log.heads).toEqual([
+        { tool: "cpp_find_symbol", head: "new head", count: 1 },
+        { tool: "cpp_find_symbol", head: "old head", count: 1 },
+      ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("counts the `limits` codes, the builds, and lists the class it could not place by its head", async () => {
     const log = summarizeLog(await scanCallLog(logs, { from: null, to: null }));
     expect([...log.limits]).toEqual([
@@ -540,7 +597,7 @@ describe("renderText, the log section golden", () => {
     expect(
       section(
         text,
-        'unclassified heads, class "other" (top 20 — grow the anchor table from these)',
+        'unclassified heads, class "internal" ("other" in logs of older builds) (top 20 — name a reason where the text is written, or grow the anchor table)',
       ),
     ).toEqual([["1", "cpp_find_symbol", "nothing here matches 42"]]);
     expect(text).toContain("a call killed with no transport close");

@@ -135,6 +135,10 @@ describe("resolveTsgoBinary against this host", () => {
       );
 
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "server-unavailable",
+        retryable: false,
+      });
       const text = textOf(out);
       expect(text).toContain(`${OVERRIDE_NAME}="${missing}" was not found (ENOENT)`);
       expect(text).toContain("install TypeScript 7 with npm install -g typescript@7");

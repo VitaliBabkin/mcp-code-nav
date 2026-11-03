@@ -15,6 +15,7 @@ import { z } from "zod";
 import { flattenOutline, symbolKindName, type FlatSymbol } from "../clangd/outline.js";
 import { CompileDbNotFoundError, listTranslationUnits } from "../clang-query/compile-db.js";
 import { describeMissingCompileDb } from "../clang-query/compile-db-hint.js";
+import type { ErrorReason } from "../error-reason.js";
 import {
   cppSourceRoots,
   deriveSourceRoot,
@@ -57,6 +58,7 @@ import {
 import { NameInput, PathInput } from "./input-limits.js";
 import { STALE_FILES_LIMIT, type NavigationLimit } from "./navigation-limits.js";
 import { type Step } from "./navigation-text.js";
+import { reasonOfError } from "./reason-of-error.js";
 import { messageOf } from "../error-message.js";
 
 /** Where one C++ declaration is, and where its own name is inside that. */
@@ -101,6 +103,12 @@ export interface CppAddress {
   file?: string;
   sourceRoots: string[];
   kind?: FindSymbolQuery["kind"];
+}
+
+/** A refusal this module writes: its text and the reason it names, as a `Step` failure carries them. */
+export interface CppRefusal {
+  readonly error: string;
+  readonly reason: ErrorReason;
 }
 
 interface CandidateInFile extends FlatSymbol {
@@ -152,6 +160,7 @@ function uniqueOrAmbiguous(
       error:
         `${tool} failed: "${name}" is ambiguous ${scopeText}:\n` +
         matches.map(formatCandidate).join("\n"),
+      reason: "symbol-ambiguous",
     };
   }
   return undefined;
@@ -164,6 +173,7 @@ function coldIndexError(tool: string, file: string, coldContext: string): Step<C
     error:
       `${tool} failed: "${file}" ${coldContext}produced no symbols while clangd's index for this project ` +
       "was not yet confirmed warm — retry once the index has warmed up.",
+    reason: "not-ready",
   };
 }
 
@@ -236,7 +246,7 @@ async function searchInFile(
   } catch (e) {
     if (isPathResolutionError(e)) {
       const fix = pathFixHint(e, { projectRoot: scope.projectRoot, file, sourceRoots });
-      return { ok: false, error: `${tool} failed: ${e.message}${fix}` };
+      return { ok: false, error: `${tool} failed: ${e.message}${fix}`, reason: reasonOfError(e) };
     }
     throw e;
   }
@@ -250,12 +260,17 @@ async function searchInFile(
     if (viaHeader !== undefined) return viaHeader;
   } catch (e) {
     const note = resolutionNote(file, resolution) + fileNotFoundHint(e, sourceRoots);
-    return { ok: false, error: `${tool} failed: ${messageOf(e)}${note}` };
+    return {
+      ok: false,
+      error: `${tool} failed: ${messageOf(e)}${note}`,
+      reason: reasonOfError(e),
+    };
   }
 
   return {
     ok: false,
     error: `${tool} failed: no symbol "${query.name}" found in "${absoluteFile}".${resolutionNote(file, resolution)}`,
+    reason: "symbol-not-found",
   };
 }
 
@@ -286,6 +301,7 @@ async function searchOpenedFiles(
     uniqueOrAmbiguous(tool, allMatches, query.name, scopeText) ?? {
       ok: false,
       error: `${tool} failed: no symbol "${query.name}" found ${scopeText}.`,
+      reason: "symbol-not-found",
     }
   );
 }
@@ -354,6 +370,7 @@ function readSymbolRow(
         `entry ${String(ordinal)}`,
         WORKSPACE_SYMBOL_ANSWER,
       ),
+      reason: "unexpected-answer",
     };
   }
   // `containerName` is the declaration's own scope, spelled as clangd spells it, and the row's `range` IS
@@ -382,7 +399,7 @@ function readSymbolRow(
 /** What clangd's symbol list said about one name: one declaration, none, or the refusal that states why. */
 export interface CppIndexAnswer {
   readonly declaration?: CppDeclaration;
-  readonly refusal?: string;
+  readonly refusal?: CppRefusal;
   /** How many rows answered exactly, whatever the listing below shows. */
   readonly matched: number;
   /** Whether the RAW list reached this server's watermark, so an exact match may have been ranked out. */
@@ -413,6 +430,7 @@ export function cppDeclarationFromSymbolRows(
         undefined,
         WORKSPACE_SYMBOL_ANSWER,
       ),
+      reason: "unexpected-answer",
     };
   }
   const raw = rows ?? [];
@@ -429,7 +447,14 @@ export function cppDeclarationFromSymbolRows(
   if (answered !== undefined) {
     return answered.ok
       ? { ok: true, value: { declaration: answered.value, matched: 1, capped } }
-      : { ok: true, value: { refusal: answered.error, matched: matched.length, capped } };
+      : {
+          ok: true,
+          value: {
+            refusal: { error: answered.error, reason: answered.reason },
+            matched: matched.length,
+            capped,
+          },
+        };
   }
   return { ok: true, value: { matched: 0, capped } };
 }
@@ -464,7 +489,7 @@ export async function cppQuestionDeclaration(
   );
   if (!found.ok) return found;
   const answer = found.value;
-  if (answer.refusal !== undefined) return { ok: false, error: answer.refusal };
+  if (answer.refusal !== undefined) return { ok: false, ...answer.refusal };
   return { ok: true, value: { declaration: answer.declaration, capped: answer.capped } };
 }
 
@@ -491,15 +516,16 @@ export function outsideSubjectText(
 /**
  * A name no C++ question can be answered about. Only some silences may be reported as absence:
  * only a `quiescent` index's, and a list that came back at this server's watermark says so, because the
- * declaration may have been ranked out rather than never indexed.
+ * declaration may have been ranked out rather than never indexed. The quiescent silence is a proven absence;
+ * any other index state is a readiness refusal.
  */
-export function noIndexDeclarationText(
+export function noIndexDeclarationRefusal(
   tool: string,
   name: string,
   projectRoot: string,
   state: IndexState,
   capped: boolean,
-): string {
+): CppRefusal {
   const searched = `in clangd's index for "${projectRoot}"`;
   const ranked = capped
     ? " clangd's symbol search returns a bounded list and this one came back at the size this server treats" +
@@ -507,24 +533,28 @@ export function noIndexDeclarationText(
       " filter ran."
     : "";
   if (state === "quiescent") {
-    return (
-      `${tool} failed: no declaration named "${name}" was found ${searched}. The match is exact, not fuzzy: a ` +
-      "qualified name must match the trailing scope segments clangd spells, and a bare name matches one name in " +
-      "any scope. The search is clangd's index of the translation units this project's `compile_commands.json` " +
-      "names, and of the headers they include: a source that database omits holds declarations this call cannot " +
-      "see. It is not bounded by your declared source roots, and a declaration found outside them is reported." +
-      ranked
-    );
+    return {
+      error:
+        `${tool} failed: no declaration named "${name}" was found ${searched}. The match is exact, not fuzzy: a ` +
+        "qualified name must match the trailing scope segments clangd spells, and a bare name matches one name in " +
+        "any scope. The search is clangd's index of the translation units this project's `compile_commands.json` " +
+        "names, and of the headers they include: a source that database omits holds declarations this call cannot " +
+        "see. It is not bounded by your declared source roots, and a declaration found outside them is reported." +
+        ranked,
+      reason: "symbol-not-found",
+    };
   }
   const why =
     state === "building"
       ? "clangd was indexing while this call ran, so the shards this answer came from are incomplete"
       : "clangd never reported indexing progress to this session, so its index state is not known";
-  return (
-    `${tool} failed: no declaration named "${name}" was found ${searched}, and that is not reportable as an ` +
-    `answer: ${why}. Call again once indexing has settled — a \`quiescent\` index that finds nothing answers ` +
-    `as this refusal instead.${ranked}`
-  );
+  return {
+    error:
+      `${tool} failed: no declaration named "${name}" was found ${searched}, and that is not reportable as an ` +
+      `answer: ${why}. Call again once indexing has settled — a \`quiescent\` index that finds nothing answers ` +
+      `as this refusal instead.${ranked}`,
+    reason: "not-ready",
+  };
 }
 
 /**

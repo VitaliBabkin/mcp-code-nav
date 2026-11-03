@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  defaultClangQueryExec,
   findDerivedClasses,
   type ClangQueryExecFn,
 } from "../../src/clang-query/find-derived-classes.js";
@@ -954,6 +955,50 @@ describe("findDerivedClasses — uniform sweep failure", () => {
     expect(outcome.failedFiles).toEqual([]);
   });
 
+  it("is marked binaryMissing when every failed TU's clang-query could not be started", async () => {
+    const tu1 = join(projectRoot, "a.cpp");
+    const tu2 = join(projectRoot, "b.cpp");
+    const exec: ClangQueryExecFn = async () => ({
+      exitCode: 1,
+      stdout: "",
+      stderr: "Error: spawn clang-query ENOENT",
+      binaryMissing: true,
+    });
+    const outcome = await findDerivedClasses({
+      projectRoot,
+      qualifiedName: "Base",
+      translationUnits: [tu1, tu2],
+      exec,
+    });
+    expect(outcome.uniformFailure).toEqual({
+      error: "Error: spawn clang-query ENOENT",
+      failedTus: 2,
+      binaryMissing: true,
+    });
+  });
+
+  it("omits binaryMissing when only some of the identical failures had no binary", async () => {
+    const tu1 = join(projectRoot, "a.cpp");
+    const tu2 = join(projectRoot, "b.cpp");
+    const exec: ClangQueryExecFn = async (args) => ({
+      exitCode: 1,
+      stdout: "",
+      stderr: "Error: spawn clang-query ENOENT",
+      binaryMissing: args[2] === tu1,
+    });
+    const outcome = await findDerivedClasses({
+      projectRoot,
+      qualifiedName: "Base",
+      translationUnits: [tu1, tu2],
+      exec,
+    });
+    expect(outcome.uniformFailure).toEqual({
+      error: "Error: spawn clang-query ENOENT",
+      failedTus: 2,
+    });
+    expect(outcome.uniformFailure).not.toHaveProperty("binaryMissing");
+  });
+
   it("is never replayed from cache — a failed TU is re-run, so a fixed environment clears the verdict", async () => {
     const cache = new SweepCache();
     const tu1 = join(projectRoot, "a.cpp");
@@ -990,6 +1035,24 @@ describe("findDerivedClasses — uniform sweep failure", () => {
       { className: "Derived", file: header, line: 1, column: 1, direct: false },
     ]);
     expect(recovered.sweep.cachedTus).toBe(0);
+  });
+});
+
+describe("defaultClangQueryExec", () => {
+  it("reports binaryMissing when the clang-query binary cannot be started at all", async () => {
+    const emptyDir = mkdtempSync(join(tmpdir(), "mcp-code-nav-cq-nobin-"));
+    const savedPath = process.env.PATH;
+    process.env.PATH = emptyDir;
+    try {
+      const result = await defaultClangQueryExec(["-version"], emptyDir);
+      expect(result.binaryMissing).toBe(true);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+    } finally {
+      if (savedPath === undefined) delete process.env.PATH;
+      else process.env.PATH = savedPath;
+      rmSync(emptyDir, { recursive: true, force: true });
+    }
   });
 });
 
