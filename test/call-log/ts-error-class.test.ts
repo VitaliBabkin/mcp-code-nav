@@ -28,12 +28,13 @@ import {
   type TsQueryDeps,
 } from "../../src/tools/ts-navigation-shared.js";
 import { budgetOf } from "../../src/tools/budget.js";
+import { resultView } from "../helpers/tool-result.js";
 import { unexpectedAnswerText, WORKSPACE_SYMBOL_ANSWER } from "../../src/tools/lsp-locations.js";
 import { resolveTsgoBinary, type TsgoBinary, type TsExecFn } from "../../src/tsgo/binary.js";
 import { dropProjectMap } from "../../src/tsgo/project-map.js";
 import { fakeServer, pathOfDocumentId } from "../helpers/fake-lsp.js";
 
-type Answer = { isError?: boolean; content?: { text?: string }[] };
+type Answer = { isError?: boolean; content?: readonly { text?: string }[] };
 
 const BINARY: TsgoBinary = {
   executable:
@@ -152,7 +153,9 @@ describe("what the shared TS target resolution refuses with", () => {
     const h = harness();
     const notes = join(h.ws, "src", "notes.txt");
     writeFileSync(notes, "x");
-    const out = await runTsFileSymbols(h.manager, { ...h.base(), file: notes, depth: 1 }, h.deps);
+    const out = resultView(
+      await runTsFileSymbols(h.manager, { ...h.base(), file: notes, depth: 1 }, h.deps),
+    );
 
     expect(out.isError).toBe(true);
     expect(classOf(textOf(out))).toBe("input-invalid");
@@ -228,10 +231,12 @@ describe("what the shared TS target resolution refuses with", () => {
 
   it("file-not-found, for a `file` that does not exist, through a TS tool", async () => {
     const h = harness();
-    const out = await runTsFileSymbols(
-      h.manager,
-      { ...h.base(), file: join(h.ws, "src", "gone.ts"), depth: 1 },
-      h.deps,
+    const out = resultView(
+      await runTsFileSymbols(
+        h.manager,
+        { ...h.base(), file: join(h.ws, "src", "gone.ts"), depth: 1 },
+        h.deps,
+      ),
     );
 
     expect(out.isError).toBe(true);

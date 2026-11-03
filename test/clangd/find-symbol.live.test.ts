@@ -61,7 +61,11 @@ interface HoverPayload {
 const textOf = (result: { content: readonly { text?: string }[] }): string =>
   result.content[0]?.text ?? "";
 
-const payloadOf = (result: { structuredContent?: unknown; isError?: boolean }): HoverPayload => {
+const payloadOf = (result: {
+  content: readonly { text?: string }[];
+  structuredContent?: unknown;
+  isError?: boolean;
+}): HoverPayload => {
   expect(result.isError, textOf(result)).toBeFalsy();
   return result.structuredContent as HoverPayload;
 };
@@ -149,7 +153,12 @@ describe("cpp_find_symbol's hover description against a real clangd binary", () 
     "describes a class declared in a header the compile database names no entry for",
     async () => {
       const found = payloadOf(
-        await runCppFindSymbol(freshManager(), { projectRoot, name: "Widget", file: "widget.h" }),
+        await runCppFindSymbol(freshManager(), {
+          projectRoot,
+          name: "Widget",
+          file: "widget.h",
+          sourceRoots: [],
+        }),
       );
 
       expect(found).toMatchObject({
@@ -184,7 +193,12 @@ describe("cpp_find_symbol's hover description against a real clangd binary", () 
 
       expect(answer.contents.kind).toBe("markdown");
       const found = payloadOf(
-        await runCppFindSymbol(freshManager(), { projectRoot, name: "Widget", file: "widget.h" }),
+        await runCppFindSymbol(freshManager(), {
+          projectRoot,
+          name: "Widget",
+          file: "widget.h",
+          sourceRoots: [],
+        }),
       );
       expect(found.signature).not.toContain("```");
       expect(found.documentation).not.toContain("```");
@@ -196,7 +210,12 @@ describe("cpp_find_symbol's hover description against a real clangd binary", () 
     "gives a declaration nobody documented a signature, and invents no doc comment for it",
     async () => {
       const found = payloadOf(
-        await runCppFindSymbol(freshManager(), { projectRoot, name: "Bare", file: "widget.h" }),
+        await runCppFindSymbol(freshManager(), {
+          projectRoot,
+          name: "Bare",
+          file: "widget.h",
+          sourceRoots: [],
+        }),
       );
 
       expect(found).toMatchObject({
@@ -222,6 +241,7 @@ describe("cpp_find_symbol's hover description against a real clangd binary", () 
           projectRoot,
           name: "Widget::paint",
           file: "widget.h",
+          sourceRoots: [],
         }),
       );
 
@@ -274,13 +294,19 @@ describe("cpp_find_symbol's hover description against a real clangd binary", () 
       // query. What the caller gets is the requirements's answer — the declaring header — described
       // from the header's own identifier.
       const bare = payloadOf(
-        await runCppFindSymbol(freshManager(), { projectRoot, name: "paint", file: "widget.cpp" }),
+        await runCppFindSymbol(freshManager(), {
+          projectRoot,
+          name: "paint",
+          file: "widget.cpp",
+          sourceRoots: [],
+        }),
       );
       const qualified = payloadOf(
         await runCppFindSymbol(freshManager(), {
           projectRoot,
           name: "gizmo::Widget::paint",
           file: "widget.cpp",
+          sourceRoots: [],
         }),
       );
 
@@ -302,8 +328,15 @@ describe("cpp_find_symbol's hover description against a real clangd binary", () 
     "describes what the unscoped branch found among the files the session opened",
     async () => {
       const manager = freshManager();
-      await runCppFileSymbols(manager, { projectRoot, file: "widget.h", depth: 1 });
-      const found = payloadOf(await runCppFindSymbol(manager, { projectRoot, name: "Widget" }));
+      await runCppFileSymbols(manager, {
+        projectRoot,
+        file: "widget.h",
+        sourceRoots: [],
+        depth: 1,
+      });
+      const found = payloadOf(
+        await runCppFindSymbol(manager, { projectRoot, name: "Widget", sourceRoots: [] }),
+      );
 
       expect(found).toMatchObject({ name: "gizmo::Widget", kind: "class", file: headerFile });
       expect(found.signature).toContain("class Widget");
@@ -358,7 +391,12 @@ describe("cpp_find_symbol's hover description against a real clangd binary", () 
       // The tool's own route holds the document by reading its outline first, so the hover it sends has a
       // buffer to answer from and the answer above is a description of what it does not have to work around.
       const found = payloadOf(
-        await runCppFindSymbol(freshManager(), { projectRoot, name: "Widget", file: "widget.h" }),
+        await runCppFindSymbol(freshManager(), {
+          projectRoot,
+          name: "Widget",
+          file: "widget.h",
+          sourceRoots: [],
+        }),
       );
       expect(found.signature).toContain("class Widget");
     },

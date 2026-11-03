@@ -24,8 +24,9 @@ import {
   type GoToolHarness,
   type GoToolHarnessOptions,
 } from "../helpers/go-tool-harness.js";
+import { resultView } from "../helpers/tool-result.js";
 
-type Result = Awaited<ReturnType<typeof runGoFindReferences>>;
+type Result = ReturnType<typeof resultView<Awaited<ReturnType<typeof runGoFindReferences>>>>;
 type Input = {
   sourceRoots: string[];
   file: string;
@@ -76,18 +77,20 @@ function harness(options: HarnessOptions = {}): Harness {
     answer: (locations) => core.query.answer(REFERENCES_METHOD, locations),
     failNextReferences: () => core.query.crashNext(REFERENCES_METHOD),
     refuseReferences: (message) => core.query.refuse(REFERENCES_METHOD, message),
-    run: (overrides) =>
-      runGoFindReferences(
-        core.manager,
-        {
-          sourceRoots: [core.mod],
-          file: core.file,
-          symbol: "Storage",
-          includeDeclaration: false,
-          timeBudgetMs: 60_000,
-          ...overrides,
-        },
-        { exec: core.go.exec },
+    run: async (overrides) =>
+      resultView(
+        await runGoFindReferences(
+          core.manager,
+          {
+            sourceRoots: [core.mod],
+            file: core.file,
+            symbol: "Storage",
+            includeDeclaration: false,
+            timeBudgetMs: 60_000,
+            ...overrides,
+          },
+          { exec: core.go.exec },
+        ),
       ),
   };
 }

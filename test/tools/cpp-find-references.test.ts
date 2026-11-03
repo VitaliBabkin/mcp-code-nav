@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeServer, pathOfDocumentId, type FakeServer } from "../helpers/fake-lsp.js";
 import { sessionsFor, symAt } from "../helpers/fake-clangd.js";
+import { payloadOf, resultView } from "../helpers/tool-result.js";
 import {
   runCppFindReferences,
   type CppReferenceFile,
@@ -47,6 +48,29 @@ interface Scope {
 }
 
 const textOf = (result: Result): string => result.content[0]?.text ?? "";
+
+/** A field the answer carries at runtime that its declared type does not name for this path; the test reads it. */
+function fieldOf(value: unknown, key: string): unknown {
+  if (typeof value !== "object" || value === null) return undefined;
+  return Object.getOwnPropertyDescriptor(value, key)?.value;
+}
+
+type ReferencesAnswer = Awaited<ReturnType<typeof runCppFindReferences>>;
+
+/** The payload of a call the test expects to succeed; fails the test with the result's text otherwise. */
+function payload(raw: ReferencesAnswer): CppFindReferencesPayload {
+  expect(resultView(raw).isError, textOf(raw)).toBeFalsy();
+  return payloadOf(raw);
+}
+
+const scope = (raw: ReferencesAnswer): Scope => payload(raw).scope;
+
+/** The reference group the listing holds for `file`; the test fails here, naming the file, when there is none. */
+function groupIn(found: CppFindReferencesPayload, file: string): CppReferenceFile {
+  const group = found.files.find((candidate) => candidate.file === file);
+  if (group === undefined) throw new Error(`no reference group for ${file}`);
+  return group;
+}
 
 const site = (file: string, line: number, character: number) => ({
   uri: fileUri(file),
@@ -158,20 +182,13 @@ describe("cpp_find_references against a faked clangd", () => {
     sessions = sessionsFor(server.process);
   }
 
-  const run = (): Promise<Result> =>
+  const run = () =>
     runCppFindReferences(sessions, {
       projectRoot: buildDir,
       name: "Widget",
       file: widget,
       sourceRoots: [sourceDir],
-    } as never);
-
-  const payload = (result: Result): CppFindReferencesPayload => {
-    expect(result.isError, textOf(result)).toBeFalsy();
-    return result.structuredContent as CppFindReferencesPayload;
-  };
-
-  const scope = (result: Result): Scope => payload(result).scope as unknown as Scope;
+    });
 
   /**
    * One ordinary call first: the session only registers its server-to-client handlers when it spawns, so a
@@ -203,8 +220,8 @@ describe("cpp_find_references against a faked clangd", () => {
     expect(found.resolved).toEqual({ name: "Widget", kind: "class", file: widget, line: 4 });
     expect(found.totalReferences).toBe(2);
     expect(found.filesTruncated).toBe(0);
-    const inWidget = found.files.find((group) => group.file === widget) as CppReferenceFile;
-    const inHelper = found.files.find((group) => group.file === helper) as CppReferenceFile;
+    const inWidget = groupIn(found, widget);
+    const inHelper = groupIn(found, helper);
     // `Widget::value` is qualified the way `cpp_find_symbol` publishes a member, so a row can be handed
     // straight back as this tool's own `name` input.
     expect(inWidget.sites[0]).toMatchObject({ line: 6, column: 7, in: "Widget::value" });
@@ -220,7 +237,7 @@ describe("cpp_find_references against a faked clangd", () => {
       vi.setSystemTime(Date.now() + NAVIGATION_CEILING_MS + 1);
 
       const found = payload(await run());
-      const inHelper = found.files.find((group) => group.file === helper) as CppReferenceFile;
+      const inHelper = groupIn(found, helper);
 
       expect(inHelper.sites[0]).toMatchObject({ line: 2, column: 10, in: "helper" });
       expect(inHelper.sites[0]?.reason).toBeUndefined();
@@ -233,7 +250,7 @@ describe("cpp_find_references against a faked clangd", () => {
     locations = () => [site(widget, 3, 6), site(elsewhere, 0, 34)];
 
     const found = payload(await run());
-    const external = found.files.find((group) => group.file === elsewhere) as CppReferenceFile;
+    const external = groupIn(found, elsewhere);
 
     expect(external.external).toBe(true);
     expect(external.count).toBe(1);
@@ -262,7 +279,7 @@ describe("cpp_find_references against a faked clangd", () => {
 
     const result = await run();
     const found = payload(result);
-    const helperGroup = found.files.find((group) => group.file === helper) as CppReferenceFile;
+    const helperGroup = groupIn(found, helper);
 
     expect(found.totalReferences).toBe(70);
     expect(found.files).toHaveLength(40);
@@ -277,7 +294,7 @@ describe("cpp_find_references against a faked clangd", () => {
     expect(inScope.map((group) => group.file)).toEqual([helper]);
     expect(found.files.filter((group) => group.external)).toHaveLength(39);
     expect(found.filesTruncated).toBe(6);
-    expect(found.files[0].external).toBe(false);
+    expect(found.files[0]?.external).toBe(false);
   });
 
   it("says state and drift are both unknown on a first call over these roots", async () => {
@@ -328,7 +345,7 @@ describe("cpp_find_references against a faked clangd", () => {
   it("refuses an empty answer when clangd never reported any progress, and says that is why", async () => {
     locations = () => [];
 
-    const failed = await run();
+    const failed = resultView(await run());
 
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toMatch(/never reported indexing progress to this session/);
@@ -339,7 +356,7 @@ describe("cpp_find_references against a faked clangd", () => {
     await beginRound();
     locations = () => [];
 
-    const failed = await run();
+    const failed = resultView(await run());
 
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toMatch(/was indexing while this call ran/);
@@ -413,7 +430,7 @@ describe("cpp_find_references against a faked clangd", () => {
   it("refuses an answer it cannot read as locations rather than dropping part of it", async () => {
     locations = () => [{ uri: "file:///nowhere.cpp" }];
 
-    const failed = await run();
+    const failed = resultView(await run());
 
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toMatch(
@@ -431,7 +448,7 @@ describe("cpp_find_references against a faked clangd", () => {
     });
     sessions = sessionsFor(server.process);
 
-    const failed = await run();
+    const failed = resultView(await run());
 
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toMatch(/clangd named no position for "Widget"/);
@@ -458,7 +475,7 @@ describe("cpp_find_references against a faked clangd", () => {
     });
     sessions = sessionsFor(server.process);
 
-    const failed = await run();
+    const failed = resultView(await run());
 
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toMatch(/cpp_find_references failed: "Widget" is ambiguous in/);
@@ -470,16 +487,18 @@ describe("cpp_find_references against a faked clangd", () => {
         projectRoot: buildDir,
         name: "Widget",
         sourceRoots: [sourceDir],
-      } as never);
+      });
 
     // A call that fails at its own resolution still leaves its file open, so the session now holds
     // `helper.cpp` — an outline that says nothing about `Widget`. The name can only come from the index.
-    const warming = await runCppFindReferences(sessions, {
-      projectRoot: buildDir,
-      name: "nope",
-      file: helper,
-      sourceRoots: [sourceDir],
-    } as never);
+    const warming = resultView(
+      await runCppFindReferences(sessions, {
+        projectRoot: buildDir,
+        name: "nope",
+        file: helper,
+        sourceRoots: [sourceDir],
+      }),
+    );
     expect(warming.isError).toBe(true);
 
     // A round that opens while the symbol query is being answered and settles while the reference query is
@@ -518,11 +537,13 @@ describe("cpp_find_references against a faked clangd", () => {
       },
     ];
 
-    const failed = await runCppFindReferences(sessions, {
-      projectRoot: buildDir,
-      name: "Widget",
-      sourceRoots: [sourceDir],
-    } as never);
+    const failed = resultView(
+      await runCppFindReferences(sessions, {
+        projectRoot: buildDir,
+        name: "Widget",
+        sourceRoots: [sourceDir],
+      }),
+    );
 
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toContain('is declared in "');
@@ -543,7 +564,7 @@ describe("cpp_find_references against a faked clangd", () => {
         projectRoot: buildDir,
         name: "Widget",
         sourceRoots: [sourceDir],
-      } as never);
+      });
 
     const built = await unscoped();
     expect(payload(built).resolved.name).toBe("Widget");
@@ -557,25 +578,22 @@ describe("cpp_find_references against a faked clangd", () => {
       projectRoot: buildDir,
       name: "Widget",
       sourceRoots: [sourceDir],
-    } as never);
-    expect((symbol.structuredContent as { scope?: unknown }).scope).toBeDefined();
+    });
+    expect(fieldOf(payloadOf(symbol), "scope")).toBeDefined();
     // …and the rows in that file are still named, from the transient read rather than a held one.
-    const inWidget = (payload(built).files.find((group) => group.file === widget) ?? {
-      sites: [],
-    }) as {
-      sites: { in: string | null }[];
-    };
-    expect(inWidget.sites[0]?.in).toBe("Widget::value");
+    expect(groupIn(payload(built), widget).sites[0]?.in).toBe("Widget::value");
   });
 
   it("reads a name the index does not hold as the refusal that says so, not as an empty listing", async () => {
     indexRows = [];
 
-    const failed = await runCppFindReferences(sessions, {
-      projectRoot: buildDir,
-      name: "Gone",
-      sourceRoots: [sourceDir],
-    } as never);
+    const failed = resultView(
+      await runCppFindReferences(sessions, {
+        projectRoot: buildDir,
+        name: "Gone",
+        sourceRoots: [sourceDir],
+      }),
+    );
 
     expect(failed.isError).toBe(true);
     // No subject means no reference question was askable, so the answer is about the declaration and says
@@ -594,7 +612,7 @@ describe("cpp_find_references against a faked clangd", () => {
         name: "Widget",
         file: widget,
         sourceRoots: [sourceDir, outsideDir],
-      } as never),
+      }),
     );
 
     expect(otherRoots.index.driftUnknown).toMatch(/first index-backed answer over/);

@@ -21,6 +21,7 @@ import type { TsQueryDeps } from "../../src/tools/ts-navigation-shared.js";
 import type { TsgoBinary, TsExecFn } from "../../src/tsgo/binary.js";
 import { dropProjectMap } from "../../src/tsgo/project-map.js";
 import { fakeServer, pathOfDocumentId, uriOf, type FakeServer } from "../helpers/fake-lsp.js";
+import { resultView } from "../helpers/tool-result.js";
 
 type Result = Awaited<ReturnType<typeof runTsFindReferences>>;
 type Input = {
@@ -470,7 +471,7 @@ describe("runTsFindReferences", () => {
     ]);
 
     const out = await h.run();
-    expect(out.isError).toBeFalsy();
+    expect(resultView(out).isError).toBeFalsy();
     expect(payload(out)).toEqual({
       summary: expect.any(String),
       resolved: { name: "Storage", kind: "interface", file: h.main, line: 1 },
@@ -580,7 +581,7 @@ describe("runTsFindReferences", () => {
     h.answer([location(h.main, 1, 2)]);
 
     const out = await h.run({ file: join("packages", "ui", "src", "main.ts") });
-    expect(out.isError, textOf(out)).toBeFalsy();
+    expect(resultView(out).isError, textOf(out)).toBeFalsy();
     expect(requestFor(h.server, "textDocument/references")).toEqual({
       textDocument: { uri: uriOf(h.main) },
       position: { line: 0, character: 17 },
@@ -627,7 +628,7 @@ describe("runTsFindReferences", () => {
       h.answer(overloadAnswer(h));
 
       const out = await h.run({ file: h.over, symbol: "pick" });
-      expect(out.isError, textOf(out)).toBeFalsy();
+      expect(resultView(out).isError, textOf(out)).toBeFalsy();
       // The use, the same symbol's row in another file, and the location that names no character.
       expect(payload(out).totalReferences).toBe(3);
       expect(filesOf(out).map((group) => [group.file, group.count])).toEqual([
@@ -677,7 +678,7 @@ describe("runTsFindReferences", () => {
       ]);
 
       const kept = await h.run({ file: dotted, symbol: "A.B" });
-      expect(kept.isError, textOf(kept)).toBeFalsy();
+      expect(resultView(kept).isError, textOf(kept)).toBeFalsy();
       expect(payload(kept).totalReferences).toBe(1);
       expect(sitesOf(filesOf(kept)[0]).map((site) => site.line)).toEqual([4]);
 
@@ -723,7 +724,7 @@ describe("runTsFindReferences", () => {
         h.definition([location(h.over, 0, DECLARATION_AT.character)]);
 
         const out = await h.run({ file, symbol: "pick" });
-        expect(out.isError, textOf(out)).toBeFalsy();
+        expect(resultView(out).isError, textOf(out)).toBeFalsy();
         expect(payload(out).totalReferences).toBe(2);
         expect(filesOf(out).map((group) => group.file)).toEqual([file]);
         expect(sitesOf(filesOf(out)[0]).map((site) => site.line)).toEqual([1, 2]);
@@ -770,7 +771,7 @@ describe("runTsFindReferences", () => {
           h.definition(definition);
 
           const out = await h.run({ file, symbol: "pick" });
-          expect(out.isError, textOf(out)).toBeFalsy();
+          expect(resultView(out).isError, textOf(out)).toBeFalsy();
           expect(payload(out).totalReferences).toBe(3);
         },
       );
@@ -815,7 +816,7 @@ describe("runTsFindReferences", () => {
           h.definition([location(h.over, 0, DECLARATION_AT.character)]);
 
           const out = await h.run({ file, symbol: "pick", includeDeclaration });
-          expect(out.isError, textOf(out)).toBeFalsy();
+          expect(resultView(out).isError, textOf(out)).toBeFalsy();
           expect(payload(out).totalReferences).toBe(2);
           expect((payload(out).resolved as Record<string, unknown>).renamedImportOf).toEqual({
             symbol: "pick",
@@ -1060,7 +1061,7 @@ describe("runTsFindReferences", () => {
       h.answer(result);
 
       const out = await h.run();
-      expect(out.isError).toBeFalsy();
+      expect(resultView(out).isError).toBeFalsy();
       expect(payload(out)).toMatchObject({ totalReferences: 0, files: [], filesTruncated: 0 });
       expect(limitsOf(out)).toEqual(["one-workspace"]);
       expect(textOf(out)).toBe(
@@ -1098,7 +1099,7 @@ describe("runTsFindReferences", () => {
     const h = harness();
 
     const out = await h.run({ symbol: "Absent" });
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toBe(
       `ts_find_references failed: "${h.main}" declares nothing named "Absent". \`symbol\` is a top-level name in the file, or a dotted path descending through a class, interface, enum or namespace (\`ExecDriver.run\`, \`Ns.Inner.x\`); an import binding matches like a variable and the checker follows the alias. A local, or an object literal's member, is not addressable.`,
     );
@@ -1109,7 +1110,7 @@ describe("runTsFindReferences", () => {
     const h = harness();
 
     const out = await h.run({ symbol: "Widget" });
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toBe(
       `ts_find_references failed: "Widget" names 2 declarations in "${h.main}" that TypeScript does not merge into one, so this server will not pick between them. Select one with a prefix - \`static\`, \`instance\`, \`value\`, \`type\` or \`namespace\`:\n` +
         `  - value Widget (constant) at ${h.main}:11\n` +
@@ -1122,7 +1123,7 @@ describe("runTsFindReferences", () => {
     const h = harness();
 
     const out = await h.run({ symbol: "build.inner" });
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toBe(
       `ts_find_references failed: "build.inner" cannot be addressed in "${h.main}": "build" is not a class, interface, enum or namespace (it is a function), and only those four hold addressable members. Locals and object-literal members are not addressable.`,
     );
@@ -1134,7 +1135,7 @@ describe("runTsFindReferences", () => {
     h.answer([flat]);
 
     const out = await h.run();
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toBe(
       'ts_find_references failed: tsgo answered the query for "Storage" with entry 1 this server cannot read, ' +
         "so the answer cannot be reported without possibly dropping a match. It expects `Location` or " +
@@ -1148,7 +1149,7 @@ describe("runTsFindReferences", () => {
     h.answer({ references: [] });
 
     const out = await h.run();
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toBe(
       'ts_find_references failed: tsgo answered the query for "Storage" with an object this server cannot read, ' +
         "so the answer cannot be reported without possibly dropping a match. It expects `Location` or " +
@@ -1162,7 +1163,7 @@ describe("runTsFindReferences", () => {
     h.crashNextReferences();
 
     const out = await h.run();
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toBe(
       `ts_find_references failed: tsgo restarted during the query about "Storage" in the workspace "${h.ws}", so the documents the answer depends on were opened on a process that is not the one that answered. Call again: the restarted server opens its anchors and proves them before answering.`,
     );
@@ -1187,7 +1188,7 @@ describe("runTsFindReferences", () => {
     // The first call finds no live process to reload; the reload is what every call after it reports.
     await h.run({ file: h.uses, symbol: "caller" });
     const out = await h.run({ file: h.uses, symbol: "caller" });
-    expect(out.isError, textOf(out)).toBeFalsy();
+    expect(resultView(out).isError, textOf(out)).toBeFalsy();
     const scope = scopeOf(out);
 
     expect(scope.freshness).toMatchObject({
@@ -1214,7 +1215,7 @@ describe("runTsFindReferences", () => {
     h.raceAnchorsBesideAnswer();
 
     const out = await h.run();
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toContain("tsgo restarted during the query");
     // The other call's proof really was made — on the replacement, for its own documents. That is the fact the
     // boolean records, and it is not a fact about this answer.
@@ -1230,7 +1231,7 @@ describe("runTsFindReferences", () => {
     h.reloadBesideAnswer();
 
     const out = await h.run();
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toContain("tsgo restarted during the query");
     expect(h.session.isWorkspaceLoaded()).toBe(true);
     expect(h.servers).toHaveLength(2);
@@ -1241,7 +1242,7 @@ describe("runTsFindReferences", () => {
     h.hangReferences();
 
     const out = await h.run({ timeBudgetMs: 100 });
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toBe(
       `ts_find_references failed: tsgo did not answer the query for "Storage" within this call's 100 ms budget. The workspace at "${h.ws}" may still be loading its projects; raise timeBudgetMs or call again, and do not read this as an empty answer.`,
     );

@@ -2,6 +2,7 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:f
 import { tmpdir } from "node:os";
 import { basename, join, relative, sep } from "node:path";
 import { afterEach, describe, expect } from "vitest";
+import { resultView } from "../helpers/tool-result.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { dropProjectMap } from "../../src/tsgo/project-map.js";
 import { walkWorkspace } from "../../src/tsgo/workspace-snapshot.js";
@@ -357,7 +358,7 @@ describe("ts_find_callers against the real tsgo", () => {
       const manager = freshManager(log);
       try {
         const result = await ask(manager, [workspaceRoot], handlerFile, "LABEL");
-        expect(result.isError).toBe(true);
+        expect(resultView(result).isError).toBe(true);
         expect(textOf(result)).toContain(`no call hierarchy for "LABEL"`);
         expect(textOf(result)).toContain("it is not callable");
         expect(textOf(result)).toContain("a mention is not a call");
@@ -392,7 +393,7 @@ describe("ts_find_callers against the real tsgo", () => {
         );
 
         const result = await ask(manager, [copied], join(copied, "src", "handler.ts"), "runJob");
-        expect(result.isError, textOf(result)).toBeFalsy();
+        expect(resultView(result).isError, textOf(result)).toBeFalsy();
         const answer = payload(result);
         expect(answer.totalCallers).toBe(0);
         expect(answer.callers).toEqual([]);

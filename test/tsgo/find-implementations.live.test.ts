@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { afterEach, describe, expect } from "vitest";
+import { resultView } from "../helpers/tool-result.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { walkWorkspace } from "../../src/tsgo/workspace-snapshot.js";
 import {
@@ -263,7 +264,7 @@ describe("ts_find_implementations against the real tsgo", () => {
       const manager = freshManager(log);
       try {
         const result = await ask(manager, "LABEL");
-        expect(result.isError).toBe(true);
+        expect(resultView(result).isError).toBe(true);
         expect(textOf(result)).toContain('ts_find_implementations failed: "LABEL" is a variable');
         expect(textOf(result)).toContain(
           "only an interface, class, method or property has implementations",
@@ -286,7 +287,7 @@ describe("ts_find_implementations against the real tsgo", () => {
       const manager = freshManager();
       try {
         const result = await ask(manager, "Alone");
-        expect(result.isError, textOf(result)).toBeFalsy();
+        expect(resultView(result).isError, textOf(result)).toBeFalsy();
         expect(textOf(result)).not.toMatch(/could not prove|budget|restarted/);
 
         const answer = payload(result);

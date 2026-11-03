@@ -233,7 +233,7 @@ function posixChildren(pid: number): ProcessInfo[] {
     rows.push({
       pid: Number(fields[1]),
       parentPid: pid,
-      name: fields[3],
+      name: fields[3] ?? "",
       commandLine: fields[4] ?? "",
     });
   }

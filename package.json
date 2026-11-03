@@ -47,7 +47,7 @@
     "stats": "tsx scripts/call-stats.ts",
     "test": "vitest run",
     "test:live": "vitest run --config vitest.live.config.ts",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json && tsc -p tsconfig.test.json",
     "deploy": "tsx scripts/deploy.ts"
   },
   "dependencies": {

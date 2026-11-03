@@ -24,8 +24,9 @@ import {
   type GoToolHarness,
   type GoToolHarnessOptions,
 } from "../helpers/go-tool-harness.js";
+import { resultView } from "../helpers/tool-result.js";
 
-type Result = Awaited<ReturnType<typeof runGoFindCallers>>;
+type Result = ReturnType<typeof resultView<Awaited<ReturnType<typeof runGoFindCallers>>>>;
 type Input = { sourceRoots: string[]; file: string; symbol: string; timeBudgetMs: number };
 type CallerRow = Record<string, unknown>;
 
@@ -108,17 +109,19 @@ function harness(options: HarnessOptions = {}): Harness {
     hangIncomingCalls: () => core.query.hang(INCOMING_METHOD),
     refuseCallHierarchy: (message) =>
       CALL_METHODS.forEach((method) => core.query.refuse(method, message)),
-    run: (overrides) =>
-      runGoFindCallers(
-        core.manager,
-        {
-          sourceRoots: [core.mod],
-          file: core.file,
-          symbol: "(*Store).Get",
-          timeBudgetMs: 60_000,
-          ...overrides,
-        },
-        { exec: core.go.exec },
+    run: async (overrides) =>
+      resultView(
+        await runGoFindCallers(
+          core.manager,
+          {
+            sourceRoots: [core.mod],
+            file: core.file,
+            symbol: "(*Store).Get",
+            timeBudgetMs: 60_000,
+            ...overrides,
+          },
+          { exec: core.go.exec },
+        ),
       ),
   };
 }

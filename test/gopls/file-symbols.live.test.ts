@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { OutlineSymbol } from "../../src/clangd/outline.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { runGoFileSymbols } from "../../src/tools/go-file-symbols.js";
+import { payloadOf, resultView } from "../helpers/tool-result.js";
 
 // gopls is optional on this host in exactly the way clangd is, so the suite skips rather than failing
 // with the symptom it is meant to detect. `MCP_CODE_NAV_GOPLS` overrides, as it does at runtime.
@@ -55,8 +56,11 @@ async function outline(depth: number, timeBudgetMs: number) {
 }
 
 function symbolsOf(result: Awaited<ReturnType<typeof outline>>): OutlineSymbol[] {
-  expect(result.isError, `go_file_symbols failed: ${result.content[0]?.text}`).toBeFalsy();
-  return (result.structuredContent as { symbols: OutlineSymbol[] }).symbols;
+  expect(
+    resultView(result).isError,
+    `go_file_symbols failed: ${result.content[0]?.text}`,
+  ).toBeFalsy();
+  return payloadOf(result).symbols;
 }
 
 /**

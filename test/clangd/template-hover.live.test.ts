@@ -97,7 +97,11 @@ interface HoverPayload {
 const textOf = (result: { content: readonly { text?: string }[] }): string =>
   result.content[0]?.text ?? "";
 
-const payloadOf = (result: { structuredContent?: unknown; isError?: boolean }): HoverPayload => {
+const payloadOf = (result: {
+  content: readonly { text?: string }[];
+  structuredContent?: unknown;
+  isError?: boolean;
+}): HoverPayload => {
   expect(result.isError, textOf(result)).toBeFalsy();
   return result.structuredContent as HoverPayload;
 };

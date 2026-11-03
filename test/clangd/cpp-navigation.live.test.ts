@@ -14,7 +14,9 @@ import {
   type CppFindReferencesPayload,
 } from "../../src/tools/cpp-find-references.js";
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
+import type { OutlineSymbol } from "../../src/clangd/outline.js";
 import { runCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
+import { payloadOf, resultView } from "../helpers/tool-result.js";
 
 // clangd is optional on this host in exactly the way gopls is, so the suite skips rather than failing with
 // the symptom it exists to detect. `MCP_CODE_NAV_CLANGD` overrides, as it does at runtime.
@@ -440,7 +442,10 @@ describe("cpp_find_references and cpp_find_callers against a real clangd binary"
       expect(found.scope.limits).toEqual(["compile-database-only", "uncovered-sources-present"]);
       // The blind spot is named, not described: `orphan.cpp` is on disk under a declared root and in no
       // translation unit of the database, so clangd's index holds nothing from it.
-      expect(found.scope.uncoveredSources).toEqual({ count: 1, files: [orphan] });
+      expect("uncoveredSources" in found.scope ? found.scope.uncoveredSources : undefined).toEqual({
+        count: 1,
+        files: [orphan],
+      });
       expect(JSON.stringify(found.scope)).not.toContain("freshness");
     },
     180_000,
@@ -655,7 +660,10 @@ describe("cpp_find_references and cpp_find_callers against a real clangd binary"
         "uncovered-sources-present",
         "indirect-dispatch-not-resolved",
       ]);
-      expect(found.scope.uncoveredSources).toEqual({ count: 1, files: [orphan] });
+      expect("uncoveredSources" in found.scope ? found.scope.uncoveredSources : undefined).toEqual({
+        count: 1,
+        files: [orphan],
+      });
       expect(found.scope.index).toEqual({
         state: "quiescent",
         staleFiles: { count: 0, files: [] },
@@ -751,10 +759,12 @@ describe("cpp_find_references and cpp_find_callers against a real clangd binary"
         sourceRoots: [sourceDir],
       } as never);
 
-      expect(answer.isError).toBeUndefined();
-      const payload = answer.structuredContent as {
+      expect(resultView(answer).isError).toBeUndefined();
+      // The degraded parse also states `summary` and `scope`; the handler's declared payload drops both by subtype
+      // reduction, so this reads the wider shape the degraded branch returns.
+      const payload = payloadOf(answer) as {
         summary: string;
-        symbols: unknown[];
+        symbols: OutlineSymbol[];
         scope: { limits: string[] };
       };
       expect(

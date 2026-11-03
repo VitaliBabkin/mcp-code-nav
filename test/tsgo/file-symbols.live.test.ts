@@ -15,6 +15,7 @@ import {
   tsgoProcessLog,
   type TsgoProcessLog,
 } from "../helpers/tsgo-live.js";
+import { resultView } from "../helpers/tool-result.js";
 
 /**
  * `ts_file_symbols` against the real server: what one `documentSymbol` answer looks like for a file no client
@@ -54,7 +55,7 @@ async function outlineOf(
   depth: number,
 ): Promise<{
   symbols: OutlineSymbol[];
-  bindings: BindingRow[];
+  bindings: readonly BindingRow[];
   payload: TsFileSymbolsPayload;
   log: TsgoProcessLog;
 }> {
@@ -67,7 +68,7 @@ async function outlineOf(
       depth,
       timeBudgetMs: CALL_BUDGET_MS,
     });
-    if (out.isError) throw new Error(`ts_file_symbols failed: ${textOf(out)}`);
+    if (resultView(out).isError) throw new Error(`ts_file_symbols failed: ${textOf(out)}`);
     const payload = payloadOf<TsFileSymbolsPayload>(out, "ts_file_symbols");
     return { symbols: payload.symbols, bindings: payload.bindings, payload, log };
   } finally {

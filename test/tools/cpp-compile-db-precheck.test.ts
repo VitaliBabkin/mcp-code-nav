@@ -11,6 +11,7 @@ import { runCppFindReferences } from "../../src/tools/cpp-find-references.js";
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import type { CppAddress } from "../../src/tools/cpp-navigation-shared.js";
 import { fakeProcessByFile, symAt } from "../helpers/fake-clangd.js";
+import { resultView } from "../helpers/tool-result.js";
 
 const DB = "compile_commands.json";
 const headAt = (projectRoot: string): string =>
@@ -24,6 +25,19 @@ interface Answer {
 const textOf = (answer: Answer): string => answer.content[0]?.text ?? "";
 
 const prefixFor = (tool: string): string => `${tool} failed: `;
+
+/** The degraded summary travels in `structuredContent`, which the tool's declared payload type does not name. */
+function summaryOf(structured: unknown): string {
+  if (
+    typeof structured === "object" &&
+    structured !== null &&
+    "summary" in structured &&
+    typeof structured.summary === "string"
+  ) {
+    return structured.summary;
+  }
+  throw new Error("expected structuredContent.summary to be a string");
+}
 
 /**
  * The rule for every clangd-backed tool: the compile database is proven readable before a
@@ -81,11 +95,11 @@ describe("the C++ tools' compile-database pre-check", () => {
     { tool: "cpp_find_symbol", ask: (sessions, root) => runCppFindSymbol(sessions, address(root)) },
     {
       tool: "cpp_find_references",
-      ask: (sessions, root) => runCppFindReferences(sessions, address(root) as never),
+      ask: (sessions, root) => runCppFindReferences(sessions, address(root)),
     },
     {
       tool: "cpp_find_callers",
-      ask: (sessions, root) => runCppFindCallers(sessions, address(root) as never),
+      ask: (sessions, root) => runCppFindCallers(sessions, address(root)),
     },
   ];
 
@@ -135,16 +149,17 @@ describe("the C++ tools' compile-database pre-check", () => {
   it("cpp_file_symbols outlines the repository root's file from a default-flags parse, naming the build directory", async () => {
     const { sessions, spawn } = watchedSessions();
 
-    const out = await runCppFileSymbols(sessions, {
-      projectRoot: repoRoot,
-      file: widget,
-      sourceRoots: [srcDir],
-      depth: 1,
-    });
+    const out = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: repoRoot,
+        file: widget,
+        sourceRoots: [srcDir],
+        depth: 1,
+      }),
+    );
 
     expect(out.isError).toBeUndefined();
-    const summary = (out as unknown as { structuredContent: { summary: string } }).structuredContent
-      .summary;
+    const summary = summaryOf(out.structuredContent);
     expect(summary).toContain(
       `${headAt(repoRoot)}. Directories under it that hold a compile_commands.json, nearest first: "${buildDir}".`,
     );
@@ -155,12 +170,14 @@ describe("the C++ tools' compile-database pre-check", () => {
     mkdirSync(join(repoRoot, DB));
     const { sessions } = watchedSessions();
 
-    const out = await runCppFileSymbols(sessions, {
-      projectRoot: repoRoot,
-      file: widget,
-      sourceRoots: [srcDir],
-      depth: 1,
-    });
+    const out = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: repoRoot,
+        file: widget,
+        sourceRoots: [srcDir],
+        depth: 1,
+      }),
+    );
 
     expect(out.isError).toBeUndefined();
     expect(textOf(out)).toContain(
@@ -189,7 +206,9 @@ describe("the C++ tools' compile-database pre-check", () => {
     expect(named).toBe(buildDir);
 
     const { sessions: next, spawn } = watchedSessions();
-    const out = await runCppFindSymbol(next, { ...address(named ?? buildDir), file: widget });
+    const out = resultView(
+      await runCppFindSymbol(next, { ...address(named ?? buildDir), file: widget }),
+    );
 
     expect(out.isError, textOf(out)).toBeFalsy();
     expect(spawn).toHaveBeenCalled();
@@ -200,7 +219,7 @@ describe("the C++ tools' compile-database pre-check", () => {
     writeFileSync(notADirectory, "class NotADirectory {};\n");
     const { sessions, spawn } = watchedSessions();
 
-    const out = await runCppFindSymbol(sessions, address(notADirectory));
+    const out = resultView(await runCppFindSymbol(sessions, address(notADirectory)));
 
     expect(out.isError).toBe(true);
     expect(textOf(out)).toContain("compile_commands.json not found or unreadable");

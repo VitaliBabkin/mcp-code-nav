@@ -11,6 +11,7 @@ import {
   type FindSymbolPayload,
   WORKSPACE_SYMBOL_CAP_WATERMARK,
 } from "../../src/tools/go-find-symbol.js";
+import { resultView } from "../helpers/tool-result.js";
 import {
   CALL_BUDGET_MS,
   disposeGoLiveManagers,
@@ -116,7 +117,7 @@ describe("go_find_symbol against a real gopls binary", () => {
     "answers a file anchor from that file's outline, with the signature and doc read from a real hover",
     async () => {
       const result = await ask(freshManager(), "Store", usesFile);
-      expect(result.isError, textOf(result)).toBeFalsy();
+      expect(resultView(result).isError, textOf(result)).toBeFalsy();
       const payload = payloadOf(result);
       const [row] = payload.declarations;
 
@@ -148,7 +149,7 @@ describe("go_find_symbol against a real gopls binary", () => {
       // arriving here is the proof that it does. A common name is also answered by gopls's fuzzy search at
       // the size of its own list, which is what `listing-capped` says of the rows beside it.
       const result = await askModule(freshManager(), "Store");
-      expect(result.isError, textOf(result)).toBeFalsy();
+      expect(resultView(result).isError, textOf(result)).toBeFalsy();
       const payload = payloadOf(result);
 
       expect(payload.scope.lookup).toBe("workspace-symbol");
@@ -175,7 +176,7 @@ describe("go_find_symbol against a real gopls binary", () => {
     "names a package-private helper by its own file's directory",
     async () => {
       const result = await askModule(freshManager(), "normaliseKey");
-      expect(result.isError, textOf(result)).toBeFalsy();
+      expect(resultView(result).isError, textOf(result)).toBeFalsy();
       const rows = rowsOf(result, "normaliseKey");
 
       expect(rows).toHaveLength(1);
@@ -265,7 +266,7 @@ describe("go_find_symbol against a real gopls binary", () => {
       });
 
       const absent = await ask(manager, "Trim", storageFile);
-      expect(absent.isError).toBe(true);
+      expect(resultView(absent).isError).toBe(true);
       expect(textOf(absent)).toContain("was found in the top-level declarations of");
       expect(textOf(absent)).toContain("The match is exact, not fuzzy");
 
@@ -326,7 +327,7 @@ describe("go_find_symbol against a real gopls binary", () => {
       const manager = freshManager();
       try {
         const result = await askModule(manager, "Bulk001", module.root);
-        expect(result.isError, textOf(result)).toBeFalsy();
+        expect(resultView(result).isError, textOf(result)).toBeFalsy();
         const payload = payloadOf(result);
 
         expect(payload.scope.lookup).toBe("workspace-symbol");

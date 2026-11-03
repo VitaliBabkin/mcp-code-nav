@@ -15,8 +15,9 @@ import { runCppFindReferences } from "../../src/tools/cpp-find-references.js";
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import { runGoFileSymbols } from "../../src/tools/go-file-symbols.js";
 import { fakeProcessByFile, sessionsFor, symAt } from "../helpers/fake-clangd.js";
+import { resultView } from "../helpers/tool-result.js";
 
-type Answer = { isError?: boolean; content?: { text?: string }[] };
+type Answer = { isError?: boolean; content?: readonly { text?: string }[] };
 
 const tempDirs: string[] = [];
 
@@ -111,25 +112,41 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
         variant: "none",
         root: empty,
         prefix: "cpp_find_symbol failed: ",
-        text: textOf(await runCppFindSymbol(sessions, { projectRoot: empty, name: "Foo" })),
+        text: textOf(
+          await runCppFindSymbol(sessions, { projectRoot: empty, name: "Foo", sourceRoots: [] }),
+        ),
       },
       {
         variant: "root absent",
         root: absent,
         prefix: "cpp_find_references failed: ",
-        text: textOf(await runCppFindReferences(sessions, { projectRoot: absent, name: "Foo" })),
+        text: textOf(
+          await runCppFindReferences(sessions, {
+            projectRoot: absent,
+            name: "Foo",
+            sourceRoots: [],
+          }),
+        ),
       },
       {
         variant: "candidates",
         root: repo,
         prefix: "cpp_find_symbol failed: ",
-        text: textOf(await runCppFindSymbol(sessions, { projectRoot: repo, name: "Foo" })),
+        text: textOf(
+          await runCppFindSymbol(sessions, { projectRoot: repo, name: "Foo", sourceRoots: [] }),
+        ),
       },
       {
         variant: "present but unreadable",
         root: unreadable,
         prefix: "cpp_find_callers failed: ",
-        text: textOf(await runCppFindCallers(sessions, { projectRoot: unreadable, name: "Foo" })),
+        text: textOf(
+          await runCppFindCallers(sessions, {
+            projectRoot: unreadable,
+            name: "Foo",
+            sourceRoots: [],
+          }),
+        ),
       },
       {
         variant: "candidates, the sweep",
@@ -152,7 +169,11 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
         root: notADirectory,
         prefix: "cpp_find_callers failed: ",
         text: textOf(
-          await runCppFindCallers(sessions, { projectRoot: notADirectory, name: "Foo" }),
+          await runCppFindCallers(sessions, {
+            projectRoot: notADirectory,
+            sourceRoots: [],
+            name: "Foo",
+          }),
         ),
       },
     ];
@@ -228,6 +249,7 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
     const out = runCppFileSymbols(sessions, {
       projectRoot: root,
       file: "../outside.cpp",
+      sourceRoots: [],
       depth: 1,
     });
 
@@ -257,7 +279,12 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
       JSON.stringify({ ignoredPaths: ["a.cpp"] }),
     );
     const sessions = sessionsFor(fakeProcessByFile(() => []));
-    const out = runCppFileSymbols(sessions, { projectRoot: root, file: "a.cpp", depth: 1 });
+    const out = runCppFileSymbols(sessions, {
+      projectRoot: root,
+      file: "a.cpp",
+      sourceRoots: [],
+      depth: 1,
+    });
 
     await expect(classOf(out)).resolves.toBe("path-ignored");
   });
@@ -265,7 +292,12 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
   it("file-not-found, from the read a missing file actually fails", async () => {
     const root = cppRoot();
     const sessions = sessionsFor(fakeProcessByFile(() => [symAt("Foo", 5, 0, 6)]));
-    const out = runCppFileSymbols(sessions, { projectRoot: root, file: "missing.cpp", depth: 1 });
+    const out = runCppFileSymbols(sessions, {
+      projectRoot: root,
+      file: "missing.cpp",
+      sourceRoots: [],
+      depth: 1,
+    });
 
     await expect(classOf(out)).resolves.toBe("file-not-found");
   });
@@ -273,7 +305,12 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
   it("not-ready, from the cold empty clangd has not earned the right to call an answer", async () => {
     const root = cppRoot();
     const sessions = sessionsFor(fakeProcessByFile(() => []));
-    const out = runCppFileSymbols(sessions, { projectRoot: root, file: "a.cpp", depth: 1 });
+    const out = runCppFileSymbols(sessions, {
+      projectRoot: root,
+      file: "a.cpp",
+      sourceRoots: [],
+      depth: 1,
+    });
 
     await expect(classOf(out)).resolves.toBe("not-ready");
     expect(classifyError(textOf(await out)).errorHead).toContain("produced no symbols while");
@@ -286,6 +323,7 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
       projectRoot: root,
       name: "Bar",
       file: join(root, "a.cpp"),
+      sourceRoots: [],
     });
 
     await expect(classOf(out)).resolves.toBe("symbol-not-found");
@@ -300,6 +338,7 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
       projectRoot: root,
       name: "Foo",
       file: join(root, "a.cpp"),
+      sourceRoots: [],
     });
 
     await expect(classOf(out)).resolves.toBe("symbol-ambiguous");
@@ -322,7 +361,12 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
     const root = cppRoot();
     writeFileSync(join(root, "mcp-code-nav.config.json"), "{ not json");
     const sessions = sessionsFor(fakeProcessByFile(() => [symAt("Foo", 5, 0, 6)]));
-    const out = await runCppFileSymbols(sessions, { projectRoot: root, file: "a.cpp", depth: 1 });
+    const out = await runCppFileSymbols(sessions, {
+      projectRoot: root,
+      file: "a.cpp",
+      sourceRoots: [],
+      depth: 1,
+    });
 
     const classified = classifyError(textOf(out));
     expect(classified.errorClass).toBe("other");
@@ -364,9 +408,11 @@ describe("what the sweep emits, from the clang-query seam", () => {
       await new Promise((done) => setTimeout(done, 250));
       return { exitCode: 0, stdout: "", stderr: "" };
     };
-    const out = await runCppFindDerivedClasses(
-      { exec: slow, cache: new SweepCache() },
-      { projectRoot: root, qualifiedName: "Base", timeBudgetMs: 25 },
+    const out = resultView(
+      await runCppFindDerivedClasses(
+        { exec: slow, cache: new SweepCache() },
+        { projectRoot: root, qualifiedName: "Base", timeBudgetMs: 25 },
+      ),
     );
 
     expect(out.isError).toBe(true);

@@ -2,9 +2,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
+import { runCppFindSymbol, type CppFindSymbolPayload } from "../../src/tools/cpp-find-symbol.js";
 import { runCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
 import { CLANGD_SYMBOL_CAP_WATERMARK } from "../../src/tools/cpp-navigation-shared.js";
+import type { CppNavigationScope } from "../../src/tools/cpp-navigation-shared.js";
 import type { LspSessionManager } from "../../src/lsp/session-manager.js";
 import {
   fakeProcessByFile,
@@ -14,7 +15,27 @@ import {
   symAt,
 } from "../helpers/fake-clangd.js";
 import { fakeServer, pathOfDocumentId, uriOf, type FakeServer } from "../helpers/fake-lsp.js";
+import { payloadOf, resultView } from "../helpers/tool-result.js";
 import { fileUri } from "../../src/lsp/document-uri.js";
+
+type FindSymbolResult = Awaited<ReturnType<typeof runCppFindSymbol>>;
+
+/**
+ * The payload of an answer that must not be an error result; a partial answer fails here too. Typed with the
+ * tool's own payload type, whose `scope` is optional: the handler's inferred return type drops it, so the
+ * index branch's `scope` is only visible through this annotation.
+ */
+function answerOf(result: FindSymbolResult): CppFindSymbolPayload {
+  const view = resultView(result);
+  expect(view.isError, view.content[0]?.text ?? "").toBeFalsy();
+  return payloadOf(result);
+}
+
+/** The index scope an index-backed answer carries; its absence fails the test, since the caller reads it. */
+function scopeOf(found: { readonly scope?: CppNavigationScope }): CppNavigationScope {
+  if (found.scope === undefined) throw new Error("expected the answer to carry an index scope");
+  return found.scope;
+}
 
 /**
  * One `SymbolInformation` row as a real clangd spells it (pinned in
@@ -66,12 +87,20 @@ describe("runCppFindSymbol", () => {
       fakeProcessByFile((file) => (file === cppFile ? [sym("method", 12)] : [])),
     );
     // Warm the session first so the direct query below is a confident (not cold) result.
-    await runCppFileSymbols(sessions, { projectRoot, file: "widget.cpp", depth: 1 });
-    const out = await runCppFindSymbol(sessions, {
+    await runCppFileSymbols(sessions, {
       projectRoot,
-      name: "method",
       file: "widget.cpp",
+      depth: 1,
+      sourceRoots: [],
     });
+    const out = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot,
+        name: "method",
+        file: "widget.cpp",
+        sourceRoots: [],
+      }),
+    );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent).toMatchObject({
       name: "method",
@@ -88,12 +117,15 @@ describe("runCppFindSymbol", () => {
       }),
     );
     // Warm the session via the header first.
-    await runCppFileSymbols(sessions, { projectRoot, file: "widget.h", depth: 1 });
-    const out = await runCppFindSymbol(sessions, {
-      projectRoot,
-      name: "method",
-      file: "widget.cpp",
-    });
+    await runCppFileSymbols(sessions, { projectRoot, file: "widget.h", depth: 1, sourceRoots: [] });
+    const out = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot,
+        name: "method",
+        file: "widget.cpp",
+        sourceRoots: [],
+      }),
+    );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent).toMatchObject({
       name: "method",
@@ -106,24 +138,40 @@ describe("runCppFindSymbol", () => {
     const sessions = sessionsFor(
       fakeProcessByFile((file) => (file === cppFile ? [sym("method", 12), sym("method", 12)] : [])),
     );
-    await runCppFileSymbols(sessions, { projectRoot, file: "widget.cpp", depth: 1 });
-    const out = await runCppFindSymbol(sessions, {
+    await runCppFileSymbols(sessions, {
       projectRoot,
-      name: "method",
       file: "widget.cpp",
+      depth: 1,
+      sourceRoots: [],
     });
+    const out = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot,
+        name: "method",
+        file: "widget.cpp",
+        sourceRoots: [],
+      }),
+    );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toContain("ambiguous");
   });
 
   it("reports no match when neither the file nor its header counterpart has the symbol", async () => {
     const sessions = sessionsFor(fakeProcessByFile(() => []));
-    await runCppFileSymbols(sessions, { projectRoot, file: "widget.cpp", depth: 1 });
-    const out = await runCppFindSymbol(sessions, {
+    await runCppFileSymbols(sessions, {
       projectRoot,
-      name: "doesNotExist",
       file: "widget.cpp",
+      depth: 1,
+      sourceRoots: [],
     });
+    const out = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot,
+        name: "doesNotExist",
+        file: "widget.cpp",
+        sourceRoots: [],
+      }),
+    );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toContain("no symbol");
   });
@@ -135,7 +183,9 @@ describe("runCppFindSymbol", () => {
         () => [symbolRow("Widget", 5, headerFile, 4, 6, "gizmo")],
       ),
     );
-    const out = await runCppFindSymbol(sessions, { projectRoot, name: "Widget" });
+    const out = resultView(
+      await runCppFindSymbol(sessions, { projectRoot, name: "Widget", sourceRoots: [] }),
+    );
 
     expect(out.isError, out.content[0]?.text ?? "").toBeFalsy();
     expect(out.structuredContent).toMatchObject({
@@ -152,19 +202,29 @@ describe("runCppFindSymbol", () => {
     const sessions = sessionsFor(
       fakeProcessByFile((file) => (file === cppFile ? [sym("method", 12)] : [])),
     );
-    await runCppFileSymbols(sessions, { projectRoot, file: "widget.cpp", depth: 1 });
-    const out = await runCppFindSymbol(sessions, { projectRoot, name: "method" });
+    await runCppFileSymbols(sessions, {
+      projectRoot,
+      file: "widget.cpp",
+      depth: 1,
+      sourceRoots: [],
+    });
+    const out = resultView(
+      await runCppFindSymbol(sessions, { projectRoot, name: "method", sourceRoots: [] }),
+    );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent).toMatchObject({ file: cppFile });
   });
 
   it("rejects a file that escapes projectRoot", async () => {
     const sessions = sessionsFor(fakeProcessByFile(() => []));
-    const out = await runCppFindSymbol(sessions, {
-      projectRoot,
-      name: "method",
-      file: "../outside.cpp",
-    });
+    const out = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot,
+        name: "method",
+        file: "../outside.cpp",
+        sourceRoots: [],
+      }),
+    );
     expect(out.isError).toBe(true);
   });
 
@@ -174,8 +234,15 @@ describe("runCppFindSymbol", () => {
         file === headerFile ? [sym("Widget", 5), sym("Widget", 9)] : [],
       ),
     );
-    await runCppFileSymbols(sessions, { projectRoot, file: "widget.h", depth: 1 });
-    const out = await runCppFindSymbol(sessions, { projectRoot, name: "Widget", file: "widget.h" });
+    await runCppFileSymbols(sessions, { projectRoot, file: "widget.h", depth: 1, sourceRoots: [] });
+    const out = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot,
+        name: "Widget",
+        file: "widget.h",
+        sourceRoots: [],
+      }),
+    );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent).toMatchObject({ name: "Widget", kind: "class" });
   });
@@ -186,13 +253,16 @@ describe("runCppFindSymbol", () => {
         file === headerFile ? [sym("Widget", 5), sym("Widget", 9)] : [],
       ),
     );
-    await runCppFileSymbols(sessions, { projectRoot, file: "widget.h", depth: 1 });
-    const out = await runCppFindSymbol(sessions, {
-      projectRoot,
-      name: "Widget",
-      file: "widget.h",
-      kind: "constructor",
-    });
+    await runCppFileSymbols(sessions, { projectRoot, file: "widget.h", depth: 1, sourceRoots: [] });
+    const out = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot,
+        name: "Widget",
+        file: "widget.h",
+        kind: "constructor",
+        sourceRoots: [],
+      }),
+    );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent).toMatchObject({ name: "Widget", kind: "constructor" });
   });
@@ -223,12 +293,14 @@ describe("runCppFindSymbol with sourceRoots (out-of-tree build layout)", () => {
     const sessions = sessionsFor(
       fakeProcessByFile((file) => (file === sourceCppFile ? [sym("method", 6)] : [])),
     );
-    const out = await runCppFindSymbol(sessions, {
-      projectRoot: buildRoot,
-      name: "method",
-      file: sourceCppFile,
-      sourceRoots: [sourceRoot],
-    });
+    const out = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot: buildRoot,
+        name: "method",
+        file: sourceCppFile,
+        sourceRoots: [sourceRoot],
+      }),
+    );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent).toMatchObject({ name: "method", file: sourceCppFile });
   });
@@ -237,12 +309,14 @@ describe("runCppFindSymbol with sourceRoots (out-of-tree build layout)", () => {
     const sessions = sessionsFor(fakeProcessByFile(() => []));
     const elsewhere = mkdtempSync(join(tmpdir(), "mcp-code-nav-fs-elsewhere-"));
     try {
-      const out = await runCppFindSymbol(sessions, {
-        projectRoot: buildRoot,
-        name: "method",
-        file: join(elsewhere, "x.cpp"),
-        sourceRoots: [sourceRoot],
-      });
+      const out = resultView(
+        await runCppFindSymbol(sessions, {
+          projectRoot: buildRoot,
+          name: "method",
+          file: join(elsewhere, "x.cpp"),
+          sourceRoots: [sourceRoot],
+        }),
+      );
       expect(out.isError).toBe(true);
       expect(out.content[0]?.text).toContain(buildRoot);
       expect(out.content[0]?.text).toContain(sourceRoot);
@@ -257,27 +331,18 @@ describe("runCppFindSymbol with sourceRoots (out-of-tree build layout)", () => {
       JSON.stringify({ ignoredPaths: ["widget.cpp"] }),
     );
     const sessions = sessionsFor(fakeProcessByFile(() => []));
-    const out = await runCppFindSymbol(sessions, {
-      projectRoot: buildRoot,
-      name: "method",
-      file: sourceCppFile,
-      sourceRoots: [sourceRoot],
-    });
+    const out = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot: buildRoot,
+        name: "method",
+        file: sourceCppFile,
+        sourceRoots: [sourceRoot],
+      }),
+    );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toContain("ignoredPaths");
   });
 });
-
-/** One answer's payload, as far as these cases care: the location plus what the hover said. */
-type SymbolPayload = {
-  name: string;
-  kind: string;
-  file: string;
-  range: { startLine: number; endLine: number };
-  signature?: string;
-  documentation?: string;
-  descriptionUnavailable?: string;
-};
 
 /** clangd's own shape for a declaration: the signature in a fenced block, the doc comment as prose. */
 function hoverOf(signature: string, documentation: string): unknown {
@@ -319,9 +384,6 @@ describe("runCppFindSymbol's description of the declaration it found", () => {
     return { server, sessions: sessionsFor(server.process) };
   }
 
-  const payload = (result: { structuredContent?: unknown }): SymbolPayload =>
-    result.structuredContent as SymbolPayload;
-
   const methodsAsked = (server: ReturnType<typeof fakeServer>): string[] =>
     server.requests.map(([method]) => method);
 
@@ -331,7 +393,12 @@ describe("runCppFindSymbol's description of the declaration it found", () => {
     const { server, sessions } = clangd((method, file) =>
       method === "textDocument/documentSymbol" && file === headerFile ? [widget] : [],
     );
-    const out = await runCppFindSymbol(sessions, { projectRoot, name: "Widget", file: "widget.h" });
+    await runCppFindSymbol(sessions, {
+      projectRoot,
+      name: "Widget",
+      file: "widget.h",
+      sourceRoots: [],
+    });
 
     const hover = server.requests.find(([method]) => method === "textDocument/hover");
     expect(hover?.[1]).toMatchObject({
@@ -347,10 +414,15 @@ describe("runCppFindSymbol's description of the declaration it found", () => {
         ? [symAt("Widget", 5, 4, 6)]
         : hoverOf("class Widget", "Draws the frame."),
     );
-    const out = await runCppFindSymbol(sessions, { projectRoot, name: "Widget", file: "widget.h" });
+    const found = answerOf(
+      await runCppFindSymbol(sessions, {
+        projectRoot,
+        name: "Widget",
+        file: "widget.h",
+        sourceRoots: [],
+      }),
+    );
 
-    expect(out.isError).toBeFalsy();
-    const found = payload(out);
     expect(found).toMatchObject({
       name: "Widget",
       kind: "class",
@@ -368,10 +440,15 @@ describe("runCppFindSymbol's description of the declaration it found", () => {
         ? [sym("Widget", 5)]
         : hoverOf("x", "y"),
     );
-    const out = await runCppFindSymbol(sessions, { projectRoot, name: "Widget", file: "widget.h" });
+    const found = answerOf(
+      await runCppFindSymbol(sessions, {
+        projectRoot,
+        name: "Widget",
+        file: "widget.h",
+        sourceRoots: [],
+      }),
+    );
 
-    expect(out.isError).toBeFalsy();
-    const found = payload(out);
     expect(found.name).toBe("Widget");
     expect(found.signature).toBeUndefined();
     expect(found.descriptionUnavailable).toMatch(/clangd named no position for "Widget" in/);
@@ -386,10 +463,15 @@ describe("runCppFindSymbol's description of the declaration it found", () => {
       if (method === "textDocument/hover") throw new Error("clangd exploded");
       return {};
     });
-    const out = await runCppFindSymbol(sessions, { projectRoot, name: "Widget", file: "widget.h" });
+    const found = answerOf(
+      await runCppFindSymbol(sessions, {
+        projectRoot,
+        name: "Widget",
+        file: "widget.h",
+        sourceRoots: [],
+      }),
+    );
 
-    expect(out.isError).toBeFalsy();
-    const found = payload(out);
     expect(found.file).toBe(headerFile);
     expect(found.signature).toBeUndefined();
     expect(found.descriptionUnavailable).toBe("clangd refused the hover: clangd exploded");
@@ -401,8 +483,13 @@ describe("runCppFindSymbol's description of the declaration it found", () => {
         ? [symAt("Widget", 5, 4, 6)]
         : null,
     );
-    const found = payload(
-      await runCppFindSymbol(sessions, { projectRoot, name: "Widget", file: "widget.h" }),
+    const found = answerOf(
+      await runCppFindSymbol(sessions, {
+        projectRoot,
+        name: "Widget",
+        file: "widget.h",
+        sourceRoots: [],
+      }),
     );
 
     expect(found.name).toBe("Widget");
@@ -419,8 +506,13 @@ describe("runCppFindSymbol's description of the declaration it found", () => {
         contents: { kind: "plaintext", value: "class Widget\n\nSize: 1 byte, alignment 1 byte" },
       };
     });
-    const found = payload(
-      await runCppFindSymbol(sessions, { projectRoot, name: "Widget", file: "widget.h" }),
+    const found = answerOf(
+      await runCppFindSymbol(sessions, {
+        projectRoot,
+        name: "Widget",
+        file: "widget.h",
+        sourceRoots: [],
+      }),
     );
 
     expect(found.signature).toBeUndefined();
@@ -437,15 +529,16 @@ describe("runCppFindSymbol's description of the declaration it found", () => {
     });
     // Warming on the header is also what makes the .cpp read answer "empty" and not "cold-empty", which
     // is the difference between falling back to the header and failing on the file it was asked about.
-    await runCppFileSymbols(sessions, { projectRoot, file: "widget.h", depth: 1 });
-    const out = await runCppFindSymbol(sessions, {
-      projectRoot,
-      name: "Widget::method",
-      file: "widget.cpp",
-    });
+    await runCppFileSymbols(sessions, { projectRoot, file: "widget.h", depth: 1, sourceRoots: [] });
+    const found = answerOf(
+      await runCppFindSymbol(sessions, {
+        projectRoot,
+        name: "Widget::method",
+        file: "widget.cpp",
+        sourceRoots: [],
+      }),
+    );
 
-    expect(out.isError).toBeFalsy();
-    const found = payload(out);
     expect(found.file).toBe(headerFile);
     expect(found.signature).toBe("void method()");
     const hover = server.requests.find(([requestMethod]) => requestMethod === "textDocument/hover");
@@ -461,8 +554,15 @@ describe("runCppFindSymbol's description of the declaration it found", () => {
         return hoverOf("void Widget::method()", "Called by the test.");
       return file === cppFile ? [symAt("method", 6, 1, 13)] : [];
     });
-    await runCppFileSymbols(sessions, { projectRoot, file: "widget.cpp", depth: 1 });
-    const found = payload(await runCppFindSymbol(sessions, { projectRoot, name: "method" }));
+    await runCppFileSymbols(sessions, {
+      projectRoot,
+      file: "widget.cpp",
+      depth: 1,
+      sourceRoots: [],
+    });
+    const found = answerOf(
+      await runCppFindSymbol(sessions, { projectRoot, name: "method", sourceRoots: [] }),
+    );
 
     expect(found.file).toBe(cppFile);
     expect(found.signature).toBe("void Widget::method()");
@@ -474,7 +574,12 @@ describe("runCppFindSymbol's description of the declaration it found", () => {
         ? [symAt("Widget", 5, 4, 6)]
         : hoverOf("class Widget", "Docs."),
     );
-    await runCppFindSymbol(sessions, { projectRoot, name: "Widget", file: "widget.h" });
+    await runCppFindSymbol(sessions, {
+      projectRoot,
+      name: "Widget",
+      file: "widget.h",
+      sourceRoots: [],
+    });
 
     const opened = server.notifications.filter(([method]) => method === "textDocument/didOpen");
     expect(opened).toHaveLength(1);
@@ -491,7 +596,14 @@ describe("runCppFindSymbol's description of the declaration it found", () => {
         ? [symAt("method", 6, 1, 8), symAt("method", 6, 8, 8)]
         : hoverOf("void method()", "Two of them."),
     );
-    const out = await runCppFindSymbol(sessions, { projectRoot, name: "method", file: "widget.h" });
+    const out = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot,
+        name: "method",
+        file: "widget.h",
+        sourceRoots: [],
+      }),
+    );
 
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toContain("ambiguous");
@@ -572,29 +684,16 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
     sessions = sessionsFor(server.process);
   }
 
-  const asked = (name: string, extra: Record<string, unknown> = {}) =>
+  const asked = (name: string, extra: { file?: string } = {}) =>
     runCppFindSymbol(sessions, {
       projectRoot: buildDir,
       name,
       sourceRoots: [sourceDir],
       ...extra,
-    } as never);
+    });
 
   const text = (result: { content: readonly { text?: string }[] }): string =>
     result.content[0]?.text ?? "";
-
-  const payload = (result: {
-    structuredContent?: unknown;
-    isError?: boolean;
-  }): Record<string, unknown> => {
-    expect(result.isError, text(result as never)).toBeFalsy();
-    return result.structuredContent as Record<string, unknown>;
-  };
-
-  const scopeOf = (result: {
-    structuredContent?: unknown;
-    isError?: boolean;
-  }): Record<string, unknown> => payload(result).scope as Record<string, unknown>;
 
   /** A round clangd began and settled, so an empty answer may honestly be reported as an absence. */
   async function settledRound(): Promise<void> {
@@ -605,7 +704,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
   }
 
   it("answers from the index and states the boundary the answer came from", async () => {
-    const found = payload(await asked("Widget"));
+    const found = answerOf(await asked("Widget"));
 
     expect(found).toMatchObject({
       name: "gizmo::Widget",
@@ -616,7 +715,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
     // The row's `location.range.start` is the identifier's own position, so the description arrived and the
     // keyword was never asked about.
     expect(found.signature).toBe("// In namespace gizmo\nclass Widget {}");
-    const scope = found.scope as { index: Record<string, unknown>; limits: string[] };
+    const scope = scopeOf(found);
     expect(Object.keys(scope).sort()).toEqual([
       "index",
       "limits",
@@ -624,7 +723,9 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
       "sourceRoots",
       "uncoveredSources",
     ]);
-    expect(scope.index.driftUnknown).toMatch(/first index-backed answer over/);
+    expect(scope.index).toMatchObject({
+      driftUnknown: expect.stringMatching(/first index-backed answer over/),
+    });
     expect(scope.limits).toEqual([
       "compile-database-only",
       "index-state-unknown",
@@ -640,10 +741,10 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
       file: header,
       depth: 1,
       sourceRoots: [sourceDir],
-    } as never);
+    });
     rows = () => [symbolRow("Widget", 5, elsewhere, 0, 4)];
 
-    const found = payload(await asked("Widget"));
+    const found = answerOf(await asked("Widget"));
 
     expect(found.file).toBe(header);
     expect(found.scope).toBeUndefined();
@@ -656,7 +757,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
       symbolRow("Widget", 5, header, 1, 6, "gizmo"),
     ];
 
-    const found = payload(await asked("Widget"));
+    const found = answerOf(await asked("Widget"));
 
     expect(found).toMatchObject({ name: "gizmo::Widget", kind: "class" });
   });
@@ -667,7 +768,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
       symbolRow("paint", 6, header, 3, 6, "gizmo::Widget"),
     ];
 
-    const found = payload(await asked("Widget::paint"));
+    const found = answerOf(await asked("Widget::paint"));
 
     // `paint` alone is ambiguous between the two rows, so this query only answers because the row's
     // `containerName` is part of the name the matcher compares.
@@ -685,7 +786,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
       symbolRow("paint", 6, header, 3, 6, "gizmo::Widget"),
     ];
 
-    const failed = await asked("paint");
+    const failed = resultView(await asked("paint"));
 
     expect(failed.isError).toBe(true);
     expect(text(failed)).toContain("is ambiguous in clangd's index for");
@@ -709,7 +810,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
       },
     ];
 
-    const failed = await asked("Widget");
+    const failed = resultView(await asked("Widget"));
 
     expect(failed.isError).toBe(true);
     expect(text(failed)).toContain(
@@ -723,7 +824,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
     rows = () => [];
     await settledRound();
 
-    const failed = await asked("Gone");
+    const failed = resultView(await asked("Gone"));
 
     expect(failed.isError).toBe(true);
     expect(text(failed)).toContain(
@@ -741,7 +842,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
   it("refuses an empty index answer while clangd never reported any progress, and says that is why", async () => {
     rows = () => [];
 
-    const failed = await asked("Gone");
+    const failed = resultView(await asked("Gone"));
 
     expect(failed.isError).toBe(true);
     expect(text(failed)).toContain("is not reportable as an answer");
@@ -755,7 +856,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
     rows = () => noise;
     await settledRound();
 
-    const failed = await asked("Widget");
+    const failed = resultView(await asked("Widget"));
 
     expect(failed.isError).toBe(true);
     expect(text(failed)).toContain(
@@ -769,15 +870,15 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
     );
     rows = () => [...noise, symbolRow("Widget", 5, header, 1, 6, "gizmo")];
 
-    const found = scopeOf(await asked("Widget"));
+    const scope = scopeOf(answerOf(await asked("Widget")));
 
-    expect(found.limits as string[]).toContain("listing-capped");
+    expect(scope.limits).toContain("listing-capped");
   });
 
   it("reports a row outside every declared source root and does not open it to describe it", async () => {
     rows = () => [symbolRow("Widget", 5, elsewhere, 0, 4)];
 
-    const found = payload(await asked("Widget"));
+    const found = answerOf(await asked("Widget"));
 
     expect(found).toMatchObject({ file: elsewhere, range: { startLine: 1 } });
     expect(found.descriptionUnavailable).toMatch(/outside every declared source root/);
@@ -788,7 +889,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
   it("refuses an answer whose rows it cannot read rather than searching a shorter list", async () => {
     rows = () => [{ name: "Widget", kind: 5 }];
 
-    const failed = await asked("Widget");
+    const failed = resultView(await asked("Widget"));
 
     expect(failed.isError).toBe(true);
     expect(text(failed)).toContain(
@@ -798,7 +899,7 @@ describe("cpp_find_symbol without `file`, answered by clangd's index", () => {
   });
 
   it("asks nothing of the index when a `file` is given", async () => {
-    const found = payload(await asked("Widget", { file: header }));
+    const found = answerOf(await asked("Widget", { file: header }));
 
     expect(found.file).toBe(header);
     expect(found.scope).toBeUndefined();

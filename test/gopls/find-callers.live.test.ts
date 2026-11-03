@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect } from "vitest";
 import type { LspSessionManager } from "../../src/lsp/session-manager.js";
+import { resultView } from "../helpers/tool-result.js";
 import {
   runGoFindCallers,
   type CallerRow,
@@ -141,10 +142,10 @@ describe("go_find_callers against a real gopls binary", () => {
     "answers a function nobody calls with a scoped empty, not with a failure",
     async () => {
       const result = await ask(freshManager(), [navRoot], storageFile, "loneHelper");
-      expect(result.isError, textOf(result)).toBeFalsy();
+      expect(resultView(result).isError, textOf(result)).toBeFalsy();
       expect(textOf(result)).not.toMatch(/initial workspace load/);
 
-      const payload = result.structuredContent as Payload;
+      const payload = okPayloadOf<Payload>(result, "go_find_callers");
       expect(payload.totalCallers).toBe(0);
       expect(payload.callers).toEqual([]);
       expect(payload.callersTruncated).toBe(0);
@@ -163,12 +164,12 @@ describe("go_find_callers against a real gopls binary", () => {
       const manager = freshManager();
 
       const struct = await ask(manager, [navRoot], usesFile, "Store");
-      expect(struct.isError).toBe(true);
+      expect(resultView(struct).isError).toBe(true);
       expect(textOf(struct)).toContain("is a struct");
       expect(textOf(struct)).toMatch(/only a function or a method has callers/);
 
       const iface = await ask(manager, [navRoot], storageFile, "Reader");
-      expect(iface.isError).toBe(true);
+      expect(resultView(iface).isError).toBe(true);
       expect(textOf(iface)).toContain("is an interface");
     },
     600_000,

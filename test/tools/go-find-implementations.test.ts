@@ -21,8 +21,9 @@ import {
   type FakeGo,
 } from "../helpers/fake-go.js";
 import { fakeServer, pathOfDocumentId, uriOf, type FakeServer } from "../helpers/fake-lsp.js";
+import { resultView } from "../helpers/tool-result.js";
 
-type Result = Awaited<ReturnType<typeof runGoFindImplementations>>;
+type Result = ReturnType<typeof resultView<Awaited<ReturnType<typeof runGoFindImplementations>>>>;
 type Input = { sourceRoots: string[]; file: string; symbol: string; timeBudgetMs: number };
 type Row = Record<string, unknown>;
 
@@ -235,17 +236,19 @@ function buildHarness(options: HarnessOptions = {}): Harness {
       await server.createProgress("tok-1");
       server.sendProgress("tok-1", { kind: "end", message: "Finished loading packages." });
     },
-    run: (overrides) =>
-      runGoFindImplementations(
-        manager,
-        {
-          sourceRoots: [mod],
-          file,
-          symbol: "Storage",
-          timeBudgetMs: 60_000,
-          ...overrides,
-        },
-        { exec: go.exec },
+    run: async (overrides) =>
+      resultView(
+        await runGoFindImplementations(
+          manager,
+          {
+            sourceRoots: [mod],
+            file,
+            symbol: "Storage",
+            timeBudgetMs: 60_000,
+            ...overrides,
+          },
+          { exec: go.exec },
+        ),
       ),
   };
 }
@@ -259,6 +262,9 @@ function harness(options: HarnessOptions = {}): Harness {
 }
 
 function payload(result: Result): Record<string, unknown> {
+  if (result.structuredContent === undefined) {
+    throw new Error(`expected a payload, got: ${textOf(result)}`);
+  }
   return result.structuredContent as Record<string, unknown>;
 }
 
@@ -563,7 +569,7 @@ describe("runGoFindImplementations", () => {
     );
 
     const out = await h.run();
-    expect(payload(out).scope.freshness).toEqual({ kind: "pushed", changedFiles: 1 });
+    expect(scopeOf(out).freshness).toEqual({ kind: "pushed", changedFiles: 1 });
     expect(textOf(out)).toContain("pushed 1 changed file(s)");
   });
 

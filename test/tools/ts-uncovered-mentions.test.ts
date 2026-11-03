@@ -10,11 +10,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { pathKey } from "../../src/paths/path-containment.js";
 import { budgetOf } from "../../src/tools/budget.js";
 import {
+  type MentionHits,
   scanMentions,
   UNCOVERED_MENTION_FILE_BYTES,
   UNCOVERED_MENTION_TOTAL_BYTES,
 } from "../../src/tsgo/uncovered-mentions.js";
-import type { TsUncoveredMention } from "../../src/tools/ts-navigation-shared.js";
 
 let tmp: string;
 
@@ -36,10 +36,7 @@ function write(name: string, body: string): string {
 
 const WHOLE_BUDGET = budgetOf(60_000);
 
-async function scan(
-  files: readonly string[],
-  name = "Store",
-): Promise<{ hits: TsUncoveredMention[]; unchecked: number }> {
+async function scan(files: readonly string[], name = "Store"): Promise<MentionHits> {
   return await scanMentions(files, name, WHOLE_BUDGET);
 }
 

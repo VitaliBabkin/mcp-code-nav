@@ -22,8 +22,9 @@ import {
   type GoToolHarness,
   type GoToolHarnessOptions,
 } from "../helpers/go-tool-harness.js";
+import { resultView } from "../helpers/tool-result.js";
 
-type Result = Awaited<ReturnType<typeof runGoFindSymbol>>;
+type Result = ReturnType<typeof resultView<Awaited<ReturnType<typeof runGoFindSymbol>>>>;
 type Input = { sourceRoots: string[]; symbol: string; anchor: string; timeBudgetMs: number };
 type Row = Record<string, unknown>;
 
@@ -134,17 +135,19 @@ function harness(options: HarnessOptions = {}): Harness {
         const file = pathOfDocumentId(params);
         return file === undefined ? null : (replies[file] ?? null);
       }),
-    run: (overrides) =>
-      runGoFindSymbol(
-        core.manager,
-        {
-          sourceRoots: [core.mod],
-          symbol: "Storage",
-          anchor: core.file,
-          timeBudgetMs: 60_000,
-          ...overrides,
-        },
-        { exec: core.go.exec },
+    run: async (overrides) =>
+      resultView(
+        await runGoFindSymbol(
+          core.manager,
+          {
+            sourceRoots: [core.mod],
+            symbol: "Storage",
+            anchor: core.file,
+            timeBudgetMs: 60_000,
+            ...overrides,
+          },
+          { exec: core.go.exec },
+        ),
       ),
   };
 }

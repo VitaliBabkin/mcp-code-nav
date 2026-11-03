@@ -18,6 +18,7 @@ import {
   tsgoAvailable,
   tsgoMiss,
 } from "../helpers/tsgo-live.js";
+import { resultView } from "../helpers/tool-result.js";
 
 /**
  * Where the native server actually is on this host, located by the documented rule and by no
@@ -134,7 +135,7 @@ describe("resolveTsgoBinary against this host", () => {
         { resolveBinary: () => resolveTsgoBinary() },
       );
 
-      expect(out.isError).toBe(true);
+      expect(resultView(out).isError).toBe(true);
       const text = textOf(out);
       expect(text).toContain(`${OVERRIDE_NAME}="${missing}" was not found (ENOENT)`);
       expect(text).toContain("install TypeScript 7 with npm install -g typescript@7");

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { resultView } from "../helpers/tool-result.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import {
   runTsFindReferences,
@@ -338,7 +339,7 @@ describe("the uncovered files that mention the name", () => {
         anchor: workspaceRoot,
         timeBudgetMs: CALL_BUDGET_MS,
       });
-      expect(byDirectory.isError, textOf(byDirectory)).toBe(true);
+      expect(resultView(byDirectory).isError, textOf(byDirectory)).toBe(true);
       expect(textOf(byDirectory)).toContain("no declaration named");
       expect(textOf(byDirectory)).toContain("were not searched");
       expect(textOf(byDirectory)).toContain("\nINCOMPLETE: ");
@@ -352,7 +353,7 @@ describe("the uncovered files that mention the name", () => {
         anchor: consumerFile,
         timeBudgetMs: CALL_BUDGET_MS,
       });
-      expect(byFile.isError, textOf(byFile)).toBe(true);
+      expect(resultView(byFile).isError, textOf(byFile)).toBe(true);
       expect(textOf(byFile)).toContain("\nINCOMPLETE: ");
       expect(textOf(byFile)).toContain(join(workspaceRoot, "test", "outside.ts"));
 

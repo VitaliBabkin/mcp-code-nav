@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { afterEach, describe, expect } from "vitest";
 import type { LspSessionManager } from "../../src/lsp/session-manager.js";
+import { resultView } from "../helpers/tool-result.js";
 import {
   runGoFindReferences,
   type FindReferencesPayload,
@@ -121,10 +122,10 @@ describe("go_find_references against a real gopls binary", () => {
       // A fresh session, because the claim under test is that the FIRST type-aware call can prove the
       // initial load: without the readiness wiring this call would fail at its budget instead of answering.
       const result = await ask(freshManager(), [navRoot], storageFile, "loneHelper");
-      expect(result.isError, textOf(result)).toBeFalsy();
+      expect(resultView(result).isError, textOf(result)).toBeFalsy();
       expect(textOf(result)).not.toMatch(/initial workspace load/);
 
-      const payload = result.structuredContent as Payload;
+      const payload = okPayloadOf<Payload>(result, "go_find_references");
       expect(payload.totalReferences).toBe(0);
       expect(payload.files).toEqual([]);
       expect(payload.filesTruncated).toBe(0);

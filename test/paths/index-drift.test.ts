@@ -134,7 +134,7 @@ describe("takeIndexSnapshot", () => {
   it("keeps its account of the sources it visited, for the blind-spot signal beside the drift", () => {
     const snapshot = takeIndexSnapshot([root]);
 
-    expect(snapshot.account?.sources.sort()).toEqual(
+    expect([...(snapshot.account?.sources ?? [])].sort()).toEqual(
       [join(root, "widget.cpp"), join(root, "sub", "other.cc")].sort(),
     );
     expect(snapshot.account?.walkIncomplete).toBe(false);

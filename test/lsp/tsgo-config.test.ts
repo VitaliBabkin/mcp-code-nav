@@ -23,15 +23,16 @@ const DOCUMENT_PARAMS = {
   position: { line: 4, character: 17 },
 };
 
-interface InitializeParams {
+// A type alias, not an interface: only an alias converts to the config's `Record` answer, so the cast compiles.
+type InitializeParams = {
   processId?: number;
   rootUri?: string;
   capabilities: {
     textDocument?: Record<string, unknown>;
     window?: unknown;
-    workspace?: unknown;
+    workspace: { configuration?: boolean; didChangeWatchedFiles?: unknown };
   };
-}
+};
 
 function initializeParams(config: LanguageServerConfig, root: string): InitializeParams {
   return config.initializeParams(root) as InitializeParams;

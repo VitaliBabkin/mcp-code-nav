@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect } from "vitest";
+import { resultView } from "../helpers/tool-result.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { pathKey } from "../../src/paths/path-containment.js";
 import {
@@ -251,7 +252,7 @@ describe("an interface beside a namespace of one name", () => {
     async () => {
       const manager = freshManager();
       const bare = await referencesAnswer(manager, mergedFile, "I");
-      expect(bare.isError, textOf(bare)).toBe(true);
+      expect(resultView(bare).isError, textOf(bare)).toBe(true);
       expect(textOf(bare)).toContain("type I (interface)");
       expect(textOf(bare)).toContain("namespace I (namespace)");
 

@@ -304,8 +304,8 @@ describe("one record per outcome", () => {
       cache: null,
       indexState: null,
     });
-    expect(h.lines.at(-1)?.ms).toBeGreaterThanOrEqual(0);
-    expect(h.lines.at(-1)?.inflight).toBe(0);
+    expect(calls(h.lines).at(-1)?.ms).toBeGreaterThanOrEqual(0);
+    expect(calls(h.lines).at(-1)?.inflight).toBe(0);
   });
 
   it("records `isError` without a payload as error, classified from the tool's own text", async () => {

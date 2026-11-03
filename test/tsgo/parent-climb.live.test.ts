@@ -9,7 +9,11 @@ import {
   type TsFindReferencesPayload,
   type TsReferenceFile,
 } from "../../src/tools/ts-find-references.js";
-import type { TsNavigationScope, TsProjectsBlock } from "../../src/tools/ts-navigation-shared.js";
+import type {
+  TsNavigationScope,
+  TsProjectsBlock,
+  TsUncoveredBlock,
+} from "../../src/tools/ts-navigation-shared.js";
 import {
   CALL_BUDGET_MS,
   fixtures,
@@ -187,11 +191,7 @@ function requireProjects(scope: TsNavigationScope): TsProjectsBlock {
   return scope.projects;
 }
 
-function requireUncovered(scope: TsNavigationScope): {
-  count: number;
-  files: readonly string[];
-  namedFileUncovered: boolean;
-} {
+function requireUncovered(scope: TsNavigationScope): TsUncoveredBlock {
   if (!("uncoveredSources" in scope)) {
     throw new Error(`no uncovered set was computed: ${scope.uncoveredSourcesUnavailable}`);
   }

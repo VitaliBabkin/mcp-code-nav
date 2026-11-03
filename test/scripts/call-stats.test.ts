@@ -145,7 +145,7 @@ describe("defaultLogDir", () => {
 describe("clientFamily", () => {
   function run(name: string | undefined, version = "1.0.0") {
     return {
-      v: 1,
+      v: 1 as const,
       type: "run" as const,
       run: "r",
       ts: "2026-09-30T10:00:00.000Z",

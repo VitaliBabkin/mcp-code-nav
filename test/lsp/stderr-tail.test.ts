@@ -76,9 +76,9 @@ describe("NonRejectingStreamMessageWriter", () => {
     writer.onError(([error]) => errors.push(error));
     stream.destroy();
 
-    await expect(
-      writer.write({ jsonrpc: "2.0", method: "initialized", params: {} }),
-    ).resolves.toBeUndefined();
+    // Bound first: an object literal would be checked for excess properties against the bare envelope `Message`.
+    const initialized = { jsonrpc: "2.0", method: "initialized", params: {} };
+    await expect(writer.write(initialized)).resolves.toBeUndefined();
     expect(errors).toHaveLength(1);
   });
 });

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { afterEach, describe, expect } from "vitest";
+import { resultView } from "../helpers/tool-result.js";
 import { tsgoConfig } from "../../src/lsp/server-config.js";
 import { pathKey } from "../../src/paths/path-containment.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
@@ -183,7 +184,7 @@ describe("ts_find_symbol against the real tsgo", () => {
       });
 
       const bare = await ask(manager, "run", shapesFile);
-      expect(bare.isError).toBe(true);
+      expect(resultView(bare).isError).toBe(true);
     },
     CALL_BUDGET_MS + 30_000,
   );
@@ -259,7 +260,7 @@ describe("ts_find_symbol against the real tsgo", () => {
 
       // `run` is a member of three classes, and no top-level declaration: a bare name never matches a member.
       const bare = await ask(manager, "run", workspaceRoot);
-      expect(bare.isError, textOf(bare)).toBe(true);
+      expect(resultView(bare).isError, textOf(bare)).toBe(true);
       expect(textOf(bare)).toContain('no declaration named "run" was found in the whole workspace');
 
       // `local` is declared inside `describe()` in consumer.ts, which tsgo lists with containerName `describe`.
@@ -276,12 +277,12 @@ describe("ts_find_symbol against the real tsgo", () => {
       ).toBe(true);
 
       const local = await ask(manager, "describe.local", workspaceRoot);
-      expect(local.isError, textOf(local)).toBe(true);
+      expect(resultView(local).isError, textOf(local)).toBe(true);
       expect(textOf(local)).toContain(
         'no declaration named "describe.local" was found in the whole workspace',
       );
       const bareLocal = await ask(manager, "local", workspaceRoot);
-      expect(bareLocal.isError, textOf(bareLocal)).toBe(true);
+      expect(resultView(bareLocal).isError, textOf(bareLocal)).toBe(true);
       expect(textOf(bareLocal)).toContain(
         'no declaration named "local" was found in the whole workspace',
       );
@@ -340,7 +341,7 @@ describe("ts_find_symbol against the real tsgo", () => {
     async () => {
       const manager = freshManager();
       const out = await ask(manager, "NoSuchDeclaration", workspaceRoot);
-      expect(out.isError).toBe(true);
+      expect(resultView(out).isError).toBe(true);
       expect(textOf(out)).toContain(
         'no declaration named "NoSuchDeclaration" was found in the whole workspace',
       );
@@ -454,7 +455,7 @@ describe("the workspace/symbol cap watermark", () => {
         // `ge` names nothing and is a prefix of four hundred names: the list is full, the filter empties it,
         // and the two facts together are what a caller needs to hear.
         const capped = await ask(manager, "ge", root, root);
-        expect(capped.isError, textOf(capped)).toBe(true);
+        expect(resultView(capped).isError, textOf(capped)).toBe(true);
         expect(textOf(capped)).toContain('no declaration named "ge" was found');
         expect(textOf(capped)).toContain("may have been ranked out of it");
       } finally {

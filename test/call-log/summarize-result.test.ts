@@ -2,11 +2,18 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import type { z } from "zod";
 import { SweepCache } from "../../src/clang-query/sweep-cache.js";
-import { RESULT_COUNT_SELECTORS, type CallRecord } from "../../src/call-log/record.js";
+import {
+  CallRecord as CallRecordSchema,
+  RESULT_COUNT_SELECTORS,
+} from "../../src/call-log/record.js";
 import { pickArgs, summarizeCall, withinRecordCap } from "../../src/call-log/summarize-result.js";
 import { cleanExec } from "../helpers/cpp-find-derived-classes.js";
+import { payloadOf } from "../helpers/tool-result.js";
 import { runCppFindDerivedClasses } from "../../src/tools/cpp-find-derived-classes.js";
+
+type CallRecord = z.infer<typeof CallRecordSchema>;
 
 const tempDirs: string[] = [];
 
@@ -213,11 +220,12 @@ describe("each result-count selector against the payload its own tool answers wi
       JSON.stringify([{ directory: root, file: "a.cpp" }]),
     );
 
-    const out = await runCppFindDerivedClasses(
-      { exec: cleanExec, cache: new SweepCache() },
-      { projectRoot: root, qualifiedName: "Base" },
+    const payload = payloadOf(
+      await runCppFindDerivedClasses(
+        { exec: cleanExec, cache: new SweepCache() },
+        { projectRoot: root, qualifiedName: "Base" },
+      ),
     );
-    const payload = out.structuredContent as { matches: unknown[] };
 
     expect(RESULT_COUNT_SELECTORS.cpp_find_derived_classes?.(payload)).toBe(0);
     const withRows = { ...payload, matches: [{}, {}, {}] };

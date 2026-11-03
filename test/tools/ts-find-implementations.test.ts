@@ -22,6 +22,7 @@ import type { TsQueryDeps } from "../../src/tools/ts-navigation-shared.js";
 import type { TsgoBinary, TsExecFn } from "../../src/tsgo/binary.js";
 import { dropProjectMap } from "../../src/tsgo/project-map.js";
 import { fakeServer, pathOfDocumentId, uriOf, type FakeServer } from "../helpers/fake-lsp.js";
+import { resultView } from "../helpers/tool-result.js";
 
 type Result = Awaited<ReturnType<typeof runTsFindImplementations>>;
 type Input = {
@@ -440,7 +441,7 @@ describe("runTsFindImplementations", () => {
     h.answer([]);
 
     const out = await h.run();
-    expect(out.isError, textOf(out)).toBeFalsy();
+    expect(resultView(out).isError, textOf(out)).toBeFalsy();
     expect(payload(out).implementations).toEqual([]);
     expect((scopeOf(out) as { uncoveredSources: unknown }).uncoveredSources).toEqual({
       count: 1,
@@ -473,7 +474,7 @@ describe("runTsFindImplementations", () => {
     h.answer([location(h.impl, 0, 13), location(h.main, 3, 13)]);
 
     const out = await h.run();
-    expect(out.isError, textOf(out)).toBeFalsy();
+    expect(resultView(out).isError, textOf(out)).toBeFalsy();
     expect(payload(out)).toEqual({
       summary: expect.any(String),
       resolved: { name: "Storage", kind: "interface", file: h.main, line: 1 },
@@ -539,7 +540,7 @@ describe("runTsFindImplementations", () => {
     h.answer([location(h.impl, 0, 13)]);
 
     const out = await h.run({ symbol: "Widget" });
-    expect(out.isError, textOf(out)).toBeFalsy();
+    expect(resultView(out).isError, textOf(out)).toBeFalsy();
     // One key, several entries, one symbol — and an implementations call prefers the interface or
     // class entry among them. The interface is the SECOND here, so the request is not at the position the
     // bare address would have used, and `resolved` says what the answer is about.
@@ -562,7 +563,7 @@ describe("runTsFindImplementations", () => {
     h.answer([location(h.impl, 0, 13)]);
 
     const out = await h.run({ symbol: "Pair" });
-    expect(out.isError, textOf(out)).toBeFalsy();
+    expect(resultView(out).isError, textOf(out)).toBeFalsy();
     expect(payload(out).resolved).toEqual({ name: "Pair", kind: "class", file: h.main, line: 20 });
     expect(requestFor(h.server, "textDocument/implementation")).toEqual({
       textDocument: { uri: uriOf(h.main) },
@@ -593,7 +594,7 @@ describe("runTsFindImplementations", () => {
     h.answer([lineOnly, location(h.impl, 0, 13)]);
 
     const out = await h.run();
-    expect(out.isError, textOf(out)).toBeFalsy();
+    expect(resultView(out).isError, textOf(out)).toBeFalsy();
     expect(rowsOf(out).map((row) => row.file)).toEqual([h.main, h.impl]);
     expect(textOf(out)).toContain("- 2 row(s)");
   });
@@ -611,8 +612,8 @@ describe("runTsFindImplementations", () => {
     h.answer([]);
 
     const out = await h.run({ symbol });
-    expect(out.isError, textOf(out)).toBeFalsy();
-    expect(payload(out).resolved.kind).toBe(kind);
+    expect(resultView(out).isError, textOf(out)).toBeFalsy();
+    expect(payload(out).resolved).toMatchObject({ kind });
     expect(h.server.methods).toContain("textDocument/implementation");
   });
 
@@ -627,7 +628,7 @@ describe("runTsFindImplementations", () => {
       h.answer([location(h.impl, 0, 13)]);
 
       const out = await h.run({ symbol });
-      expect(out.isError).toBe(true);
+      expect(resultView(out).isError).toBe(true);
       expect(textOf(out)).toBe(
         `ts_find_implementations failed: "${symbol}" is ${article}, and only an interface, class, method or ` +
           "property has implementations. tsgo answers that question for those four; for any other declaration " +
@@ -717,7 +718,7 @@ describe("runTsFindImplementations", () => {
     h.answer({ implementations: [] });
 
     const out = await h.run();
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toContain(
       'answered the query for "Storage" with an object this server cannot read',
     );
@@ -730,7 +731,7 @@ describe("runTsFindImplementations", () => {
     h.crashNextImplementation();
 
     const out = await h.run();
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toBe(
       `ts_find_implementations failed: tsgo restarted during the query about "Storage" in the workspace ` +
         `"${h.ws}", so the documents the answer depends on were opened on a process that is not the one that ` +
@@ -745,7 +746,7 @@ describe("runTsFindImplementations", () => {
     h.reloadBesideAnswer();
 
     const out = await h.run();
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toContain("tsgo restarted during the query");
     expect(h.session.isWorkspaceLoaded()).toBe(true);
     expect(h.servers).toHaveLength(2);
@@ -756,7 +757,7 @@ describe("runTsFindImplementations", () => {
     h.hangImplementation();
 
     const out = await h.run({ timeBudgetMs: 100 });
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toBe(
       `ts_find_implementations failed: tsgo did not answer the query for "Storage" within this call's 100 ms ` +
         `budget. The workspace at "${h.ws}" may still be loading its projects; raise timeBudgetMs or call ` +

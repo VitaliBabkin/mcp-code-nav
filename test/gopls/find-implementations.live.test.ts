@@ -8,6 +8,7 @@ import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { runGoFindImplementations } from "../../src/tools/go-find-implementations.js";
 import { IMPLEMENTATIONS_LIMIT } from "../../src/tools/navigation-limits.js";
 import { removeFileNamingHolder } from "../helpers/remove-with-holder.js";
+import { resultView } from "../helpers/tool-result.js";
 
 // gopls is optional on this host in exactly the way clangd is, so the suite skips rather than failing
 // with the symptom it is meant to detect. `MCP_CODE_NAV_GOPLS` overrides, as it does at runtime.
@@ -102,8 +103,10 @@ function textOf(result: Result): string {
 }
 
 function payloadOf(result: Result): Payload {
-  expect(result.isError, `go_find_implementations failed: ${textOf(result)}`).toBeFalsy();
-  return result.structuredContent as Payload;
+  const { isError, structuredContent } = resultView(result);
+  expect(isError, `go_find_implementations failed: ${textOf(result)}`).toBeFalsy();
+  // The handler's payload type is not the test's `Payload` interface, which states the fields these cases read.
+  return structuredContent as Payload;
 }
 
 /** Paths as gopls spelled them after `fileURLToPath`, compared on the footing the OS compares them. */
@@ -234,10 +237,10 @@ describe("go_find_implementations against a real gopls binary", () => {
       // initial load: without the server-request handler gopls emits no `$/progress`, readiness is never
       // proven, and this call would fail at its budget instead of answering.
       const result = await ask(freshManager(), [implRoot], implFile, "Lone");
-      expect(result.isError, textOf(result)).toBeFalsy();
+      expect(resultView(result).isError, textOf(result)).toBeFalsy();
       expect(textOf(result)).not.toMatch(/initial workspace load/);
 
-      const payload = result.structuredContent as Payload;
+      const payload = payloadOf(result);
       expect(payload.direction).toBe("implementers-of-interface");
       expect(payload.implementations).toEqual([]);
       expect(payload.truncated).toBe(0);
@@ -260,7 +263,7 @@ describe("go_find_implementations against a real gopls binary", () => {
       expect(named.implementations.map((row) => row.name)).toContain("Storage");
 
       const noDirection = await ask(manager, [implRoot], implFile, "Helper");
-      expect(noDirection.isError).toBe(true);
+      expect(resultView(noDirection).isError).toBe(true);
       expect(textOf(noDirection)).toMatch(/named func type/);
 
       for (const [symbolName, kindName] of [
@@ -269,7 +272,7 @@ describe("go_find_implementations against a real gopls binary", () => {
         ["MemoryStorage.Get", "method"],
       ] as const) {
         const refused = await ask(manager, [implRoot], implFile, symbolName);
-        expect(refused.isError, `${symbolName} has no direction to answer`).toBe(true);
+        expect(resultView(refused).isError, `${symbolName} has no direction to answer`).toBe(true);
         expect(textOf(refused)).toContain(`is a ${kindName}`);
       }
     },
@@ -281,7 +284,7 @@ describe("go_find_implementations against a real gopls binary", () => {
     async () => {
       const result = await ask(freshManager(), [implRoot], aliasFile, "Reader");
 
-      if (result.isError) {
+      if (resultView(result).isError) {
         // gopls gave the alias a kind with no direction: the refusal has to name that kind, and the
         // observation belongs in the report rather than in an assumed assertion.
         expect(textOf(result)).toMatch(
@@ -289,7 +292,7 @@ describe("go_find_implementations against a real gopls binary", () => {
         );
         return;
       }
-      const payload = result.structuredContent as Payload;
+      const payload = payloadOf(result);
       expect(["interface", "struct", "class"]).toContain(payload.resolved.kind);
       expect(payload.direction).toBe(
         payload.resolved.kind === "interface"

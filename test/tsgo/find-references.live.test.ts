@@ -2,6 +2,7 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from "node:os";
 import { basename, join, relative, sep } from "node:path";
 import { afterEach, describe, expect } from "vitest";
+import { resultView } from "../helpers/tool-result.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { dropProjectMap } from "../../src/tsgo/project-map.js";
 import { walkWorkspace } from "../../src/tsgo/workspace-snapshot.js";
@@ -499,7 +500,7 @@ describe("ts_find_references against the real tsgo", () => {
       const manager = freshManager();
       try {
         const result = await ask(manager, [workspaceRoot], legacyFile, "legacy");
-        expect(result.isError, textOf(result)).toBeFalsy();
+        expect(resultView(result).isError, textOf(result)).toBeFalsy();
         expect(textOf(result)).not.toMatch(/could not prove|budget|restarted/);
 
         const answer = payload(result);

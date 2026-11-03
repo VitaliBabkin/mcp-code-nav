@@ -11,11 +11,15 @@ import type { LspProcess } from "../../src/lsp/process.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { runCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
 import { runCppFindCallers } from "../../src/tools/cpp-find-callers.js";
-import { runCppFindDerivedClasses } from "../../src/tools/cpp-find-derived-classes.js";
+import {
+  type CppFindDerivedClassesInputType,
+  runCppFindDerivedClasses,
+} from "../../src/tools/cpp-find-derived-classes.js";
 import { runCppFindReferences } from "../../src/tools/cpp-find-references.js";
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import { noopServerHandlers, sessionsFor, symAt } from "../helpers/fake-clangd.js";
 import { fakeServer, pathOfDocumentId } from "../helpers/fake-lsp.js";
+import { resultView } from "../helpers/tool-result.js";
 
 // How each C++ handler applies the source-root rules: an omitted `sourceRoots` becomes the source tree the
 // compile database names, every `scope` / `sweep` states it, and a path failure names the fix. clangd and
@@ -28,6 +32,11 @@ interface Result {
 }
 
 const textOf = (result: Result): string => result.content[0]?.text ?? "";
+/**
+ * The payload a test expects a result to carry, read as the shape the test states: the tool's declared payload is
+ * narrower than some of the fields asserted here (for example `scope` and `sweep` on the payload of a degraded
+ * answer), so the cast is the test's claim about the runtime value, and every field it reads is asserted.
+ */
 const structured = <T>(result: Result): T => {
   expect(result.isError, textOf(result)).toBeFalsy();
   return result.structuredContent as T;
@@ -116,8 +125,9 @@ describe("cpp_file_symbols", () => {
     const result = await runCppFileSymbols(sessions, {
       projectRoot: layout.build,
       file: layout.widget,
+      sourceRoots: [],
       depth: 1,
-    } as never);
+    });
 
     expect(structured(result)).toEqual(outline);
   });
@@ -129,8 +139,9 @@ describe("cpp_file_symbols", () => {
     const result = await runCppFileSymbols(sessions, {
       projectRoot: layout.build,
       file: "src/widget.cpp",
+      sourceRoots: [],
       depth: 1,
-    } as never);
+    });
 
     expect(structured(result)).toEqual(outline);
   });
@@ -139,11 +150,14 @@ describe("cpp_file_symbols", () => {
     const layout = makeLayout();
     const sessions = sessionsAnswering(() => widgetOutline);
 
-    const result = await runCppFileSymbols(sessions, {
-      projectRoot: layout.build,
-      file: layout.otherFile,
-      depth: 1,
-    } as never);
+    const result = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: layout.build,
+        file: layout.otherFile,
+        sourceRoots: [],
+        depth: 1,
+      }),
+    );
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toBe(
@@ -158,12 +172,14 @@ describe("cpp_file_symbols", () => {
     const layout = makeLayout();
     const sessions = sessionsAnswering(() => widgetOutline);
 
-    const result = await runCppFileSymbols(sessions, {
-      projectRoot: layout.build,
-      file: layout.widget,
-      sourceRoots: [layout.other],
-      depth: 1,
-    } as never);
+    const result = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: layout.build,
+        file: layout.widget,
+        sourceRoots: [layout.other],
+        depth: 1,
+      }),
+    );
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toBe(
@@ -181,8 +197,9 @@ describe("cpp_file_symbols", () => {
     const result = await runCppFileSymbols(sessions, {
       projectRoot: layout.build,
       file: inside,
+      sourceRoots: [],
       depth: 1,
-    } as never);
+    });
 
     expect(structured(result)).toEqual(outline);
   });
@@ -191,11 +208,14 @@ describe("cpp_file_symbols", () => {
     const layout = makeLayout("invalid");
     const sessions = sessionsAnswering(() => widgetOutline);
 
-    const result = await runCppFileSymbols(sessions, {
-      projectRoot: layout.build,
-      file: layout.widget,
-      depth: 1,
-    } as never);
+    const result = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: layout.build,
+        file: layout.widget,
+        sourceRoots: [],
+        depth: 1,
+      }),
+    );
 
     expect(textOf(result)).toBe(
       `cpp_file_symbols failed: path "${layout.widget}" escapes every declared root: "${layout.build}"` +
@@ -208,11 +228,14 @@ describe("cpp_file_symbols", () => {
     const layout = makeLayout("invalid");
     const sessions = sessionsAnswering(() => widgetOutline);
 
-    const result = await runCppFileSymbols(sessions, {
-      projectRoot: layout.build,
-      file: "missing.cpp",
-      depth: 1,
-    } as never);
+    const result = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: layout.build,
+        file: "missing.cpp",
+        sourceRoots: [],
+        depth: 1,
+      }),
+    );
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain("cpp_file_symbols failed: ENOENT");
@@ -228,11 +251,14 @@ describe("cpp_file_symbols", () => {
     const layout = makeLayout();
     const sessions = sessionsAnswering(() => widgetOutline);
 
-    const result = await runCppFileSymbols(sessions, {
-      projectRoot: layout.build,
-      file: "missing.cpp",
-      depth: 1,
-    } as never);
+    const result = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: layout.build,
+        file: "missing.cpp",
+        sourceRoots: [],
+        depth: 1,
+      }),
+    );
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain('Resolved "missing.cpp"');
@@ -277,7 +303,10 @@ function clangdFor(layout: Layout) {
       }
       if (method === "textDocument/hover") return null;
       if (method === "workspace/symbol") {
-        const query = (params as { query: string }).query;
+        const query =
+          typeof params === "object" && params !== null && "query" in params
+            ? params.query
+            : undefined;
         return query === "helper"
           ? [{ name: "helper", kind: 12, location: nameAt(layout.helper, 0, 4, 6) }]
           : [{ name: "Widget", kind: 5, location: nameAt(layout.widget, 0, 6, 6) }];
@@ -319,7 +348,8 @@ describe("cpp_find_symbol, the index branch", () => {
     const result = await runCppFindSymbol(sessions, {
       projectRoot: layout.build,
       name: "Widget",
-    } as never);
+      sourceRoots: [],
+    });
     const payload = structured<{ scope: Scope; descriptionUnavailable?: string }>(result);
 
     expect(Object.keys(payload.scope).slice(0, 3)).toEqual(["projectRoot", "sourceRoots", "index"]);
@@ -337,7 +367,7 @@ describe("cpp_find_symbol, the index branch", () => {
       projectRoot: layout.build,
       name: "Widget",
       sourceRoots: [layout.src],
-    } as never);
+    });
 
     expect(structured<{ scope: Scope }>(result).scope.sourceRoots).toEqual({
       origin: "declared",
@@ -352,7 +382,8 @@ describe("cpp_find_symbol, the index branch", () => {
     const result = await runCppFindSymbol(sessions, {
       projectRoot: layout.build,
       name: "Widget",
-    } as never);
+      sourceRoots: [],
+    });
     const payload = structured<{ scope: Scope; descriptionUnavailable?: string }>(result);
 
     expect(payload.scope.sourceRoots).toEqual({
@@ -371,7 +402,8 @@ describe("cpp_find_symbol, the index branch", () => {
     const result = await runCppFindSymbol(sessions, {
       projectRoot: layout.build,
       name: "Widget",
-    } as never);
+      sourceRoots: [],
+    });
     const { scope } = structured<{ scope: Scope }>(result);
 
     expect(scope.uncoveredSourcesUnavailable).toBeUndefined();
@@ -387,7 +419,8 @@ describe("cpp_find_symbol, the index branch", () => {
       projectRoot: layout.build,
       name: "Widget",
       file: layout.widget,
-    } as never);
+      sourceRoots: [],
+    });
 
     expect(structured<{ file: string }>(result).file).toBe(layout.widget);
   });
@@ -396,11 +429,14 @@ describe("cpp_find_symbol, the index branch", () => {
     const layout = makeLayout();
     const sessions = sessionsFor(clangdFor(layout).process);
 
-    const result = await runCppFindSymbol(sessions, {
-      projectRoot: layout.build,
-      name: "x",
-      file: layout.otherFile,
-    } as never);
+    const result = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot: layout.build,
+        name: "x",
+        file: layout.otherFile,
+        sourceRoots: [],
+      }),
+    );
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain(`"${layout.repo}" was derived from compile_commands.json`);
@@ -411,11 +447,14 @@ describe("cpp_find_symbol, the index branch", () => {
     const layout = makeLayout("invalid");
     const sessions = sessionsFor(clangdFor(layout).process);
 
-    const result = await runCppFindSymbol(sessions, {
-      projectRoot: layout.build,
-      name: "x",
-      file: "missing.cpp",
-    } as never);
+    const result = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot: layout.build,
+        name: "x",
+        file: "missing.cpp",
+        sourceRoots: [],
+      }),
+    );
 
     expect(result.isError).toBe(true);
     expect(textOf(result).endsWith("pass that tree as sourceRoots.")).toBe(true);
@@ -431,7 +470,8 @@ describe("cpp_find_references", () => {
     const result = await runCppFindReferences(sessions, {
       projectRoot: layout.build,
       name: "Widget",
-    } as never);
+      sourceRoots: [],
+    });
     const payload = structured<{ files: { file: string; external: boolean }[]; scope: Scope }>(
       result,
     );
@@ -448,11 +488,14 @@ describe("cpp_find_references", () => {
     const layout = makeLayout();
     const sessions = sessionsFor(clangdFor(layout).process);
 
-    const result = await runCppFindReferences(sessions, {
-      projectRoot: layout.build,
-      name: "x",
-      file: layout.otherFile,
-    } as never);
+    const result = resultView(
+      await runCppFindReferences(sessions, {
+        projectRoot: layout.build,
+        name: "x",
+        file: layout.otherFile,
+        sourceRoots: [],
+      }),
+    );
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain(`"${layout.repo}" was derived from compile_commands.json`);
@@ -463,10 +506,13 @@ describe("cpp_find_references", () => {
     const layout = makeLayout("docker");
     const sessions = sessionsFor(clangdFor(layout).process);
 
-    const result = await runCppFindReferences(sessions, {
-      projectRoot: layout.build,
-      name: "Widget",
-    } as never);
+    const result = resultView(
+      await runCppFindReferences(sessions, {
+        projectRoot: layout.build,
+        name: "Widget",
+        sourceRoots: [],
+      }),
+    );
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain("outside every declared source root");
@@ -480,7 +526,7 @@ describe("cpp_find_references", () => {
       projectRoot: layout.build,
       name: "Widget",
       sourceRoots: [layout.src],
-    } as never);
+    });
 
     expect(structured<{ scope: Scope }>(result).scope.sourceRoots).toEqual({
       origin: "declared",
@@ -497,7 +543,8 @@ describe("cpp_find_callers", () => {
     const result = await runCppFindCallers(sessions, {
       projectRoot: layout.build,
       name: "helper",
-    } as never);
+      sourceRoots: [],
+    });
     const payload = structured<{ callers: { file: string; external: boolean }[]; scope: Scope }>(
       result,
     );
@@ -513,11 +560,14 @@ describe("cpp_find_callers", () => {
     const layout = makeLayout();
     const sessions = sessionsFor(clangdFor(layout).process);
 
-    const result = await runCppFindCallers(sessions, {
-      projectRoot: layout.build,
-      name: "x",
-      file: layout.otherFile,
-    } as never);
+    const result = resultView(
+      await runCppFindCallers(sessions, {
+        projectRoot: layout.build,
+        name: "x",
+        file: layout.otherFile,
+        sourceRoots: [],
+      }),
+    );
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain(`"${layout.repo}" was derived from compile_commands.json`);
@@ -532,7 +582,7 @@ describe("cpp_find_callers", () => {
       projectRoot: layout.build,
       name: "helper",
       sourceRoots: [layout.src],
-    } as never);
+    });
 
     expect(structured<{ scope: Scope }>(result).scope.sourceRoots).toEqual({
       origin: "declared",
@@ -543,11 +593,15 @@ describe("cpp_find_callers", () => {
 
 describe("cpp_find_derived_classes", () => {
   const clean: ClangQueryExecFn = async () => ({ exitCode: 0, stdout: "", stderr: "" });
-  const run = (input: Record<string, unknown>, exec: ClangQueryExecFn = clean) =>
-    runCppFindDerivedClasses({ exec, cache: new SweepCache() }, {
-      qualifiedName: "Base",
-      ...input,
-    } as never);
+  const run = (
+    input: Pick<CppFindDerivedClassesInputType, "projectRoot"> &
+      Partial<CppFindDerivedClassesInputType>,
+    exec: ClangQueryExecFn = clean,
+  ) =>
+    runCppFindDerivedClasses(
+      { exec, cache: new SweepCache() },
+      { qualifiedName: "Base", ...input },
+    );
 
   interface Sweep {
     readonly cache: string;
@@ -573,10 +627,13 @@ describe("cpp_find_derived_classes", () => {
     const layout = makeLayout();
     const cache = new SweepCache();
     const runCached = () =>
-      runCppFindDerivedClasses({ exec: clean, cache }, {
-        qualifiedName: "Base",
-        projectRoot: layout.build,
-      } as never);
+      runCppFindDerivedClasses(
+        { exec: clean, cache },
+        {
+          qualifiedName: "Base",
+          projectRoot: layout.build,
+        },
+      );
     expect(sweepOf(await runCached()).cache).toBe("miss");
     expect(sweepOf(await runCached()).cache).toBe("hit");
 
@@ -612,7 +669,9 @@ describe("cpp_find_derived_classes", () => {
     const layout = makeLayout();
     const seen: string[] = [];
     const exec: ClangQueryExecFn = async (args) => {
-      seen.push(args[2] as string);
+      const file = args[2];
+      if (file === undefined) throw new Error("clang-query was called without a file argument");
+      seen.push(file);
       return { exitCode: 0, stdout: "", stderr: "" };
     };
 
@@ -639,7 +698,7 @@ describe("cpp_find_derived_classes", () => {
   it("names the derived root and the way out for a `files` entry beyond it", async () => {
     const layout = makeLayout();
 
-    const result = await run({ projectRoot: layout.build, files: [layout.otherFile] });
+    const result = resultView(await run({ projectRoot: layout.build, files: [layout.otherFile] }));
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toBe(
@@ -652,7 +711,7 @@ describe("cpp_find_derived_classes", () => {
   it("suggests the source tree when the database could not be listed and the file is beyond projectRoot", async () => {
     const layout = makeLayout("invalid");
 
-    const result = await run({ projectRoot: layout.build, files: [layout.widget] });
+    const result = resultView(await run({ projectRoot: layout.build, files: [layout.widget] }));
 
     expect(
       textOf(result).endsWith(
@@ -665,7 +724,7 @@ describe("cpp_find_derived_classes", () => {
   it("keeps the unscoped call's failure on an invalid database", async () => {
     const layout = makeLayout("invalid");
 
-    const result = await run({ projectRoot: layout.build });
+    const result = resultView(await run({ projectRoot: layout.build }));
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain("is not valid JSON");

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeServer, pathOfDocumentId, type FakeServer } from "../helpers/fake-lsp.js";
 import { sessionsFor, symAt } from "../helpers/fake-clangd.js";
+import { payloadOf, resultView } from "../helpers/tool-result.js";
 import { runCppFindCallers, type CppFindCallersPayload } from "../../src/tools/cpp-find-callers.js";
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import { clangdConfig } from "../../src/lsp/server-config.js";
@@ -37,8 +38,15 @@ interface Scope {
 }
 
 type Action = () => void | Promise<void>;
+type CallersAnswer = Awaited<ReturnType<typeof runCppFindCallers>>;
 
 const textOf = (result: Result): string => result.content[0]?.text ?? "";
+
+/** A field the answer carries at runtime that its declared type does not name for this path; the test reads it. */
+function fieldOf(value: unknown, key: string): unknown {
+  if (typeof value !== "object" || value === null) return undefined;
+  return Object.getOwnPropertyDescriptor(value, key)?.value;
+}
 
 const range = (startLine: number, endLine: number) => ({
   start: { line: startLine, character: 0 },
@@ -85,7 +93,7 @@ describe("cpp_find_callers against a faked clangd", () => {
   let onIndex: Action[];
   let onPrepare: Action[];
   let onCalls: Action[];
-  let onOutline: ((file: string) => void | Promise<void>)[];
+  let onOutline: ((file: string | undefined) => void | Promise<void>)[];
   let server: FakeServer;
   let sessions: LspSessionManager;
 
@@ -191,21 +199,22 @@ describe("cpp_find_callers against a faked clangd", () => {
   }
 
   /** The same question every case asks, spelled once. */
-  const asked = (name = "helper", file = helper, roots: readonly string[] = [sourceDir]) => ({
+  const asked = (name = "helper", file = helper, roots: string[] = [sourceDir]) => ({
     projectRoot: buildDir,
     name,
     file,
     sourceRoots: roots,
   });
 
-  const run = (): Promise<Result> => runCppFindCallers(sessions, asked() as never);
+  const run = () => runCppFindCallers(sessions, asked());
 
-  const payload = (result: Result): CppFindCallersPayload => {
-    expect(result.isError, textOf(result)).toBeFalsy();
-    return result.structuredContent as CppFindCallersPayload;
+  /** The payload of a call the test expects to succeed; fails the test with the result's text otherwise. */
+  const payload = (raw: CallersAnswer): CppFindCallersPayload => {
+    expect(resultView(raw).isError, textOf(raw)).toBeFalsy();
+    return payloadOf(raw);
   };
 
-  const scope = (result: Result): Scope => payload(result).scope as unknown as Scope;
+  const scope = (raw: CallersAnswer): Scope => payload(raw).scope;
 
   /**
    * One ordinary call first: the session only registers its server-to-client handlers when it spawns, so a
@@ -238,6 +247,7 @@ describe("cpp_find_callers against a faked clangd", () => {
     expect(found.totalCallers).toBe(1);
     expect(found.callersTruncated).toBe(0);
     const only = found.callers[0];
+    if (only === undefined) throw new Error("expected one caller row");
     // `Widget::value` is qualified the way `cpp_find_symbol` publishes a member, so a row can be handed
     // straight back as this tool's own `name` input.
     expect(only).toMatchObject({
@@ -303,8 +313,8 @@ describe("cpp_find_callers against a faked clangd", () => {
 
     expect(found.totalCallers).toBe(0);
     expect(found.callers).toEqual([]);
-    // `indirect-dispatch-not-resolved` belongs to every caller answer, including the empty one: clangd
-    // records no edge for a call that reaches the subject through a base declaration or a function value.
+    // `indirect-dispatch-not-resolved` belongs to every caller answer, including the empty one: clangd records no
+    // edge for a call that reaches the subject through a base declaration or a function value.
     expect(found.scope.limits).toEqual(["compile-database-only", "indirect-dispatch-not-resolved"]);
     expect(found.scope.index).toEqual({ state: "quiescent", staleFiles: { count: 0, files: [] } });
   });
@@ -312,7 +322,7 @@ describe("cpp_find_callers against a faked clangd", () => {
   it("refuses to answer what cannot be called", async () => {
     prepared = [hierarchyItem("Widget", 5, widget, 2, 2)];
 
-    const failed = await runCppFindCallers(sessions, asked("Widget", widget) as never);
+    const failed = resultView(await runCppFindCallers(sessions, asked("Widget", widget)));
 
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toContain('"Widget" is a class declared at');
@@ -327,7 +337,7 @@ describe("cpp_find_callers against a faked clangd", () => {
   it("refuses a call hierarchy that prepared nothing rather than answering nobody calls it", async () => {
     prepared = [];
 
-    const failed = await run();
+    const failed = resultView(await run());
 
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toContain('clangd prepared no call-hierarchy item for "helper"');
@@ -340,7 +350,7 @@ describe("cpp_find_callers against a faked clangd", () => {
       hierarchyItem("helper", 12, helper, 9, 9),
     ];
 
-    const failed = await run();
+    const failed = resultView(await run());
 
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toContain('clangd offered 2 call-hierarchy items for "helper"');
@@ -354,7 +364,7 @@ describe("cpp_find_callers against a faked clangd", () => {
   it("refuses an entry it cannot read as a caller rather than dropping part of the listing", async () => {
     callers = [{ from: null, fromRanges: [] }];
 
-    const failed = await run();
+    const failed = resultView(await run());
 
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toContain('clangd answered the caller query for "helper" with entry 1');
@@ -365,7 +375,7 @@ describe("cpp_find_callers against a faked clangd", () => {
   it("refuses a hierarchy it cannot read either, rather than guessing at the shape", async () => {
     prepared = { name: "helper" };
 
-    const failed = await run();
+    const failed = resultView(await run());
 
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toContain(
@@ -380,7 +390,9 @@ describe("cpp_find_callers against a faked clangd", () => {
     await server.createProgress("round");
     // The round opens between the two requests. A state sampled after the first one would read idle, which
     // is the reading this rule exists to prevent.
-    onPrepare.push(() => server.sendProgress("round", { kind: "begin" }));
+    onPrepare.push(() => {
+      server.sendProgress("round", { kind: "begin" });
+    });
 
     const busy = scope(await run());
 
@@ -417,7 +429,7 @@ describe("cpp_find_callers against a faked clangd", () => {
     await beginRound();
     callers = [];
 
-    const building = await run();
+    const building = resultView(await run());
 
     expect(building.isError).toBe(true);
     expect(textOf(building)).toMatch(/was indexing while this call ran/);
@@ -426,7 +438,7 @@ describe("cpp_find_callers against a faked clangd", () => {
   it("refuses an empty answer from an index it has never seen report anything", async () => {
     callers = [];
 
-    const unknown = await run();
+    const unknown = resultView(await run());
 
     expect(unknown.isError).toBe(true);
     expect(textOf(unknown)).toMatch(/never reported indexing progress to this session/);
@@ -520,7 +532,7 @@ describe("cpp_find_callers against a faked clangd", () => {
       projectRoot: buildDir,
       name: "helper",
       sourceRoots: [sourceDir],
-    } as never);
+    });
 
     const found = payload(built);
 
@@ -542,11 +554,13 @@ describe("cpp_find_callers against a faked clangd", () => {
   it("refuses a name the index holds no callable for, before asking clangd anything about calls", async () => {
     indexRows = [];
 
-    const failed = await runCppFindCallers(sessions, {
-      projectRoot: buildDir,
-      name: "Gone",
-      sourceRoots: [sourceDir],
-    } as never);
+    const failed = resultView(
+      await runCppFindCallers(sessions, {
+        projectRoot: buildDir,
+        name: "Gone",
+        sourceRoots: [sourceDir],
+      }),
+    );
 
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toContain('no declaration named "Gone" was found in clangd\'s index');
@@ -561,7 +575,7 @@ describe("cpp_find_callers against a faked clangd", () => {
         projectRoot: buildDir,
         name: "helper",
         sourceRoots: [sourceDir],
-      } as never);
+      });
 
     const built = await unscoped();
     expect(payload(built).resolved.name).toBe("helper");
@@ -576,8 +590,8 @@ describe("cpp_find_callers against a faked clangd", () => {
       projectRoot: buildDir,
       name: "helper",
       sourceRoots: [sourceDir],
-    } as never);
-    expect((symbol.structuredContent as { scope?: unknown }).scope).toBeDefined();
+    });
+    expect(fieldOf(payloadOf(symbol), "scope")).toBeDefined();
     // …and the naming still worked from the transient read: the row keeps the name the outline gives it.
     expect(payload(built).callers[0]).toMatchObject({ name: "Widget::value", file: widget });
   });
@@ -594,11 +608,13 @@ describe("cpp_find_callers against a faked clangd", () => {
       },
     ];
 
-    const failed = await runCppFindCallers(sessions, {
-      projectRoot: buildDir,
-      name: "helper",
-      sourceRoots: [sourceDir],
-    } as never);
+    const failed = resultView(
+      await runCppFindCallers(sessions, {
+        projectRoot: buildDir,
+        name: "helper",
+        sourceRoots: [sourceDir],
+      }),
+    );
 
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toContain("outside every declared source root");
@@ -617,7 +633,10 @@ describe("cpp_find_callers against a faked clangd", () => {
     await run();
 
     const request = server.requests.find(([method]) => method === "callHierarchy/incomingCalls");
+    const preparedItems: unknown = prepared;
 
-    expect(request?.[1]).toEqual({ item: (prepared as readonly unknown[])[0] });
+    expect(request?.[1]).toEqual({
+      item: Array.isArray(preparedItems) ? preparedItems[0] : undefined,
+    });
   });
 });

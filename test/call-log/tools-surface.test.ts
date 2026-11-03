@@ -100,12 +100,18 @@ async function connectOverTap(
   await clientSide.start();
 
   let nextId = 1;
-  const request = async (method: string, params: Record<string, unknown> = {}) => {
+  const request = async (
+    method: string,
+    params: Record<string, unknown> = {},
+  ): Promise<Record<string, unknown>> => {
     const id = nextId++;
     const reply = new Promise<JSONRPCMessage>((resolve) => waiting.set(id, resolve));
     await clientSide.send({ jsonrpc: "2.0", id, method, params } as JSONRPCMessage);
     const message = (await reply) as Record<string, unknown>;
-    return "error" in message ? { __error: message.error } : message.result;
+    // Every method this helper calls answers with an object; a malformed reply reaches the assertion as missing fields.
+    return "error" in message
+      ? { __error: message.error }
+      : (message.result as Record<string, unknown>);
   };
 
   const tools: Record<string, unknown>[] = [];
