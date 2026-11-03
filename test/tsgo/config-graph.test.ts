@@ -24,10 +24,14 @@ const outside = (...parts: string[]): string => join(OUTSIDE, ...parts);
 /** The root config, the seed every case that names none other starts from. */
 const ROOT_CONFIG = under("tsconfig.json");
 
-/** The two fields a manifest carries that the graph reads; anything else is ignored. */
+/**
+ * The two fields a manifest carries that the graph reads; anything else (`compilerOptions`, `include`) is ignored.
+ * The index signature lets a fixture carry those other keys without a weak-type mismatch.
+ */
 interface Manifest {
   readonly extends?: unknown;
   readonly references?: unknown;
+  readonly [key: string]: unknown;
 }
 
 interface DiskTable {

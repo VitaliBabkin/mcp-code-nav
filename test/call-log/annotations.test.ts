@@ -132,9 +132,12 @@ describe("LspSession.awaitWorkspaceReady", () => {
       readFile: () => "class Foo {};\n",
       sleep: async () => {},
     });
-    expect(await withCallAnnotations(cold, () => cold.awaitWorkspaceReady(5))).toBe("timed-out");
-    expect(typeof cold.readyWaitMs).toBe("number");
-    expect(cold.readyWaitMs).toBeLessThan(5_000);
+    const coldCall = newCallAnnotations();
+    expect(await withCallAnnotations(coldCall, () => cold.awaitWorkspaceReady(5))).toBe(
+      "timed-out",
+    );
+    expect(typeof coldCall.readyWaitMs).toBe("number");
+    expect(coldCall.readyWaitMs).toBeLessThan(5_000);
   });
 
   it("leaves the outcome a caller sees unchanged when nothing noted it", async () => {

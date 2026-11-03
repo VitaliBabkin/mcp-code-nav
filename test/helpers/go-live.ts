@@ -5,15 +5,8 @@ import { execFileSync } from "node:child_process";
 import { rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, it } from "vitest";
+import { it } from "vitest";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
-
-/** A live result, as far as these accessors care. */
-export interface LiveResult {
-  readonly content: readonly { readonly text?: string }[];
-  readonly structuredContent?: unknown;
-  readonly isError?: boolean;
-}
 
 /** gopls is optional on this host in exactly the way clangd is, so the suite skips rather than failing
  *  with the symptom it is meant to detect. `MCP_CODE_NAV_GOPLS` overrides, as it does at runtime. */
@@ -59,16 +52,6 @@ export function samePath(a: string | undefined, b: string): boolean {
   if (a === undefined) return false;
   const normalise = (path: string) => path.replace(/\\/g, "/").toLowerCase();
   return normalise(a) === normalise(b);
-}
-
-export function textOf(result: LiveResult): string {
-  return result.content[0]?.text ?? "";
-}
-
-/** The structured answer, with the failure text named after `tool` if there is one. */
-export function payloadOf<T>(result: LiveResult, tool: string): T {
-  expect(result.isError, `${tool} failed: ${textOf(result)}`).toBeFalsy();
-  return result.structuredContent as T;
 }
 
 /** `child.kill()` does not wait for the exit, and on Windows the module root is gopls's working

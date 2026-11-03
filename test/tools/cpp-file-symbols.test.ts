@@ -6,6 +6,7 @@ import type { LspProcess } from "../../src/lsp/process.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import type { LspDocumentSymbol } from "../../src/clangd/outline.js";
 import { noopServerHandlers } from "../helpers/fake-clangd.js";
+import { resultView } from "../helpers/tool-result.js";
 import { runCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
 
 function fakeProcess(onDocumentSymbol: () => LspDocumentSymbol[] | null): LspProcess {
@@ -45,7 +46,14 @@ describe("runCppFileSymbols", () => {
     const spawn = vi.fn();
     const sessions = new LspSessionManager({ spawn, sleep: async () => {} });
     const gone = join(projectRoot, "gone");
-    const out = await runCppFileSymbols(sessions, { projectRoot: gone, file: "a.cpp", depth: 1 });
+    const out = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: gone,
+        file: "a.cpp",
+        sourceRoots: [],
+        depth: 1,
+      }),
+    );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toContain("That directory does not exist.");
     expect(spawn).not.toHaveBeenCalled();
@@ -65,11 +73,14 @@ describe("runCppFileSymbols", () => {
       ]);
       const sessions = new LspSessionManager({ spawn: () => process, sleep: async () => {} });
 
-      const out = await runCppFileSymbols(sessions, {
-        projectRoot: repoRoot,
-        file: "a.cpp",
-        depth: 1,
-      });
+      const out = resultView(
+        await runCppFileSymbols(sessions, {
+          projectRoot: repoRoot,
+          file: "a.cpp",
+          sourceRoots: [],
+          depth: 1,
+        }),
+      );
 
       expect(out.isError).toBeUndefined();
       // The text, unchanged, is what the degraded summary carries after its own first sentence.
@@ -86,11 +97,14 @@ describe("runCppFileSymbols", () => {
 
   it("returns isError when file escapes projectRoot", async () => {
     const sessions = new LspSessionManager({ sleep: async () => {} });
-    const out = await runCppFileSymbols(sessions, {
-      projectRoot,
-      file: "../outside.cpp",
-      depth: 1,
-    });
+    const out = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot,
+        file: "../outside.cpp",
+        sourceRoots: [],
+        depth: 1,
+      }),
+    );
     expect(out.isError).toBe(true);
   });
 
@@ -100,7 +114,9 @@ describe("runCppFileSymbols", () => {
       JSON.stringify({ ignoredPaths: ["a.cpp"] }),
     );
     const sessions = new LspSessionManager({ sleep: async () => {} });
-    const out = await runCppFileSymbols(sessions, { projectRoot, file: "a.cpp", depth: 1 });
+    const out = resultView(
+      await runCppFileSymbols(sessions, { projectRoot, file: "a.cpp", sourceRoots: [], depth: 1 }),
+    );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toContain("ignoredPaths");
   });
@@ -110,7 +126,9 @@ describe("runCppFileSymbols", () => {
       { name: "Foo", kind: 5, range: { start: { line: 0 }, end: { line: 0 } } },
     ]);
     const sessions = new LspSessionManager({ spawn: () => process, sleep: async () => {} });
-    const out = await runCppFileSymbols(sessions, { projectRoot, file: "a.cpp", depth: 1 });
+    const out = resultView(
+      await runCppFileSymbols(sessions, { projectRoot, file: "a.cpp", sourceRoots: [], depth: 1 }),
+    );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent).toEqual({
       symbols: [{ name: "Foo", kind: "class", range: { startLine: 1, endLine: 1 } }],
@@ -120,7 +138,9 @@ describe("runCppFileSymbols", () => {
   it("returns isError, naming the cold-index state, instead of a confident empty on first use", async () => {
     const process = fakeProcess(() => []);
     const sessions = new LspSessionManager({ spawn: () => process, sleep: async () => {} });
-    const out = await runCppFileSymbols(sessions, { projectRoot, file: "a.cpp", depth: 1 });
+    const out = resultView(
+      await runCppFileSymbols(sessions, { projectRoot, file: "a.cpp", sourceRoots: [], depth: 1 }),
+    );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toContain("not yet confirmed warm");
   });
@@ -129,7 +149,7 @@ describe("runCppFileSymbols", () => {
     writeFileSync(join(projectRoot, "mcp-code-nav.config.json"), "{ not json");
     const sessions = new LspSessionManager({ sleep: async () => {} });
     await expect(
-      runCppFileSymbols(sessions, { projectRoot, file: "a.cpp", depth: 1 }),
+      runCppFileSymbols(sessions, { projectRoot, file: "a.cpp", sourceRoots: [], depth: 1 }),
     ).resolves.toMatchObject({
       isError: true,
     });
@@ -162,12 +182,14 @@ describe("runCppFileSymbols with sourceRoots (out-of-tree build layout)", () => 
       { name: "Widget", kind: 5, range: { start: { line: 0 }, end: { line: 0 } } },
     ]);
     const sessions = new LspSessionManager({ spawn: () => process, sleep: async () => {} });
-    const out = await runCppFileSymbols(sessions, {
-      projectRoot: buildRoot,
-      file: join(sourceRoot, "widget.cpp"),
-      sourceRoots: [sourceRoot],
-      depth: 1,
-    });
+    const out = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: buildRoot,
+        file: join(sourceRoot, "widget.cpp"),
+        sourceRoots: [sourceRoot],
+        depth: 1,
+      }),
+    );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent).toEqual({
       symbols: [{ name: "Widget", kind: "class", range: { startLine: 1, endLine: 1 } }],
@@ -178,12 +200,14 @@ describe("runCppFileSymbols with sourceRoots (out-of-tree build layout)", () => 
     const sessions = new LspSessionManager({ sleep: async () => {} });
     const elsewhere = mkdtempSync(join(tmpdir(), "mcp-code-nav-elsewhere-"));
     try {
-      const out = await runCppFileSymbols(sessions, {
-        projectRoot: buildRoot,
-        file: join(elsewhere, "x.cpp"),
-        sourceRoots: [sourceRoot],
-        depth: 1,
-      });
+      const out = resultView(
+        await runCppFileSymbols(sessions, {
+          projectRoot: buildRoot,
+          file: join(elsewhere, "x.cpp"),
+          sourceRoots: [sourceRoot],
+          depth: 1,
+        }),
+      );
       expect(out.isError).toBe(true);
       expect(out.content[0]?.text).toContain(buildRoot);
       expect(out.content[0]?.text).toContain(sourceRoot);
@@ -200,12 +224,14 @@ describe("runCppFileSymbols with sourceRoots (out-of-tree build layout)", () => 
       JSON.stringify({ ignoredPaths: ["widget.cpp"] }),
     );
     const sessions = new LspSessionManager({ sleep: async () => {} });
-    const out = await runCppFileSymbols(sessions, {
-      projectRoot: buildRoot,
-      file: join(sourceRoot, "widget.cpp"),
-      sourceRoots: [sourceRoot],
-      depth: 1,
-    });
+    const out = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: buildRoot,
+        file: join(sourceRoot, "widget.cpp"),
+        sourceRoots: [sourceRoot],
+        depth: 1,
+      }),
+    );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toContain("ignoredPaths");
   });

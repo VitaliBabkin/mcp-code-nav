@@ -9,17 +9,21 @@ import {
   type TsFindReferencesPayload,
   type TsReferenceFile,
 } from "../../src/tools/ts-find-references.js";
-import type { TsNavigationScope, TsProjectsBlock } from "../../src/tools/ts-navigation-shared.js";
+import type {
+  TsNavigationScope,
+  TsProjectsBlock,
+  TsUncoveredBlock,
+} from "../../src/tools/ts-navigation-shared.js";
 import {
   CALL_BUDGET_MS,
   fixtures,
   itIfTsgoAvailable,
-  payloadOf,
   requireTsgo,
   stampsOf,
   tsgoProcessLog,
   type TsgoProcessLog,
 } from "../helpers/tsgo-live.js";
+import { payloadAs } from "../helpers/tool-result.js";
 
 /**
  * Live: a nested `tsconfig.json` whose `include` leaves out a
@@ -104,7 +108,7 @@ function ask(manager: LspSessionManager, file: string, symbol: string): Promise<
 }
 
 function payload(result: Result): TsFindReferencesPayload {
-  return payloadOf<TsFindReferencesPayload>(result, "ts_find_references");
+  return payloadAs<TsFindReferencesPayload>(result, "ts_find_references");
 }
 
 /** Paths compared the way the map compares them: separators normalised, case folded on this OS. */
@@ -187,11 +191,7 @@ function requireProjects(scope: TsNavigationScope): TsProjectsBlock {
   return scope.projects;
 }
 
-function requireUncovered(scope: TsNavigationScope): {
-  count: number;
-  files: readonly string[];
-  namedFileUncovered: boolean;
-} {
+function requireUncovered(scope: TsNavigationScope): TsUncoveredBlock {
   if (!("uncoveredSources" in scope)) {
     throw new Error(`no uncovered set was computed: ${scope.uncoveredSourcesUnavailable}`);
   }

@@ -13,7 +13,8 @@ import {
   type TsFindReferencesPayload,
 } from "../../src/tools/ts-find-references.js";
 import { removeTree } from "../helpers/go-live.js";
-import { CALL_BUDGET_MS, itIfTsgoAvailable, payloadOf } from "../helpers/tsgo-live.js";
+import { CALL_BUDGET_MS, itIfTsgoAvailable } from "../helpers/tsgo-live.js";
+import { payloadAs } from "../helpers/tool-result.js";
 
 /**
  * A server that stops a list answer at a ceiling of its own, without saying so, would hand this tool a short
@@ -99,7 +100,7 @@ describe("ts tools on a symbol with more rows than a server-side ceiling", () =>
     async () => {
       for (const symbol of ["tick", "burst"]) {
         const result = await runTsFindReferences(freshManager(), question("callees.ts", symbol));
-        const payload = payloadOf<TsFindReferencesPayload>(result, "ts_find_references");
+        const payload = payloadAs<TsFindReferencesPayload>(result, "ts_find_references");
         // The import specifier in callers.ts is always listed beside the call sites.
         const importLines = 1;
         expect(payload.totalReferences, symbol).toBe(1100 + importLines);
@@ -114,7 +115,7 @@ describe("ts tools on a symbol with more rows than a server-side ceiling", () =>
     "ts_find_callers counts every distinct caller of one function",
     async () => {
       const result = await runTsFindCallers(freshManager(), question("callees.ts", "tick"));
-      const payload = payloadOf<TsFindCallersPayload>(result, "ts_find_callers");
+      const payload = payloadAs<TsFindCallersPayload>(result, "ts_find_callers");
       expect(payload.totalCallers).toBe(DISTINCT_CALLERS);
     },
     CALL_BUDGET_MS * 2,
@@ -124,7 +125,7 @@ describe("ts tools on a symbol with more rows than a server-side ceiling", () =>
     "ts_find_callers counts every call site of one caller",
     async () => {
       const result = await runTsFindCallers(freshManager(), question("callees.ts", "burst"));
-      const payload = payloadOf<TsFindCallersPayload>(result, "ts_find_callers");
+      const payload = payloadAs<TsFindCallersPayload>(result, "ts_find_callers");
       expect(payload.totalCallers).toBe(1);
       const [row] = payload.callers;
       expect((row?.callSites.length ?? 0) + (row?.callSitesTruncated ?? 0)).toBe(BURST_CALLS);
@@ -139,7 +140,7 @@ describe("ts tools on a symbol with more rows than a server-side ceiling", () =>
         freshManager(),
         question("handler.ts", "Handler"),
       );
-      const payload = payloadOf<TsFindImplementationsPayload>(result, "ts_find_implementations");
+      const payload = payloadAs<TsFindImplementationsPayload>(result, "ts_find_implementations");
       expect(payload.implementations.length + payload.truncated).toBe(IMPLEMENTERS);
     },
     CALL_BUDGET_MS * 2,

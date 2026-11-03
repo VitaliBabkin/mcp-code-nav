@@ -11,6 +11,7 @@ import {
 import { computeProjectFingerprint } from "../../src/clang-query/project-fingerprint.js";
 import { SweepCache } from "../../src/clang-query/sweep-cache.js";
 import { runCppFindDerivedClasses } from "../../src/tools/cpp-find-derived-classes.js";
+import { resultView } from "../helpers/tool-result.js";
 
 // clang-cl.exe is the MSVC-compatible Windows driver, but this suite may also run on a
 // machine/CI runner with only clang++ (e.g. Linux) — skip the clang-cl-specific test there rather
@@ -1007,7 +1008,7 @@ describe("cpp_find_derived_classes blind-spot signal through the tool handler ag
 
   async function checkTheBlindSpotIsNamed(commandFor: CompileCommandFor): Promise<void> {
     const out = await callTool(commandFor, [compiledFile()]);
-    expect(out.isError).toBeFalsy();
+    expect(resultView(out).isError).toBeFalsy();
     const payload = payloadOf(out);
     // The scope the answer covers is `totalTus`; `uncoveredSources` says nothing about it, and the sweep ran
     // clean, so nothing but the new field hints that a second source file exists at all.
@@ -1024,7 +1025,7 @@ describe("cpp_find_derived_classes blind-spot signal through the tool handler ag
 
   async function checkACompleteDatabaseSaysZero(commandFor: CompileCommandFor): Promise<void> {
     const out = await callTool(commandFor, [compiledFile(), uncoveredFile()]);
-    expect(out.isError).toBeFalsy();
+    expect(resultView(out).isError).toBeFalsy();
     const payload = payloadOf(out);
     expect(payload.sweep.totalTus).toBe(2);
     expect(payload.failedFiles).toBeUndefined();
@@ -1039,7 +1040,7 @@ describe("cpp_find_derived_classes blind-spot signal through the tool handler ag
     commandFor: CompileCommandFor,
   ): Promise<void> {
     const out = await callTool(commandFor, [compiledFile()], { sourceRoots: [] });
-    expect(out.isError).toBeFalsy();
+    expect(resultView(out).isError).toBeFalsy();
     const payload = payloadOf(out);
     // with nothing declared the source tree is derived from the database, so the same blind spot B1
     // names is named here, and the root it came from is stated.
@@ -1181,9 +1182,7 @@ describe("cpp_find_derived_classes names the nearest compile database, against a
   });
 
   const sweptClasses = (out: Awaited<ReturnType<typeof ask>>) =>
-    (
-      (out.structuredContent as { matches?: { className: string }[] } | undefined)?.matches ?? []
-    ).map((row) => row.className);
+    (resultView(out).structuredContent?.matches ?? []).map((row) => row.className);
 
   function ask(projectRoot: string) {
     return runCppFindDerivedClasses(
@@ -1197,7 +1196,7 @@ describe("cpp_find_derived_classes names the nearest compile database, against a
     async () => {
       const out = await ask(repoRoot);
 
-      expect(out.isError).toBe(true);
+      expect(resultView(out).isError).toBe(true);
       expect(out.content[0]?.text).toBe(
         `cpp_find_derived_classes failed: compile_commands.json not found or unreadable at "${repoRoot}". ` +
           `Directories under it that hold a compile_commands.json, nearest first: "${buildRoot}". ` +
@@ -1216,7 +1215,7 @@ describe("cpp_find_derived_classes names the nearest compile database, against a
       expect(named).toBe(buildRoot);
       const swept = await ask(named ?? buildRoot);
 
-      expect(swept.isError, swept.content[0]?.text).toBeFalsy();
+      expect(resultView(swept).isError, swept.content[0]?.text).toBeFalsy();
       expect(sweptClasses(swept)).toEqual(["Widget"]);
     },
     HINT_LIVE_TIMEOUT_MS,

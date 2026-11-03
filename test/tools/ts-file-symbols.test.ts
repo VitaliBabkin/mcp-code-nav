@@ -15,6 +15,7 @@ import {
   type TsgoBinaryResult,
 } from "../../src/tsgo/binary.js";
 import { fakeServer, type FakeServer } from "../helpers/fake-lsp.js";
+import { recordOf, resultView, textOf } from "../helpers/tool-result.js";
 
 /** The executable the suite pretends this host has, so no call runs `npm` or looks for a real install. */
 const BINARY: TsgoBinary = {
@@ -106,16 +107,8 @@ function input(partial: Pick<Input, "sourceRoots" | "file"> & Partial<Input>): I
   return { depth: 1, timeBudgetMs: 60_000, ...partial };
 }
 
-function payloadOf(result: unknown): Record<string, unknown> {
-  return (result as { structuredContent?: Record<string, unknown> }).structuredContent ?? {};
-}
-
-function symbolsOf(result: unknown): OutlineSymbol[] {
-  return (payloadOf(result).symbols ?? []) as OutlineSymbol[];
-}
-
-function textOf(result: unknown): string {
-  return ((result as { content?: readonly { text?: string }[] }).content ?? [])[0]?.text ?? "";
+function symbolsOf(result: Parameters<typeof recordOf>[0]): OutlineSymbol[] {
+  return (recordOf(result).symbols ?? []) as OutlineSymbol[];
 }
 
 /** A session manager whose tsgo answers `documentSymbol` with `symbols`, counting each child started. */
@@ -196,10 +189,10 @@ describe("runTsFileSymbols", () => {
   it("maps tsgo's outline through toOutline and answers with `symbols` and `bindings`, with no scope", async () => {
     const { manager } = sessionsAnswering(() => TSGO_ANSWER);
     const out = await runTsFileSymbols(manager, input({ sourceRoots: [ws], file: main }), LOCATED);
-    expect(out.isError).toBeFalsy();
-    expect(payloadOf(out)).toEqual({ symbols: OUTLINE_DEPTH_1, bindings: BINDINGS });
+    expect(resultView(out).isError).toBeFalsy();
+    expect(recordOf(out)).toEqual({ symbols: OUTLINE_DEPTH_1, bindings: BINDINGS });
     // No `scope` key at all, and no `bindingsUnverified` when every hover answered.
-    expect(Object.keys(payloadOf(out))).toEqual(["symbols", "bindings"]);
+    expect(Object.keys(recordOf(out))).toEqual(["symbols", "bindings"]);
   });
 
   it("counts depth plainly: 0 returns top-level declarations without their children", async () => {
@@ -209,7 +202,7 @@ describe("runTsFileSymbols", () => {
       input({ sourceRoots: [ws], file: main, depth: 0 }),
       LOCATED,
     );
-    expect(payloadOf(out)).toEqual({ symbols: OUTLINE_DEPTH_0, bindings: BINDINGS });
+    expect(recordOf(out)).toEqual({ symbols: OUTLINE_DEPTH_0, bindings: BINDINGS });
   });
 
   it('publishes a type alias with the kind tsgo reported it, kind 5 becoming "class" and nothing re-derived', async () => {
@@ -223,7 +216,7 @@ describe("runTsFileSymbols", () => {
     const { manager } = sessionsAnswering(() => TSGO_ANSWER);
     const out = await runTsFileSymbols(manager, input({ sourceRoots: [ws], file: main }), LOCATED);
     expect(symbolsOf(out).map((symbol) => symbol.name)).not.toContain("join");
-    expect(payloadOf(out).bindings).toEqual(BINDINGS);
+    expect(recordOf(out).bindings).toEqual(BINDINGS);
   });
 
   it("lists no child under a function or a const, and still lists the members of an interface", async () => {
@@ -260,7 +253,7 @@ describe("runTsFileSymbols", () => {
       sleep: async () => {},
     });
     const out = await runTsFileSymbols(manager, input({ sourceRoots: [ws], file: main }), LOCATED);
-    expect(out.isError).toBeFalsy();
+    expect(resultView(out).isError).toBeFalsy();
     expect(symbolsOf(out)).toHaveLength(100);
     expect(peak).toBeGreaterThan(1);
     expect(peak).toBeLessThanOrEqual(32);
@@ -283,7 +276,7 @@ describe("runTsFileSymbols", () => {
       sleep: async () => {},
     });
     const out = await runTsFileSymbols(manager, input({ sourceRoots: [ws], file: main }), LOCATED);
-    expect(out.isError).toBeFalsy();
+    expect(resultView(out).isError).toBeFalsy();
     // `join` and `table` are both top-level variables nobody could read: neither is dropped, neither is a binding.
     expect(symbolsOf(out).map((symbol) => symbol.name)).toEqual([
       "join",
@@ -292,8 +285,8 @@ describe("runTsFileSymbols", () => {
       "run",
       "table",
     ]);
-    expect(payloadOf(out).bindings).toEqual([]);
-    expect(payloadOf(out).bindingsUnverified).toMatch(
+    expect(recordOf(out).bindings).toEqual([]);
+    expect(recordOf(out).bindingsUnverified).toMatch(
       /^2 top-level variable entries could not be checked: tsgo refused the hover: .*hover exploded/,
     );
   });
@@ -301,7 +294,7 @@ describe("runTsFileSymbols", () => {
   it("roots tsgo at the npm workspace holding the file, not the member package, and opens it as typescript", async () => {
     const { manager, servers } = sessionsAnswering(() => TSGO_ANSWER);
     const out = await runTsFileSymbols(manager, input({ sourceRoots: [ws], file: main }), LOCATED);
-    expect(out.isError).toBeFalsy();
+    expect(resultView(out).isError).toBeFalsy();
     expect(servers).toHaveLength(1);
     expect(servers[0]?.requests[0]?.[1]).toMatchObject({
       rootUri: pathToFileURL(resolve(ws)).toString(),
@@ -327,7 +320,7 @@ describe("runTsFileSymbols", () => {
         input({ sourceRoots: [ws], file: join(src, name) }),
         LOCATED,
       );
-      expect(out.isError).toBeFalsy();
+      expect(resultView(out).isError).toBeFalsy();
       const didOpen = servers[0]?.notifications.find(
         ([method]) => method === "textDocument/didOpen",
       );
@@ -338,8 +331,8 @@ describe("runTsFileSymbols", () => {
   it("reports a confident empty for an empty outline, without asking tsgo twice", async () => {
     const { manager, servers } = sessionsAnswering(() => []);
     const out = await runTsFileSymbols(manager, input({ sourceRoots: [ws], file: main }), LOCATED);
-    expect(out.isError).toBeFalsy();
-    expect(payloadOf(out)).toEqual({ symbols: [], bindings: [] });
+    expect(resultView(out).isError).toBeFalsy();
+    expect(recordOf(out)).toEqual({ symbols: [], bindings: [] });
     expect(
       servers[0]?.methods.filter((method) => method === "textDocument/documentSymbol"),
     ).toHaveLength(1);
@@ -352,7 +345,7 @@ describe("runTsFileSymbols", () => {
       writeFileSync(file, "text\n");
       const { manager, servers } = sessionsAnswering(() => TSGO_ANSWER);
       const out = await runTsFileSymbols(manager, input({ sourceRoots: [ws], file }), LOCATED);
-      expect(out.isError).toBe(true);
+      expect(resultView(out).isError).toBe(true);
       expect(textOf(out)).toBe(
         `ts_file_symbols failed: "${resolve(file)}" is not a TypeScript or JavaScript source. These tools accept ` +
           ".ts, .mts, .cts, .tsx, .js, .mjs, .cjs, .jsx - the file's extension also decides how tsgo parses it.",
@@ -368,7 +361,7 @@ describe("runTsFileSymbols", () => {
     writeFileSync(file, "export const x = 1;\n");
     const { manager, servers } = sessionsAnswering(() => TSGO_ANSWER);
     const out = await runTsFileSymbols(manager, input({ sourceRoots: [plain], file }), LOCATED);
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toContain("is not inside an npm package - no package.json exists in ");
     expect(textOf(out)).toContain(`"${resolve(plain)}"`);
     expect(textOf(out)).toContain(
@@ -392,7 +385,7 @@ describe("runTsFileSymbols", () => {
       input({ sourceRoots: [outsideSrc], file }),
       LOCATED,
     );
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toContain(
       `belongs to the npm package "${resolve(outsidePkg)}" (its nearest package.json), which is `,
     );
@@ -428,7 +421,7 @@ describe("runTsFileSymbols", () => {
     const out = await runTsFileSymbols(manager, input({ sourceRoots: [ws], file: main }), {
       resolveBinary: async () => miss,
     });
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toBe(`ts_file_symbols failed: ${failure.message}`);
     expect(textOf(out)).toContain("Cannot start tsgo:");
     expect(textOf(out)).toContain("MCP_CODE_NAV_TSGO");
@@ -453,7 +446,7 @@ describe("runTsFileSymbols", () => {
       input({ sourceRoots: [ws], file: main, timeBudgetMs: 30 }),
       LOCATED,
     );
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toMatch(/did not answer[\s\S]*30 ms budget/);
     expect(textOf(out)).toMatch(/do not read this as an empty file/);
     expect(textOf(out)).toContain(
@@ -468,7 +461,7 @@ describe("runTsFileSymbols", () => {
     writeFileSync(file, "export const x = 1;\n");
     const { manager, servers } = sessionsAnswering(() => TSGO_ANSWER);
     const out = await runTsFileSymbols(manager, input({ sourceRoots: [ws], file }), LOCATED);
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toMatch(/escapes every declared root/);
     expect(servers).toHaveLength(0);
   });
@@ -480,8 +473,8 @@ describe("runTsFileSymbols", () => {
       input({ sourceRoots: [ws], file: join("packages", "ui", "src", "main.ts") }),
       LOCATED,
     );
-    expect(out.isError).toBeFalsy();
-    expect(payloadOf(out)).toEqual({ symbols: OUTLINE_DEPTH_1, bindings: BINDINGS });
+    expect(resultView(out).isError).toBeFalsy();
+    expect(recordOf(out)).toEqual({ symbols: OUTLINE_DEPTH_1, bindings: BINDINGS });
   });
 
   it("bounds the search for the executable by this call's budget and asks no server when it expires", async () => {
@@ -501,7 +494,7 @@ describe("runTsFileSymbols", () => {
       slow,
     );
 
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toContain("1 ms budget");
     expect(textOf(out)).toContain("npm root -g");
     expect(textOf(out)).toContain(TSGO_IDENTITY.commandEnvOverride);
@@ -516,8 +509,8 @@ describe("runTsFileSymbols", () => {
       LOCATED,
     );
 
-    expect(out.isError).toBeFalsy();
-    expect(payloadOf(out)).toEqual({ symbols: OUTLINE_DEPTH_1, bindings: BINDINGS });
+    expect(resultView(out).isError).toBeFalsy();
+    expect(recordOf(out)).toEqual({ symbols: OUTLINE_DEPTH_1, bindings: BINDINGS });
   });
 
   it("pays a re-asked search out of the next call's own budget, after a search that missed", async () => {
@@ -550,7 +543,7 @@ describe("runTsFileSymbols", () => {
       firstMissThenSlow,
     );
 
-    expect(retried.isError).toBe(true);
+    expect(resultView(retried).isError).toBe(true);
     expect(textOf(retried)).toContain("1 ms budget");
     expect(asking).toBe(2);
     expect(servers).toHaveLength(0);
@@ -563,7 +556,7 @@ describe("runTsFileSymbols", () => {
       input({ sourceRoots: [ws], file: join(src, "gone.ts") }),
       LOCATED,
     );
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toMatch(/ENOENT/);
     expect(textOf(out)).toContain("gone.ts");
   });

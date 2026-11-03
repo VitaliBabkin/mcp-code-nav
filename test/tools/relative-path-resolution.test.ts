@@ -12,6 +12,7 @@ import { CppFindSymbolInput, runCppFindSymbol } from "../../src/tools/cpp-find-s
 import { CppFileSymbolsInput, runCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
 import { fakeProcessByFile, sessionsFor, sym } from "../helpers/fake-clangd.js";
 import { cleanExec } from "../helpers/cpp-find-derived-classes.js";
+import { resultView } from "../helpers/tool-result.js";
 
 /** The exact diagnostic, leading space included: it is appended to an existing sentence. */
 function resolutionSentence(candidate: string, winner: string, tried: readonly string[]): string {
@@ -44,12 +45,14 @@ describe("relative file resolution at the tool layer", () => {
     const file = join(sourceRoot, "widget.h");
     writeFileSync(file, "class Widget {};\n");
     const sessions = sessionsFor(fakeProcessByFile((f) => (f === file ? [sym("Widget", 5)] : [])));
-    const out = await runCppFileSymbols(sessions, {
-      projectRoot: buildRoot,
-      file: "widget.h",
-      sourceRoots: [sourceRoot],
-      depth: 1,
-    });
+    const out = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: buildRoot,
+        file: "widget.h",
+        sourceRoots: [sourceRoot],
+        depth: 1,
+      }),
+    );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent).toEqual({
       symbols: [{ name: "Widget", kind: "class", range: { startLine: 1, endLine: 2 } }],
@@ -58,12 +61,14 @@ describe("relative file resolution at the tool layer", () => {
 
   it("cpp_file_symbols names every spelling it tried when the relative file exists under none", async () => {
     const sessions = sessionsFor(fakeProcessByFile(() => []));
-    const out = await runCppFileSymbols(sessions, {
-      projectRoot: buildRoot,
-      file: "gone.h",
-      sourceRoots: [sourceRoot],
-      depth: 1,
-    });
+    const out = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: buildRoot,
+        file: "gone.h",
+        sourceRoots: [sourceRoot],
+        depth: 1,
+      }),
+    );
     expect(out.isError).toBe(true);
     const underBuild = join(buildRoot, "gone.h");
     const tried = [underBuild, join(sourceRoot, "gone.h")];
@@ -74,16 +79,20 @@ describe("relative file resolution at the tool layer", () => {
 
   it("cpp_file_symbols says nothing about tried paths when there was only ever one candidate", async () => {
     const sessions = sessionsFor(fakeProcessByFile(() => []));
-    // A database whose only TU is under projectRoot derives no second root, so `sourceRoots` can be omitted.
+    // A database whose only TU is under projectRoot derives no second root; `sourceRoots: []` is what the schema
+    // hands the handler when the caller omits it.
     writeFileSync(
       join(buildRoot, "compile_commands.json"),
       JSON.stringify([{ directory: buildRoot, file: "gen.cpp" }]),
     );
-    const out = await runCppFileSymbols(sessions, {
-      projectRoot: buildRoot,
-      file: "gone.h",
-      depth: 1,
-    } as never);
+    const out = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: buildRoot,
+        file: "gone.h",
+        sourceRoots: [],
+        depth: 1,
+      }),
+    );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).not.toContain("Resolved");
   });
@@ -92,12 +101,14 @@ describe("relative file resolution at the tool layer", () => {
     writeFileSync(join(buildRoot, "both.h"), "#pragma once\n");
     writeFileSync(join(sourceRoot, "both.h"), "#pragma once\n");
     const sessions = sessionsFor(fakeProcessByFile(() => []));
-    const out = await runCppFileSymbols(sessions, {
-      projectRoot: buildRoot,
-      file: "both.h",
-      sourceRoots: [sourceRoot],
-      depth: 1,
-    });
+    const out = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: buildRoot,
+        file: "both.h",
+        sourceRoots: [sourceRoot],
+        depth: 1,
+      }),
+    );
     expect(out.isError).toBe(true);
     const text = out.content[0]?.text ?? "";
     expect(text).toContain(join(buildRoot, "both.h"));
@@ -119,12 +130,14 @@ describe("relative file resolution at the tool layer", () => {
       sourceRoots: [sourceRoot],
       depth: 1,
     });
-    const out = await runCppFindSymbol(sessions, {
-      projectRoot: buildRoot,
-      name: "Gone",
-      file: "widget.h",
-      sourceRoots: [sourceRoot],
-    });
+    const out = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot: buildRoot,
+        name: "Gone",
+        file: "widget.h",
+        sourceRoots: [sourceRoot],
+      }),
+    );
     expect(out.isError).toBe(true);
     const text = out.content[0]?.text ?? "";
     expect(text).toContain(`no symbol "Gone" found in "${widgetFile}".`);
@@ -137,12 +150,14 @@ describe("relative file resolution at the tool layer", () => {
     writeFileSync(join(buildRoot, "both.h"), "#pragma once\n");
     writeFileSync(join(sourceRoot, "both.h"), "#pragma once\n");
     const sessions = sessionsFor(fakeProcessByFile(() => []));
-    const out = await runCppFindSymbol(sessions, {
-      projectRoot: buildRoot,
-      name: "Widget",
-      file: "both.h",
-      sourceRoots: [sourceRoot],
-    });
+    const out = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot: buildRoot,
+        name: "Widget",
+        file: "both.h",
+        sourceRoots: [sourceRoot],
+      }),
+    );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toContain("pass an absolute path");
   });
@@ -155,14 +170,16 @@ describe("relative file resolution at the tool layer", () => {
       seenTus.push(args[2] as string);
       return { exitCode: 0, stdout: "", stderr: "" };
     };
-    const out = await runCppFindDerivedClasses(
-      { exec, cache: new SweepCache() },
-      {
-        projectRoot: buildRoot,
-        qualifiedName: "Base",
-        files: ["widget.cpp"],
-        sourceRoots: [sourceRoot],
-      },
+    const out = resultView(
+      await runCppFindDerivedClasses(
+        { exec, cache: new SweepCache() },
+        {
+          projectRoot: buildRoot,
+          qualifiedName: "Base",
+          files: ["widget.cpp"],
+          sourceRoots: [sourceRoot],
+        },
+      ),
     );
     expect(out.isError).toBeFalsy();
     expect(seenTus).toEqual([file]);
@@ -171,14 +188,16 @@ describe("relative file resolution at the tool layer", () => {
   it("cpp_find_derived_classes asks for an absolute path when a relative `files` entry exists under both roots", async () => {
     writeFileSync(join(buildRoot, "widget.cpp"), "class InBuild : public Base {};\n");
     writeFileSync(join(sourceRoot, "widget.cpp"), "class InSource : public Base {};\n");
-    const out = await runCppFindDerivedClasses(
-      { exec: cleanExec, cache: new SweepCache() },
-      {
-        projectRoot: buildRoot,
-        qualifiedName: "Base",
-        files: ["widget.cpp"],
-        sourceRoots: [sourceRoot],
-      },
+    const out = resultView(
+      await runCppFindDerivedClasses(
+        { exec: cleanExec, cache: new SweepCache() },
+        {
+          projectRoot: buildRoot,
+          qualifiedName: "Base",
+          files: ["widget.cpp"],
+          sourceRoots: [sourceRoot],
+        },
+      ),
     );
     expect(out.isError).toBe(true);
     const text = out.content[0]?.text ?? "";
@@ -191,12 +210,14 @@ describe("relative file resolution at the tool layer", () => {
     const file = join(sourceRoot, "widget.h");
     writeFileSync(file, "class Widget {};\n");
     const sessions = sessionsFor(fakeProcessByFile((f) => (f === file ? [sym("Widget", 5)] : [])));
-    const out = await runCppFindSymbol(sessions, {
-      projectRoot: buildRoot,
-      name: "Widget",
-      file: "widget.h",
-      sourceRoots: [sourceRoot],
-    });
+    const out = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot: buildRoot,
+        name: "Widget",
+        file: "widget.h",
+        sourceRoots: [sourceRoot],
+      }),
+    );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent).toMatchObject({ name: "Widget", kind: "class", file });
   });
@@ -213,12 +234,14 @@ describe("relative file resolution at the tool layer", () => {
     const file = join(sourceRoot, "vendor", "widget.h");
     writeFileSync(file, "class Widget {};\n");
     const sessions = sessionsFor(fakeProcessByFile((f) => (f === file ? [sym("Widget", 5)] : [])));
-    const out = await runCppFindSymbol(sessions, {
-      projectRoot: buildRoot,
-      name: "Widget",
-      file: join("vendor", "widget.h"),
-      sourceRoots: [sourceRoot],
-    });
+    const out = resultView(
+      await runCppFindSymbol(sessions, {
+        projectRoot: buildRoot,
+        name: "Widget",
+        file: join("vendor", "widget.h"),
+        sourceRoots: [sourceRoot],
+      }),
+    );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toContain("ignoredPaths");
     expect(out.content[0]?.text).toContain(file);

@@ -82,6 +82,12 @@ interface SymbolRow {
   location?: { uri?: string; range?: { start?: { line?: number; character?: number } } };
 }
 
+/** The `textDocument/hover` reply fields the case at the bottom of this file measures. */
+interface HoverReply {
+  contents: unknown;
+  range: { start: { line: number; character: number }; end: { line: number; character: number } };
+}
+
 const baseOf = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 
 /** `name|kind|in scope|file:line:column`, which is the whole of what a row claims. */
@@ -219,13 +225,13 @@ describe("clangd's project-wide symbol search, and the branch that reads it", ()
       const start = rows[0]?.location?.range?.start;
 
       const atRow = await session.withTransientDocument(header, (holding) =>
-        holding.send<unknown>("textDocument/hover", {
+        holding.send<HoverReply>("textDocument/hover", {
           textDocument: textDocumentId(holding.openedAs),
           position: { line: start?.line ?? 0, character: start?.character ?? 0 },
         }),
       );
       const atKeyword = await session.withTransientDocument(header, (holding) =>
-        holding.send<unknown>("textDocument/hover", {
+        holding.send<HoverReply>("textDocument/hover", {
           textDocument: textDocumentId(holding.openedAs),
           position: { line: 5, character: 0 },
         }),

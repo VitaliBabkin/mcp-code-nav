@@ -19,6 +19,7 @@ import { runCppFindReferences } from "../../src/tools/cpp-find-references.js";
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import { SweepCache } from "../../src/clang-query/sweep-cache.js";
 import { noopServerHandlers } from "../helpers/fake-clangd.js";
+import { fieldOf, payloadOf, resultView, textOf } from "../helpers/tool-result.js";
 
 // `cpp_file_symbols` outlines from a default-flags parse when projectRoot holds no database,
 // and says so; an empty parse proves nothing; the other four C++ tools keep refusing.
@@ -27,17 +28,18 @@ const SUMMARY_HEAD =
   "Parsed without a compile database: clangd used default flags, with no include paths or defines from a build, " +
   "so a declaration hidden behind a macro or a missing header may be absent or misnamed. ";
 
-const widget: LspDocumentSymbol[] = [
-  { name: "Widget", kind: 5, range: { start: { line: 0 }, end: { line: 0 } } },
-];
+const widgetSymbol: LspDocumentSymbol = {
+  name: "Widget",
+  kind: 5,
+  range: { start: { line: 0 }, end: { line: 0 } },
+};
+const widget: LspDocumentSymbol[] = [widgetSymbol];
 
 interface Result {
   readonly isError?: boolean;
   readonly content: readonly { readonly text?: string }[];
   readonly structuredContent?: unknown;
 }
-const textOf = (result: Result): string => result.content[0]?.text ?? "";
-
 describe("cpp_file_symbols without a compile database", () => {
   let base: string;
   let projectRoot: string;
@@ -85,13 +87,14 @@ describe("cpp_file_symbols without a compile database", () => {
     rmSync(base, { recursive: true, force: true });
   });
 
-  const outline = (file: string, extra: Record<string, unknown> = {}) =>
-    runCppFileSymbols(sessions, { projectRoot, file, depth: 1, ...extra } as never);
+  const outline = (file: string, extra: Partial<{ depth: number; sourceRoots: string[] }> = {}) =>
+    runCppFileSymbols(sessions, { projectRoot, file, sourceRoots: [], depth: 1, ...extra });
 
   it("answers a non-empty outline as a success, summary first, with the limit code", async () => {
     const missing = await describeMissingCompileDb(projectRoot);
 
-    const result = await outline("a.cpp");
+    const raw = await outline("a.cpp");
+    const result = resultView(raw);
 
     expect(result.isError).toBeUndefined();
     expect(
@@ -104,36 +107,30 @@ describe("cpp_file_symbols without a compile database", () => {
       symbols: [{ name: "Widget", kind: "class", range: { startLine: 1, endLine: 1 } }],
       scope: { projectRoot, limits: ["parsed-without-compile-database"] },
     });
-    expect(Object.keys(result.structuredContent as object)).toEqual([
-      "summary",
-      "symbols",
-      "scope",
-    ]);
+    expect(Object.keys(payloadOf(raw))).toEqual(["summary", "symbols", "scope"]);
     expect(textOf(result)).toBe(SUMMARY_HEAD + missing);
   });
 
   it("answers a depth-0 outline, whose empty check and truncation agree", async () => {
     answer = () => [
-      { ...widget[0]!, children: [{ name: "value", kind: 6, range: widget[0]!.range }] },
+      { ...widgetSymbol, children: [{ name: "value", kind: 6, range: widgetSymbol.range }] },
     ];
 
     const top = await outline("a.cpp", { depth: 0 });
     const nested = await outline("a.h", { depth: 1 });
 
-    const symbolsOf = (result: Result): { name: string; children?: unknown[] }[] =>
-      (result.structuredContent as { symbols: { name: string; children?: unknown[] }[] }).symbols;
-    expect(top.isError).toBeUndefined();
-    expect(symbolsOf(top)).toEqual([
+    expect(resultView(top).isError).toBeUndefined();
+    expect(payloadOf(top).symbols).toEqual([
       { name: "Widget", kind: "class", range: { startLine: 1, endLine: 1 } },
     ]);
-    expect(symbolsOf(nested)[0]?.children).toHaveLength(1);
+    expect(payloadOf(nested).symbols[0]?.children).toHaveLength(1);
   });
 
   it("outlines a header the same way", async () => {
-    const result = await outline("a.h");
+    const raw = await outline("a.h");
 
-    expect(result.isError).toBeUndefined();
-    expect((result.structuredContent as { scope: { limits: string[] } }).scope.limits).toEqual([
+    expect(resultView(raw).isError).toBeUndefined();
+    expect(fieldOf(fieldOf(payloadOf(raw), "scope"), "limits")).toEqual([
       "parsed-without-compile-database",
     ]);
   });
@@ -152,7 +149,7 @@ describe("cpp_file_symbols without a compile database", () => {
       JSON.stringify([{ directory: projectRoot, file: "a.cpp" }]),
     );
 
-    const result = await outline("a.cpp");
+    const result = resultView(await outline("a.cpp"));
 
     expect(spawned.map((one) => one.config)).toEqual([clangdNoDatabaseConfig, clangdConfig]);
     expect(result.structuredContent).toEqual({
@@ -166,16 +163,16 @@ describe("cpp_file_symbols without a compile database", () => {
       JSON.stringify([{ directory: projectRoot, file: "a.cpp" }]),
     );
 
-    const result = await outline("a.cpp");
+    const raw = await outline("a.cpp");
 
-    expect(Object.keys(result.structuredContent as object)).toEqual(["symbols"]);
+    expect(Object.keys(payloadOf(raw))).toEqual(["symbols"]);
   });
 
   it("is an error, classed compile-db-missing, when the parse found nothing (cold-empty)", async () => {
     answer = () => [];
     const missing = await describeMissingCompileDb(projectRoot);
 
-    const result = await outline("a.cpp");
+    const result = resultView(await outline("a.cpp"));
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toBe(
@@ -189,7 +186,7 @@ describe("cpp_file_symbols without a compile database", () => {
     await outline("a.cpp");
     answer = () => [];
 
-    const result = await outline("a.h");
+    const result = resultView(await outline("a.h"));
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toBe(
@@ -202,11 +199,14 @@ describe("cpp_file_symbols without a compile database", () => {
   it("keeps variant 3's error for a projectRoot that does not exist, and starts nothing", async () => {
     const gone = join(base, "gone");
 
-    const result = await runCppFileSymbols(sessions, {
-      projectRoot: gone,
-      file: "a.cpp",
-      depth: 1,
-    } as never);
+    const result = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: gone,
+        file: "a.cpp",
+        sourceRoots: [],
+        depth: 1,
+      }),
+    );
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toBe(await describeMissingCompileDb(gone));
@@ -215,11 +215,14 @@ describe("cpp_file_symbols without a compile database", () => {
   });
 
   it("keeps the error for a projectRoot that is a file", async () => {
-    const result = await runCppFileSymbols(sessions, {
-      projectRoot: join(projectRoot, "a.cpp"),
-      file: "a.cpp",
-      depth: 1,
-    } as never);
+    const result = resultView(
+      await runCppFileSymbols(sessions, {
+        projectRoot: join(projectRoot, "a.cpp"),
+        file: "a.cpp",
+        sourceRoots: [],
+        depth: 1,
+      }),
+    );
 
     expect(result.isError).toBe(true);
     expect(spawned).toEqual([]);
@@ -228,10 +231,10 @@ describe("cpp_file_symbols without a compile database", () => {
   it("also outlines when the database is present but unreadable (a directory wearing its name)", async () => {
     mkdirSync(join(projectRoot, "compile_commands.json"));
 
-    const result = await outline("a.cpp");
+    const raw = await outline("a.cpp");
 
-    expect(result.isError).toBeUndefined();
-    expect((result.structuredContent as { summary: string }).summary).toContain(
+    expect(resultView(raw).isError).toBeUndefined();
+    expect(fieldOf(payloadOf(raw), "summary")).toContain(
       "The file is present but could not be read.",
     );
   });
@@ -239,8 +242,8 @@ describe("cpp_file_symbols without a compile database", () => {
   it("resolves the file against projectRoot and the declared roots only, deriving nothing", async () => {
     const outside = join(base, "src", "b.cpp");
 
-    const refused = await outline(outside);
-    const declared = await outline(outside, { sourceRoots: [join(base, "src")] });
+    const refused = resultView(await outline(outside));
+    const declared = resultView(await outline(outside, { sourceRoots: [join(base, "src")] }));
 
     expect(refused.isError).toBe(true);
     expect(textOf(refused)).toContain("escapes every declared root");
@@ -249,7 +252,7 @@ describe("cpp_file_symbols without a compile database", () => {
   });
 
   it("names the search boundary for a file that does not exist", async () => {
-    const result = await outline("missing.cpp");
+    const result = resultView(await outline("missing.cpp"));
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain("Only projectRoot was searched");
@@ -261,7 +264,7 @@ describe("cpp_file_symbols without a compile database", () => {
       JSON.stringify({ ignoredPaths: ["a.cpp"] }),
     );
 
-    const result = await outline("a.cpp");
+    const result = resultView(await outline("a.cpp"));
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain("ignoredPaths");
@@ -292,17 +295,33 @@ describe("the other four C++ tools without a compile database", () => {
     const head = await describeMissingCompileDb(root);
 
     const results = [
-      await runCppFindSymbol(sessions, {
-        projectRoot: root,
-        name: "Widget",
-        file: "a.cpp",
-      } as never),
-      await runCppFindReferences(sessions, { projectRoot: root, name: "Widget" } as never),
-      await runCppFindCallers(sessions, { projectRoot: root, name: "Widget" } as never),
-      await runCppFindDerivedClasses({ cache: new SweepCache() }, {
-        projectRoot: root,
-        qualifiedName: "Widget",
-      } as never),
+      resultView(
+        await runCppFindSymbol(sessions, {
+          projectRoot: root,
+          name: "Widget",
+          file: "a.cpp",
+          sourceRoots: [],
+        }),
+      ),
+      resultView(
+        await runCppFindReferences(sessions, {
+          projectRoot: root,
+          name: "Widget",
+          sourceRoots: [],
+        }),
+      ),
+      resultView(
+        await runCppFindCallers(sessions, { projectRoot: root, name: "Widget", sourceRoots: [] }),
+      ),
+      resultView(
+        await runCppFindDerivedClasses(
+          { cache: new SweepCache() },
+          {
+            projectRoot: root,
+            qualifiedName: "Widget",
+          },
+        ),
+      ),
     ];
 
     for (const result of results) {

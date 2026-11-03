@@ -22,6 +22,7 @@ import type { TsQueryDeps } from "../../src/tools/ts-navigation-shared.js";
 import type { TsgoBinary, TsExecFn } from "../../src/tsgo/binary.js";
 import { dropProjectMap } from "../../src/tsgo/project-map.js";
 import { fakeServer, pathOfDocumentId, uriOf, type FakeServer } from "../helpers/fake-lsp.js";
+import { limitsOf, recordOf, resultView, scopeOf, textOf } from "../helpers/tool-result.js";
 
 type Result = Awaited<ReturnType<typeof runTsFindImplementations>>;
 type Input = {
@@ -333,24 +334,8 @@ function harness(): Harness {
   };
 }
 
-function payload(result: Result): Record<string, unknown> {
-  return (result as { structuredContent?: Record<string, unknown> }).structuredContent ?? {};
-}
-
-function scopeOf(result: Result): Record<string, unknown> {
-  return payload(result).scope as Record<string, unknown>;
-}
-
-function limitsOf(result: Result): string[] {
-  return scopeOf(result).limits as string[];
-}
-
 function rowsOf(result: Result): Row[] {
-  return payload(result).implementations as Row[];
-}
-
-function textOf(result: Result): string {
-  return (result.content ?? [])[0]?.text ?? "";
+  return recordOf(result).implementations as Row[];
 }
 
 function countOf(server: FakeServer, method: string): number {
@@ -440,8 +425,8 @@ describe("runTsFindImplementations", () => {
     h.answer([]);
 
     const out = await h.run();
-    expect(out.isError, textOf(out)).toBeFalsy();
-    expect(payload(out).implementations).toEqual([]);
+    expect(resultView(out).isError, textOf(out)).toBeFalsy();
+    expect(recordOf(out).implementations).toEqual([]);
     expect((scopeOf(out) as { uncoveredSources: unknown }).uncoveredSources).toEqual({
       count: 1,
       grepRequired: true,
@@ -464,7 +449,7 @@ describe("runTsFindImplementations", () => {
     // The same two lines are structuredContent's first key, with no limits line and no rows.
     const structured = (out as { structuredContent?: object }).structuredContent;
     expect(JSON.stringify(structured).startsWith('{"summary":"')).toBe(true);
-    expect(payload(out).summary).toBe(lines.slice(0, 2).join("\n"));
+    expect(recordOf(out).summary).toBe(lines.slice(0, 2).join("\n"));
     expect(scopeOf(out).uncoveredSources).toMatchObject({ grepRequired: true });
   });
 
@@ -473,8 +458,8 @@ describe("runTsFindImplementations", () => {
     h.answer([location(h.impl, 0, 13), location(h.main, 3, 13)]);
 
     const out = await h.run();
-    expect(out.isError, textOf(out)).toBeFalsy();
-    expect(payload(out)).toEqual({
+    expect(resultView(out).isError, textOf(out)).toBeFalsy();
+    expect(recordOf(out)).toEqual({
       summary: expect.any(String),
       resolved: { name: "Storage", kind: "interface", file: h.main, line: 1 },
       implementations: [
@@ -502,7 +487,7 @@ describe("runTsFindImplementations", () => {
     h.answer([location(h.impl, 0, 13)]);
 
     const out = await h.run();
-    expect(Object.keys(payload(out))).toEqual([
+    expect(Object.keys(recordOf(out))).toEqual([
       "summary",
       "resolved",
       "implementations",
@@ -520,8 +505,8 @@ describe("runTsFindImplementations", () => {
       "uncoveredSources",
       "limits",
     ]);
-    expect(JSON.stringify(payload(out))).not.toContain("direction");
-    expect(JSON.stringify(payload(out))).not.toContain("visibility");
+    expect(JSON.stringify(recordOf(out))).not.toContain("direction");
+    expect(JSON.stringify(recordOf(out))).not.toContain("visibility");
   });
 
   it("reads a LocationLink reply, naming the declaration at its selection range", async () => {
@@ -539,11 +524,11 @@ describe("runTsFindImplementations", () => {
     h.answer([location(h.impl, 0, 13)]);
 
     const out = await h.run({ symbol: "Widget" });
-    expect(out.isError, textOf(out)).toBeFalsy();
+    expect(resultView(out).isError, textOf(out)).toBeFalsy();
     // One key, several entries, one symbol — and an implementations call prefers the interface or
     // class entry among them. The interface is the SECOND here, so the request is not at the position the
     // bare address would have used, and `resolved` says what the answer is about.
-    expect(payload(out).resolved).toEqual({
+    expect(recordOf(out).resolved).toEqual({
       name: "Widget",
       kind: "interface",
       file: h.main,
@@ -562,8 +547,8 @@ describe("runTsFindImplementations", () => {
     h.answer([location(h.impl, 0, 13)]);
 
     const out = await h.run({ symbol: "Pair" });
-    expect(out.isError, textOf(out)).toBeFalsy();
-    expect(payload(out).resolved).toEqual({ name: "Pair", kind: "class", file: h.main, line: 20 });
+    expect(resultView(out).isError, textOf(out)).toBeFalsy();
+    expect(recordOf(out).resolved).toEqual({ name: "Pair", kind: "class", file: h.main, line: 20 });
     expect(requestFor(h.server, "textDocument/implementation")).toEqual({
       textDocument: { uri: uriOf(h.main) },
       position: at(MAIN_TEXT, 19, "Pair"),
@@ -581,7 +566,7 @@ describe("runTsFindImplementations", () => {
     expect(rowsOf(out)).toEqual([
       { name: "ExecDriver", kind: "class", file: h.impl, line: 1, external: false },
     ]);
-    expect(payload(out).truncated).toBe(0);
+    expect(recordOf(out).truncated).toBe(0);
     expect(textOf(out)).toContain("- 1 row(s)");
   });
 
@@ -593,7 +578,7 @@ describe("runTsFindImplementations", () => {
     h.answer([lineOnly, location(h.impl, 0, 13)]);
 
     const out = await h.run();
-    expect(out.isError, textOf(out)).toBeFalsy();
+    expect(resultView(out).isError, textOf(out)).toBeFalsy();
     expect(rowsOf(out).map((row) => row.file)).toEqual([h.main, h.impl]);
     expect(textOf(out)).toContain("- 2 row(s)");
   });
@@ -611,8 +596,8 @@ describe("runTsFindImplementations", () => {
     h.answer([]);
 
     const out = await h.run({ symbol });
-    expect(out.isError, textOf(out)).toBeFalsy();
-    expect(payload(out).resolved.kind).toBe(kind);
+    expect(resultView(out).isError, textOf(out)).toBeFalsy();
+    expect(recordOf(out).resolved).toMatchObject({ kind });
     expect(h.server.methods).toContain("textDocument/implementation");
   });
 
@@ -627,7 +612,7 @@ describe("runTsFindImplementations", () => {
       h.answer([location(h.impl, 0, 13)]);
 
       const out = await h.run({ symbol });
-      expect(out.isError).toBe(true);
+      expect(resultView(out).isError).toBe(true);
       expect(textOf(out)).toBe(
         `ts_find_implementations failed: "${symbol}" is ${article}, and only an interface, class, method or ` +
           "property has implementations. tsgo answers that question for those four; for any other declaration " +
@@ -642,7 +627,7 @@ describe("runTsFindImplementations", () => {
     h.answer([]);
 
     const out = await h.run();
-    expect(payload(out)).toMatchObject({ implementations: [], truncated: 0 });
+    expect(recordOf(out)).toMatchObject({ implementations: [], truncated: 0 });
     expect(limitsOf(out)).toEqual(["one-workspace", "structural-implementers-not-reported"]);
     // The class that satisfies `Storage` without naming it is in the workspace and in the project's listing;
     // tsgo reports no location for it, which is exactly what the code tells the caller about this empty.
@@ -663,7 +648,7 @@ describe("runTsFindImplementations", () => {
     const out = await h.run();
     const rows = rowsOf(out);
     expect(rows).toHaveLength(IMPLEMENTATIONS_LIMIT);
-    expect(payload(out).truncated).toBe(1);
+    expect(recordOf(out).truncated).toBe(1);
     expect(rows[0]).toMatchObject({ file: h.main, external: false });
     expect(rows[1]).toMatchObject({ file: h.impl, external: false });
     expect(rows.slice(2).every((row) => row.external)).toBe(true);
@@ -717,7 +702,7 @@ describe("runTsFindImplementations", () => {
     h.answer({ implementations: [] });
 
     const out = await h.run();
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toContain(
       'answered the query for "Storage" with an object this server cannot read',
     );
@@ -730,7 +715,7 @@ describe("runTsFindImplementations", () => {
     h.crashNextImplementation();
 
     const out = await h.run();
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toBe(
       `ts_find_implementations failed: tsgo restarted during the query about "Storage" in the workspace ` +
         `"${h.ws}", so the documents the answer depends on were opened on a process that is not the one that ` +
@@ -745,7 +730,7 @@ describe("runTsFindImplementations", () => {
     h.reloadBesideAnswer();
 
     const out = await h.run();
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toContain("tsgo restarted during the query");
     expect(h.session.isWorkspaceLoaded()).toBe(true);
     expect(h.servers).toHaveLength(2);
@@ -756,7 +741,7 @@ describe("runTsFindImplementations", () => {
     h.hangImplementation();
 
     const out = await h.run({ timeBudgetMs: 100 });
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
     expect(textOf(out)).toBe(
       `ts_find_implementations failed: tsgo did not answer the query for "Storage" within this call's 100 ms ` +
         `budget. The workspace at "${h.ws}" may still be loading its projects; raise timeBudgetMs or call ` +

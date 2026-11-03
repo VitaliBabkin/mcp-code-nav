@@ -2,6 +2,7 @@ import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { FreshnessOutcome } from "../../src/lsp/module-freshness.js";
 import { clangdConfig, goplsConfig } from "../../src/lsp/server-config.js";
 import {
   fakeServer,
@@ -28,6 +29,10 @@ const shown = (path: string) => pathOfUri(uriOf(path));
 // The `pathKey` match that lets the walk and the caller spell one file differently only exists on a
 // case-insensitive filesystem, so the test that pins it is skipped rather than vacuously passed.
 const itIfCaseInsensitive = process.platform === "win32" ? it : it.skip;
+
+/** The reason a reload states; `undefined` for an outcome that reloaded nothing. */
+const reasonOf = (outcome: FreshnessOutcome): string | undefined =>
+  outcome.kind === "reloaded" ? outcome.reason : undefined;
 
 function sentTo(server: FakeServer, method: string): [string, unknown][] {
   return server.notifications.filter(([sent]) => sent === method);
@@ -266,7 +271,7 @@ describe("LspSession.refreshModuleSnapshot", () => {
 
     const outcome = await h.session.refreshModuleSnapshot();
     expect(outcome.kind).toBe("reloaded");
-    expect(outcome.reason).toMatch(/no module snapshot was taken .* before the server started/);
+    expect(reasonOf(outcome)).toMatch(/no module snapshot was taken .* before the server started/);
     expect(kill).toHaveBeenCalledTimes(1);
     expect(sentTo(h.server, WATCHED)).toHaveLength(0);
 
@@ -318,8 +323,8 @@ describe("LspSession.refreshModuleSnapshot", () => {
 
     const outcome = await h.session.refreshModuleSnapshot();
     expect(outcome.kind).toBe("reloaded");
-    expect(outcome.reason).toMatch(/bound/);
-    expect(outcome.reason).toContain("/mod");
+    expect(reasonOf(outcome)).toMatch(/bound/);
+    expect(reasonOf(outcome)).toContain("/mod");
     expect(kill).toHaveBeenCalledTimes(1);
     expect(sentTo(h.server, WATCHED)).toHaveLength(0);
 
@@ -343,8 +348,8 @@ describe("LspSession.refreshModuleSnapshot", () => {
 
     const outcome = await h.session.refreshModuleSnapshot();
     expect(outcome.kind).toBe("reloaded");
-    expect(outcome.reason).toMatch(/push for "\/mod" failed after it had begun/);
-    expect(outcome.reason).toContain("EPIPE");
+    expect(reasonOf(outcome)).toMatch(/push for "\/mod" failed after it had begun/);
+    expect(reasonOf(outcome)).toContain("EPIPE");
     expect(kill).toHaveBeenCalledTimes(1);
   });
 

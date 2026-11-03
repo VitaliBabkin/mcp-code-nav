@@ -9,12 +9,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { LspDocumentSymbol } from "../../src/clangd/outline.js";
 import { tsgoConfig } from "../../src/lsp/server-config.js";
 import type { FreshnessOutcome } from "../../src/lsp/session.js";
 import { budgetOf } from "../../src/tools/budget.js";
-import type { Position } from "../../src/tools/lsp-locations.js";
-import type { TsSubject } from "../../src/tools/ts-addressing.js";
 import {
   mentionNameOf,
   tsNavigationScope,
@@ -87,27 +84,6 @@ interface Facts {
   readonly initialize?: unknown;
 }
 
-/** The addressed declaration, in the shape the prelude hands on; `scope` reads none of it. */
-function subjectAt(file: string, kind: string): TsSubject {
-  const entry: LspDocumentSymbol = {
-    name: "Storage",
-    kind: kind === "method" ? 6 : 11,
-    range: { start: { line: 0, character: 17 }, end: { line: 2, character: 1 } },
-    selectionRange: { start: { line: 0, character: 17 } },
-  };
-  const position: Position = { line: 0, character: 17 };
-  return {
-    symbol: "Storage",
-    entries: [entry],
-    entry,
-    kind,
-    file,
-    line: 1,
-    position,
-    spelling: "Storage",
-  };
-}
-
 /** Writes `<root>/node_modules/typescript/package.json`, where the workspace's own compiler is read from. */
 function workspaceTypeScript(body: unknown): void {
   const path = inWorkspace("node_modules", "typescript", "package.json");
@@ -146,7 +122,6 @@ async function scopeOf(
   await session.openAnchors([file]);
 
   const projects = facts.projects ?? [];
-  const subject = subjectAt(file, "interface");
   return await tsNavigationScope(
     {
       session,
@@ -162,9 +137,6 @@ async function scopeOf(
       uncovered: facts.projectsUnavailable === undefined ? (facts.uncovered ?? []) : undefined,
       projectsUnavailable: facts.projectsUnavailable,
       anchors: projects.flatMap((project) => (project.anchor === null ? [] : [project.anchor])),
-      symbols: [],
-      subject,
-      resolved: { name: subject.spelling, kind: subject.kind, file, line: subject.line },
     },
     flags,
     facts.mentionName ?? "Storage",
@@ -794,7 +766,8 @@ describe("tsUncoveredText and tsScopeText", () => {
     const named = inWorkspace("test", "store.test.ts");
     const build = inWorkspace("scripts", "build.mts");
     const orphaned = [named, build];
-    const bodies = { [named]: "import { Storage } from 'x';\nStorage.get();\n", [build]: SILENT };
+    const namedBody = "import { Storage } from 'x';\nStorage.get();\n";
+    const bodies = { [named]: namedBody, [build]: SILENT };
     const TAIL = "Do not report this answer as complete until you have.";
 
     // Variant A, one file, `(2 matching lines)`; the line is the second one, so the head carries none of it.
@@ -828,7 +801,7 @@ describe("tsUncoveredText and tsScopeText", () => {
     const withUnread = await scopeOf({
       projects: [loadedProject()],
       uncovered: orphaned,
-      bodies: { [named]: bodies[named] },
+      bodies: { [named]: namedBody },
     });
     expect(tsUncoveredLine(withUnread)).toBe(
       "INCOMPLETE: 2 file(s) no tsconfig project includes were not searched (scripts 1, test 1). " +

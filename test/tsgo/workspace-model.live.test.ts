@@ -32,13 +32,12 @@ import {
   fixtures,
   itIfTsgoAvailable,
   listFilesOnly,
-  payloadOf,
   requireTsgo,
   stampsOf,
-  textOf,
   tsgoProcessLog,
   type TsgoProcessLog,
 } from "../helpers/tsgo-live.js";
+import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 
 /**
  * Live: the workspace model, measured against the real
@@ -140,7 +139,7 @@ function ask(
 }
 
 function payload(result: Result): TsFindReferencesPayload {
-  return payloadOf<TsFindReferencesPayload>(result, "ts_find_references");
+  return payloadAs<TsFindReferencesPayload>(result, "ts_find_references");
 }
 
 /** Paths compared the way the map compares them: separators normalised, case folded on this OS. */
@@ -220,6 +219,16 @@ function requireUncovered(scope: TsNavigationScope): TsUncoveredBlock {
     throw new Error(`no uncovered set was computed: ${scope.uncoveredSourcesUnavailable}`);
   }
   return scope.uncoveredSources;
+}
+
+/** Why the uncovered set could not be computed; `undefined` when it was. */
+function uncoveredReason(scope: TsNavigationScope): string | undefined {
+  return "uncoveredSourcesUnavailable" in scope ? scope.uncoveredSourcesUnavailable : undefined;
+}
+
+/** Why no project map was built; `undefined` when one was. */
+function projectsReason(scope: TsNavigationScope): string | undefined {
+  return "projectsUnavailable" in scope ? scope.projectsUnavailable : undefined;
 }
 
 function requireReloaded(scope: TsNavigationScope): string {
@@ -402,7 +411,7 @@ describe("the TypeScript workspace model against the real tsgo", () => {
       // `packages/ui/loose.ts` is a source no project lists, so opening it gives tsgo an inferred project to
       // swap in — the stated exception, and the eviction the measured server behaviour could not measure.
       expect(
-        (await ask(manager, [workspaceRoot], looseTsFile, "LOOSE_MEMBER")).isError,
+        resultView(await ask(manager, [workspaceRoot], looseTsFile, "LOOSE_MEMBER")).isError,
       ).toBeFalsy();
 
       const after = await readAll();
@@ -593,7 +602,7 @@ describe("the TypeScript workspace model against the real tsgo", () => {
       // A listing that failed says nothing about the files it would have named, so the uncovered set is
       // reported as unprovable rather than computed from listings known to be incomplete.
       expect("uncoveredSources" in scope).toBe(false);
-      expect(scope.uncoveredSourcesUnavailable).toContain("tsconfig.broken.json");
+      expect(uncoveredReason(scope)).toContain("tsconfig.broken.json");
     },
     CALL_BUDGET_MS,
   );
@@ -663,7 +672,7 @@ describe("the TypeScript workspace model against the real tsgo", () => {
           expect(scope.limits).toContain("projects-not-loaded");
           // A listing that failed says nothing about the files it would have named.
           expect("uncoveredSources" in scope).toBe(false);
-          expect(scope.uncoveredSourcesUnavailable).toContain("tsconfig");
+          expect(uncoveredReason(scope)).toContain("tsconfig");
           // "answers from a fresh process" is a claim about children: one more `tsc.exe` per call.
           expect(log.pids, `call ${call}`).toHaveLength(call);
         }
@@ -777,13 +786,13 @@ describe("the TypeScript workspace model against the real tsgo", () => {
       );
       // No config inside the package, so no map, and the answer says that instead of claiming a project set.
       expect("projects" in narrow.scope).toBe(false);
-      expect(narrow.scope.projectsUnavailable).toContain("jsconfig");
+      expect(projectsReason(narrow.scope)).toContain("jsconfig");
       expect(narrow.scope.limits).toContain("projects-not-loaded");
       expect("uncoveredSources" in narrow.scope).toBe(false);
 
       // And a file of the wider workspace is not reachable through the narrow root: refused, not answered.
       const escaped = await ask(freshManager(), [memberPackage], sharedFile, "SHARED_LABEL");
-      expect(escaped.isError).toBe(true);
+      expect(resultView(escaped).isError).toBe(true);
       expect(textOf(escaped)).toContain("shared.ts");
     },
     CALL_BUDGET_MS * 2,

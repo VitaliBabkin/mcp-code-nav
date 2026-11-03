@@ -73,15 +73,6 @@ export interface LiveResult {
   readonly isError?: boolean;
 }
 
-export function textOf(result: LiveResult): string {
-  return result.content.map((part) => part.text ?? "").join("\n");
-}
-
-export function payloadOf<T>(result: LiveResult, tool: string): T {
-  if (result.isError) throw new Error(`${tool} failed: ${textOf(result)}`);
-  return result.structuredContent as T;
-}
-
 /** One server-to-client request that reached this client, with what the config answered it with. */
 export interface ServerRequest {
   readonly method: string;
@@ -233,7 +224,7 @@ function posixChildren(pid: number): ProcessInfo[] {
     rows.push({
       pid: Number(fields[1]),
       parentPid: pid,
-      name: fields[3],
+      name: fields[3] ?? "",
       commandLine: fields[4] ?? "",
     });
   }

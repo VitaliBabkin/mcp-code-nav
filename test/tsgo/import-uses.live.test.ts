@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import {
   runTsFindReferences,
@@ -11,8 +12,6 @@ import {
   CALL_BUDGET_MS,
   fixtures,
   itIfTsgoAvailable,
-  payloadOf,
-  textOf,
   tsFixtureRoot,
   type LiveResult,
 } from "../helpers/tsgo-live.js";
@@ -79,7 +78,7 @@ function references(
 }
 
 function referencesOf(result: LiveResult): TsFindReferencesPayload {
-  return payloadOf<TsFindReferencesPayload>(result, "ts_find_references");
+  return payloadAs<TsFindReferencesPayload>(result, "ts_find_references");
 }
 
 /** Every kept row as `file:line`, sorted, so a listing can be compared without the server's ordering. */
@@ -338,7 +337,7 @@ describe("the uncovered files that mention the name", () => {
         anchor: workspaceRoot,
         timeBudgetMs: CALL_BUDGET_MS,
       });
-      expect(byDirectory.isError, textOf(byDirectory)).toBe(true);
+      expect(resultView(byDirectory).isError, textOf(byDirectory)).toBe(true);
       expect(textOf(byDirectory)).toContain("no declaration named");
       expect(textOf(byDirectory)).toContain("were not searched");
       expect(textOf(byDirectory)).toContain("\nINCOMPLETE: ");
@@ -352,7 +351,7 @@ describe("the uncovered files that mention the name", () => {
         anchor: consumerFile,
         timeBudgetMs: CALL_BUDGET_MS,
       });
-      expect(byFile.isError, textOf(byFile)).toBe(true);
+      expect(resultView(byFile).isError, textOf(byFile)).toBe(true);
       expect(textOf(byFile)).toContain("\nINCOMPLETE: ");
       expect(textOf(byFile)).toContain(join(workspaceRoot, "test", "outside.ts"));
 

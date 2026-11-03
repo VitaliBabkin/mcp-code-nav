@@ -60,13 +60,14 @@ Windows.
 | ---------------------- | -------------------------------------------------------------------------------------------- |
 | `npm run format:check` | Biome formatting of the TypeScript, JavaScript and JSON files; `npm run format` fixes it      |
 | `npm run lint`         | ESLint over `src` and `scripts`: typescript-eslint `strictTypeChecked`, at most 150 lines per function, cognitive complexity 25 |
-| `npm run typecheck`    | `tsc --noEmit` for `src`, then `tsc -p tsconfig.scripts.json` for `scripts`                  |
+| `npm run typecheck`    | `tsc --noEmit` for `src`, then `tsconfig.scripts.json` for `scripts` and `tsconfig.test.json` for `test` |
 | `npm test`             | The default suite (vitest). Needs only Node; no language server is started                   |
 
 A docs-only change needs no gate. A conditional fifth check, `npm run test:live`, runs the same code paths against the
 real tools; run it when the change touches behaviour that depends on a real binary (see Tests).
 
-Lint and typecheck cover `src` and `scripts`; test files are checked only by running them.
+Lint covers `src` and `scripts`; typecheck covers `src`, `scripts` and `test` (the analysed sources under
+`test/fixtures` are not compiled).
 
 Biome formats (`biome.json`: two spaces, width 100, double quotes) and its linter is off; ESLint lints. Existing lint
 debt sits in `eslint-suppressions.json`: a new violation fails, and a fixed one is pruned with

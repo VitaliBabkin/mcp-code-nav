@@ -8,6 +8,7 @@ import { LanguageServerUnavailableError, goplsConfig } from "../../src/lsp/serve
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { GoFileSymbolsInput, runGoFileSymbols } from "../../src/tools/go-file-symbols.js";
 import { fakeServer, type FakeServer } from "../helpers/fake-lsp.js";
+import { resultView } from "../helpers/tool-result.js";
 
 const STORAGE: LspDocumentSymbol = {
   name: "Storage",
@@ -89,9 +90,8 @@ describe("runGoFileSymbols", () => {
 
   it("returns the outline with 1-based lines, in the same shape cpp_file_symbols emits", async () => {
     const { manager } = sessionsAnswering(() => [STORAGE]);
-    const out = await runGoFileSymbols(
-      manager,
-      input({ sourceRoots: [mod], file: join(mod, "storage.go") }),
+    const out = resultView(
+      await runGoFileSymbols(manager, input({ sourceRoots: [mod], file: join(mod, "storage.go") })),
     );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent).toEqual({ symbols: [OUTLINE] });
@@ -102,9 +102,8 @@ describe("runGoFileSymbols", () => {
     mkdirSync(nested, { recursive: true });
     writeFileSync(join(nested, "b.go"), "package pkg\n");
     const { manager, servers } = sessionsAnswering(() => [STORAGE]);
-    const out = await runGoFileSymbols(
-      manager,
-      input({ sourceRoots: [mod], file: join(nested, "b.go") }),
+    const out = resultView(
+      await runGoFileSymbols(manager, input({ sourceRoots: [mod], file: join(nested, "b.go") })),
     );
     expect(out.isError).toBeFalsy();
     expect(servers[0]?.requests[0]?.[1]).toMatchObject({
@@ -116,9 +115,8 @@ describe("runGoFileSymbols", () => {
 
   it("counts depth plainly: 0 returns top-level declarations without their children", async () => {
     const { manager } = sessionsAnswering(() => [STORAGE]);
-    const out = await runGoFileSymbols(
-      manager,
-      input({ sourceRoots: [mod], file: "storage.go", depth: 0 }),
+    const out = resultView(
+      await runGoFileSymbols(manager, input({ sourceRoots: [mod], file: "storage.go", depth: 0 })),
     );
     expect(out.structuredContent).toEqual({
       symbols: [{ name: "Storage", kind: "interface", range: { startLine: 14, endLine: 18 } }],
@@ -127,9 +125,8 @@ describe("runGoFileSymbols", () => {
 
   it("reports a confident empty for an empty outline, because gopls answers it correctly from the first call", async () => {
     const { manager } = sessionsAnswering(() => []);
-    const out = await runGoFileSymbols(
-      manager,
-      input({ sourceRoots: [mod], file: join(mod, "storage.go") }),
+    const out = resultView(
+      await runGoFileSymbols(manager, input({ sourceRoots: [mod], file: join(mod, "storage.go") })),
     );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent).toEqual({ symbols: [] });
@@ -147,9 +144,8 @@ describe("runGoFileSymbols", () => {
       failure: () => failure,
     });
     const manager = new LspSessionManager({ spawn: () => server.process, sleep: async () => {} });
-    const out = await runGoFileSymbols(
-      manager,
-      input({ sourceRoots: [mod], file: join(mod, "storage.go") }),
+    const out = resultView(
+      await runGoFileSymbols(manager, input({ sourceRoots: [mod], file: join(mod, "storage.go") })),
     );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toContain(failure.message);
@@ -163,9 +159,8 @@ describe("runGoFileSymbols", () => {
     mkdirSync(plain, { recursive: true });
     writeFileSync(join(plain, "a.go"), "package a\n");
     const { manager, servers } = sessionsAnswering(() => [STORAGE]);
-    const out = await runGoFileSymbols(
-      manager,
-      input({ sourceRoots: [plain], file: join(plain, "a.go") }),
+    const out = resultView(
+      await runGoFileSymbols(manager, input({ sourceRoots: [plain], file: join(plain, "a.go") })),
     );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toMatch(/not inside a Go module/);
@@ -180,9 +175,8 @@ describe("runGoFileSymbols", () => {
     mkdirSync(pkg, { recursive: true });
     writeFileSync(join(pkg, "a.go"), "package pkg\n");
     const { manager } = sessionsAnswering(() => [STORAGE]);
-    const out = await runGoFileSymbols(
-      manager,
-      input({ sourceRoots: [pkg], file: join(pkg, "a.go") }),
+    const out = resultView(
+      await runGoFileSymbols(manager, input({ sourceRoots: [pkg], file: join(pkg, "a.go") })),
     );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toMatch(/outside every declared sourceRoots entry/);
@@ -201,9 +195,11 @@ describe("runGoFileSymbols", () => {
         }).process,
       sleep: async () => {},
     });
-    const out = await runGoFileSymbols(
-      manager,
-      input({ sourceRoots: [mod], file: join(mod, "storage.go"), timeBudgetMs: 30 }),
+    const out = resultView(
+      await runGoFileSymbols(
+        manager,
+        input({ sourceRoots: [mod], file: join(mod, "storage.go"), timeBudgetMs: 30 }),
+      ),
     );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toMatch(/did not answer[\s\S]*30 ms budget/);
@@ -216,9 +212,11 @@ describe("runGoFileSymbols", () => {
       writeFileSync(join(elsewhere, "a.go"), "package a\n");
       writeFileSync(join(elsewhere, "go.mod"), "module example.com/outside\n");
       const { manager } = sessionsAnswering(() => [STORAGE]);
-      const out = await runGoFileSymbols(
-        manager,
-        input({ sourceRoots: [mod], file: join(elsewhere, "a.go") }),
+      const out = resultView(
+        await runGoFileSymbols(
+          manager,
+          input({ sourceRoots: [mod], file: join(elsewhere, "a.go") }),
+        ),
       );
       expect(out.isError).toBe(true);
       expect(out.content[0]?.text).toMatch(/escapes every declared root/);
@@ -229,16 +227,17 @@ describe("runGoFileSymbols", () => {
 
   it("resolves a relative file against the declared roots", async () => {
     const { manager } = sessionsAnswering(() => [STORAGE]);
-    const out = await runGoFileSymbols(manager, input({ sourceRoots: [mod], file: "storage.go" }));
+    const out = resultView(
+      await runGoFileSymbols(manager, input({ sourceRoots: [mod], file: "storage.go" })),
+    );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent).toEqual({ symbols: [OUTLINE] });
   });
 
   it("keeps a missing file the loud failure it is", async () => {
     const { manager } = sessionsAnswering(() => [STORAGE]);
-    const out = await runGoFileSymbols(
-      manager,
-      input({ sourceRoots: [mod], file: join(mod, "gone.go") }),
+    const out = resultView(
+      await runGoFileSymbols(manager, input({ sourceRoots: [mod], file: join(mod, "gone.go") })),
     );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toMatch(/ENOENT/);

@@ -16,6 +16,7 @@ import { clangdConfig } from "../../src/lsp/server-config.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { LspSession } from "../../src/lsp/session.js";
 import { runCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
+import { resultView } from "../helpers/tool-result.js";
 
 // clangd is optional on this host in exactly the way gopls is, so the suite skips rather than failing with
 // the symptom it exists to detect. `MCP_CODE_NAV_CLANGD` overrides, as it does at runtime.
@@ -178,7 +179,7 @@ describe("clangd's own index on disk, against a real clangd binary", () => {
         sourceRoots: [sourceDir],
         depth: 2,
       });
-      expect(outlined.isError).toBeFalsy();
+      expect(resultView(outlined).isError).toBeFalsy();
 
       const appearedInBuild = await settled(
         () => existsSync(join(buildDir, ".cache", "clangd")),
@@ -217,7 +218,7 @@ describe("clangd's own index on disk, against a real clangd binary", () => {
         sourceRoots: [project],
         depth: 2,
       });
-      expect(outlined.isError).toBeFalsy();
+      expect(resultView(outlined).isError).toBeFalsy();
 
       // Waits for the shard this case then names: clangd indexes its TUs in its own order, so waiting for any
       // shard to appear and asserting afterwards that Alpha's is among them races the very next line. `tree`
