@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { flattenOutline, symbolKindName, toOutline, type LspDocumentSymbol } from "../../src/clangd/outline.js";
+import {
+  flattenOutline,
+  symbolKindName,
+  toOutline,
+  type LspDocumentSymbol,
+} from "../../src/clangd/outline.js";
 import { symAt } from "../helpers/fake-clangd.js";
 
 function sym(name: string, kind: number, children?: LspDocumentSymbol[]): LspDocumentSymbol {
@@ -32,7 +37,11 @@ function flatSymbolInformation(name: string, kind: number): LspDocumentSymbol {
 describe("toOutline", () => {
   it("converts 0-based LSP lines to 1-based output lines", () => {
     const out = toOutline([sym("Foo", 5)], 1);
-    expect(out[0]).toMatchObject({ name: "Foo", kind: "class", range: { startLine: 1, endLine: 6 } });
+    expect(out[0]).toMatchObject({
+      name: "Foo",
+      kind: "class",
+      range: { startLine: 1, endLine: 6 },
+    });
   });
 
   it("throws a named error instead of silently mis-mapping a flat SymbolInformation entry", () => {
@@ -52,7 +61,10 @@ describe("toOutline", () => {
 
   it("unwraps namespace nesting without consuming the depth budget", () => {
     // namespace gizmo { namespace connector { class Foo { void bar(); }; } }
-    const out = toOutline([sym("gizmo", 3, [sym("connector", 3, [sym("Foo", 5, [sym("bar", 6)])])])], 1);
+    const out = toOutline(
+      [sym("gizmo", 3, [sym("connector", 3, [sym("Foo", 5, [sym("bar", 6)])])])],
+      1,
+    );
     const gizmo = out[0];
     expect(gizmo).toMatchObject({ name: "gizmo", kind: "namespace" });
     const connector = gizmo?.children?.[0];
@@ -64,14 +76,20 @@ describe("toOutline", () => {
   });
 
   it("depth 0 still unwraps namespaces but shows only the class itself, no members", () => {
-    const out = toOutline([sym("gizmo", 3, [sym("connector", 3, [sym("Foo", 5, [sym("bar", 6)])])])], 0);
+    const out = toOutline(
+      [sym("gizmo", 3, [sym("connector", 3, [sym("Foo", 5, [sym("bar", 6)])])])],
+      0,
+    );
     const foo = out[0]?.children?.[0]?.children?.[0];
     expect(foo).toMatchObject({ name: "Foo", kind: "class" });
     expect(foo?.children).toBeUndefined();
   });
 
   it("transparently unwraps 3+ levels of nested namespaces", () => {
-    const out = toOutline([sym("a", 3, [sym("b", 3, [sym("c", 3, [sym("Foo", 5, [sym("bar", 6)])])])])], 1);
+    const out = toOutline(
+      [sym("a", 3, [sym("b", 3, [sym("c", 3, [sym("Foo", 5, [sym("bar", 6)])])])])],
+      1,
+    );
     const foo = out[0]?.children?.[0]?.children?.[0]?.children?.[0];
     expect(foo).toMatchObject({ name: "Foo", kind: "class" });
     expect(foo?.children?.[0]).toMatchObject({ name: "bar", kind: "method" });
@@ -94,7 +112,9 @@ describe("flattenOutline", () => {
   });
 
   it("throws a named error instead of silently mis-mapping a flat SymbolInformation entry", () => {
-    expect(() => flattenOutline([flatSymbolInformation("Foo", 5)])).toThrow(/flat SymbolInformation/);
+    expect(() => flattenOutline([flatSymbolInformation("Foo", 5)])).toThrow(
+      /flat SymbolInformation/,
+    );
   });
 
   it("carries the position of the declaration's own name, which is where a type-aware request is asked", () => {
@@ -107,7 +127,9 @@ describe("flattenOutline", () => {
   });
 
   it("keeps each nesting level's own name position", () => {
-    const flat = flattenOutline([{ ...symAt("Widget", 5, 4, 6), children: [symAt("bar", 6, 5, 8)] }]);
+    const flat = flattenOutline([
+      { ...symAt("Widget", 5, 4, 6), children: [symAt("bar", 6, 5, 8)] },
+    ]);
     expect(flat.map((s) => s.namePosition)).toEqual([
       { line: 4, character: 6 },
       { line: 5, character: 8 },

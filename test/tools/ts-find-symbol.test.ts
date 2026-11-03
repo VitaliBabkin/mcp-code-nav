@@ -28,7 +28,8 @@ type Input = { sourceRoots: string[]; symbol: string; anchor: string; timeBudget
 type Row = Record<string, unknown>;
 
 const BINARY: TsgoBinary = {
-  executable: "C:/fake/npm-global/typescript/node_modules/@typescript/typescript-win32-x64/lib/tsc.exe",
+  executable:
+    "C:/fake/npm-global/typescript/node_modules/@typescript/typescript-win32-x64/lib/tsc.exe",
   version: "7.0.2",
   source: "global",
 };
@@ -49,7 +50,7 @@ const MAIN_TEXT = [
   "  area(): number;",
   "}",
   "export class Driver {",
-  "  run(): string { return \"d\"; }",
+  '  run(): string { return "d"; }',
   "}",
   "export function parse(text: string): number;",
   "export function parse(value: number): string;",
@@ -58,7 +59,7 @@ const MAIN_TEXT = [
   "export interface Merged {}",
   "export namespace Geometry {",
   "  export class Worker {",
-  "    run(): string { return \"g\"; }",
+  '    run(): string { return "g"; }',
   "  }",
   "  export const UNIT = 1;",
   "}",
@@ -66,10 +67,14 @@ const MAIN_TEXT = [
   "  run(): number { return 1; }",
   "}",
   "export const scaled = compute();",
-  "export type ShapeName = \"a\" | \"b\";",
+  'export type ShapeName = "a" | "b";',
 ];
 
-const AREA_TEXT = ["export function area(width: number, height: number): number {", "  return width * height;", "}"];
+const AREA_TEXT = [
+  "export function area(width: number, height: number): number {",
+  "  return width * height;",
+  "}",
+];
 
 const SHAPE_AREA_TEXT = ["export function area(shape: unknown): number {", "  return 1;", "}"];
 
@@ -101,26 +106,58 @@ function sym(
 
 /** tsgo's kind numbers: 3 namespace, 5 class, 6 method, 11 interface, 12 function, 13 variable. */
 const MAIN_OUTLINE: LspDocumentSymbol[] = [
-  sym(MAIN_TEXT, "Shape", 11, [0, "Shape"], [2, "}"], [0, "Shape"], [
-    sym(MAIN_TEXT, "area", 6, [1, "area"], [1, ";"], [1, "area"]),
-  ]),
-  sym(MAIN_TEXT, "Driver", 5, [3, "Driver"], [5, "}"], [3, "Driver"], [
-    sym(MAIN_TEXT, "run", 6, [4, "run"], [4, "}"], [4, "run"]),
-  ]),
+  sym(
+    MAIN_TEXT,
+    "Shape",
+    11,
+    [0, "Shape"],
+    [2, "}"],
+    [0, "Shape"],
+    [sym(MAIN_TEXT, "area", 6, [1, "area"], [1, ";"], [1, "area"])],
+  ),
+  sym(
+    MAIN_TEXT,
+    "Driver",
+    5,
+    [3, "Driver"],
+    [5, "}"],
+    [3, "Driver"],
+    [sym(MAIN_TEXT, "run", 6, [4, "run"], [4, "}"], [4, "run"])],
+  ),
   sym(MAIN_TEXT, "parse", 12, [6, "parse"], [6, ";"], [6, "parse"]),
   sym(MAIN_TEXT, "parse", 12, [7, "parse"], [7, ";"], [7, "parse"]),
   sym(MAIN_TEXT, "parse", 12, [8, "parse"], [8, "}"], [8, "parse"]),
   sym(MAIN_TEXT, "Merged", 5, [9, "class Merged"], [9, "}"], [9, "Merged"]),
   sym(MAIN_TEXT, "Merged", 11, [10, "Merged"], [10, "}"], [10, "Merged"]),
-  sym(MAIN_TEXT, "Geometry", 3, [11, "Geometry"], [16, "}"], [11, "Geometry"], [
-    sym(MAIN_TEXT, "Worker", 5, [12, "Worker"], [14, "}"], [12, "Worker"], [
-      sym(MAIN_TEXT, "run", 6, [13, "run"], [13, "}"], [13, "run"]),
-    ]),
-    sym(MAIN_TEXT, "UNIT", 13, [15, "UNIT"], [15, ";"], [15, "UNIT"]),
-  ]),
-  sym(MAIN_TEXT, "Worker", 5, [17, "Worker"], [19, "}"], [17, "Worker"], [
-    sym(MAIN_TEXT, "run", 6, [18, "run"], [18, "}"], [18, "run"]),
-  ]),
+  sym(
+    MAIN_TEXT,
+    "Geometry",
+    3,
+    [11, "Geometry"],
+    [16, "}"],
+    [11, "Geometry"],
+    [
+      sym(
+        MAIN_TEXT,
+        "Worker",
+        5,
+        [12, "Worker"],
+        [14, "}"],
+        [12, "Worker"],
+        [sym(MAIN_TEXT, "run", 6, [13, "run"], [13, "}"], [13, "run"])],
+      ),
+      sym(MAIN_TEXT, "UNIT", 13, [15, "UNIT"], [15, ";"], [15, "UNIT"]),
+    ],
+  ),
+  sym(
+    MAIN_TEXT,
+    "Worker",
+    5,
+    [17, "Worker"],
+    [19, "}"],
+    [17, "Worker"],
+    [sym(MAIN_TEXT, "run", 6, [18, "run"], [18, "}"], [18, "run"])],
+  ),
   sym(MAIN_TEXT, "scaled", 13, [20, "scaled"], [20, ";"], [20, "scaled"]),
   sym(MAIN_TEXT, "ShapeName", 5, [21, "ShapeName"], [21, ";"], [21, "ShapeName"]),
 ];
@@ -137,7 +174,14 @@ const SHAPE_AREA_OUTLINE: LspDocumentSymbol[] = [
  * One `workspace/symbol` entry as tsgo reports it: a `SymbolInformation` whose `location.range` is the
  * identifier's own span, with `containerName` naming only the NEAREST container (measured live).
  */
-function indexed(path: string, name: string, kind: number, line: number, character: number, containerName?: string): unknown {
+function indexed(
+  path: string,
+  name: string,
+  kind: number,
+  line: number,
+  character: number,
+  containerName?: string,
+): unknown {
   return {
     name,
     kind,
@@ -202,7 +246,10 @@ function harness(): Harness {
   built.push({ tmp, ws });
   const src = join(ws, "packages", "ui", "src");
   mkdirSync(join(src, "lib"), { recursive: true });
-  writeFileSync(join(ws, "package.json"), JSON.stringify({ name: "mono", workspaces: ["packages/*"] }));
+  writeFileSync(
+    join(ws, "package.json"),
+    JSON.stringify({ name: "mono", workspaces: ["packages/*"] }),
+  );
   writeFileSync(join(ws, "packages", "ui", "package.json"), JSON.stringify({ name: "@mono/ui" }));
   const config = join(ws, "tsconfig.json");
   writeFileSync(config, JSON.stringify({ compilerOptions: {} }));
@@ -219,7 +266,9 @@ function harness(): Harness {
     [area, AREA_OUTLINE],
     [shapeArea, SHAPE_AREA_OUTLINE],
   ]);
-  const listing = new Map<string, readonly string[] | { readonly failWith: string }>([[config, [area, main, shapeArea]]]);
+  const listing = new Map<string, readonly string[] | { readonly failWith: string }>([
+    [config, [area, main, shapeArea]],
+  ]);
   const exec: TsExecFn = async (_executable, args) => {
     const found = listing.get(args[2] ?? "");
     if (found === undefined) return { stdout: "", stderr: "", exitCode: 0 };
@@ -320,7 +369,11 @@ function harness(): Harness {
     },
     listing: (path, files) => listing.set(path, files),
     run: (overrides = {}) =>
-      runTsFindSymbol(manager, { sourceRoots: [ws], symbol: "Driver", anchor: main, timeBudgetMs: 60_000, ...overrides }, deps),
+      runTsFindSymbol(
+        manager,
+        { sourceRoots: [ws], symbol: "Driver", anchor: main, timeBudgetMs: 60_000, ...overrides },
+        deps,
+      ),
   };
 }
 
@@ -353,11 +406,15 @@ function requestFor(server: FakeServer, method: string): Record<string, unknown>
 }
 
 function openedPaths(server: FakeServer): (string | undefined)[] {
-  return server.notifications.filter(([method]) => method === "textDocument/didOpen").map(([, p]) => pathOfDocumentId(p));
+  return server.notifications
+    .filter(([method]) => method === "textDocument/didOpen")
+    .map(([, p]) => pathOfDocumentId(p));
 }
 
 function hoveredPaths(server: FakeServer): (string | undefined)[] {
-  return server.requests.filter(([method]) => method === HOVER_METHOD).map(([, p]) => pathOfDocumentId(p));
+  return server.requests
+    .filter(([method]) => method === HOVER_METHOD)
+    .map(([, p]) => pathOfDocumentId(p));
 }
 
 /** The `scope` of a clean, fully mapped answer over this temp workspace. */
@@ -374,7 +431,13 @@ function cleanScope(h: Harness, lookup: string, limits: string[]): Record<string
       grepRequired: false,
       directories: [],
       directoriesTruncated: 0,
-      mentioning: { name: expect.any(String), count: 0, files: [], filesTruncated: 0, unchecked: 0 },
+      mentioning: {
+        name: expect.any(String),
+        count: 0,
+        files: [],
+        filesTruncated: 0,
+        unchecked: 0,
+      },
       namedFileUncovered: false,
     },
     lookup,
@@ -384,10 +447,21 @@ function cleanScope(h: Harness, lookup: string, limits: string[]): Record<string
 
 describe("TsFindSymbolInput", () => {
   it("takes a symbol and an anchor, needs a root, and defaults the budget to 60000 ms", () => {
-    const parsed = TsFindSymbolInput.parse({ sourceRoots: ["C:/ws"], symbol: "Driver", anchor: "src" });
+    const parsed = TsFindSymbolInput.parse({
+      sourceRoots: ["C:/ws"],
+      symbol: "Driver",
+      anchor: "src",
+    });
     expect(parsed.timeBudgetMs).toBe(60_000);
-    expect(Object.keys(TsFindSymbolInput.shape).sort()).toEqual(["anchor", "sourceRoots", "symbol", "timeBudgetMs"]);
-    expect(TsFindSymbolInput.safeParse({ sourceRoots: [], symbol: "S", anchor: "src" }).success).toBe(false);
+    expect(Object.keys(TsFindSymbolInput.shape).sort()).toEqual([
+      "anchor",
+      "sourceRoots",
+      "symbol",
+      "timeBudgetMs",
+    ]);
+    expect(
+      TsFindSymbolInput.safeParse({ sourceRoots: [], symbol: "S", anchor: "src" }).success,
+    ).toBe(false);
   });
 });
 
@@ -481,10 +555,14 @@ describe("runTsFindSymbol", () => {
       const h = harness();
 
       const method = await h.run({ symbol: "Driver.run" });
-      expect(rowsOf(method).map((row) => [row.name, row.kind, row.line])).toEqual([["Driver.run", "method", 5]]);
+      expect(rowsOf(method).map((row) => [row.name, row.kind, row.line])).toEqual([
+        ["Driver.run", "method", 5],
+      ]);
 
       const nested = await h.run({ symbol: "Geometry.Worker.run" });
-      expect(rowsOf(nested).map((row) => [row.name, row.line])).toEqual([["Geometry.Worker.run", 14]]);
+      expect(rowsOf(nested).map((row) => [row.name, row.line])).toEqual([
+        ["Geometry.Worker.run", 14],
+      ]);
 
       const bare = await h.run({ symbol: "run" });
       expect(bare.isError).toBe(true);
@@ -496,7 +574,9 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run({ symbol: "Absent" });
       expect(out.isError).toBe(true);
-      expect(textOf(out)).toContain(`no declaration named "Absent" was found in the outline of "${h.main}"`);
+      expect(textOf(out)).toContain(
+        `no declaration named "Absent" was found in the outline of "${h.main}"`,
+      );
       expect(textOf(out)).toContain("The match is exact, not fuzzy");
       expect(h.server.methods).not.toContain(SYMBOL_METHOD);
       expect(h.server.methods).not.toContain(HOVER_METHOD);
@@ -506,7 +586,9 @@ describe("runTsFindSymbol", () => {
 
     it("never guesses a hover position for an outline row with no selection range", async () => {
       const h = harness();
-      h.outline(h.main, [{ name: "Bare", kind: 5, range: { start: { line: 2 }, end: { line: 4 } } }]);
+      h.outline(h.main, [
+        { name: "Bare", kind: 5, range: { start: { line: 2 }, end: { line: 4 } } },
+      ]);
 
       const out = await h.run({ symbol: "Bare" });
       expect(out.isError, textOf(out)).toBeFalsy();
@@ -581,24 +663,36 @@ describe("runTsFindSymbol", () => {
       const out = await h.run({ symbol: "Worker.run", anchor: h.ws });
       expect(out.isError, textOf(out)).toBeFalsy();
       expect(requestFor(h.server, SYMBOL_METHOD)).toEqual({ query: "run" });
-      expect(rowsOf(out).map((row) => [row.name, row.kind, row.line])).toEqual([["Worker.run", "method", 19]]);
+      expect(rowsOf(out).map((row) => [row.name, row.kind, row.line])).toEqual([
+        ["Worker.run", "method", 19],
+      ]);
 
       const nested = await h.run({ symbol: "Geometry.Worker.run", anchor: h.ws });
-      expect(rowsOf(nested).map((row) => [row.name, row.line])).toEqual([["Geometry.Worker.run", 14]]);
+      expect(rowsOf(nested).map((row) => [row.name, row.line])).toEqual([
+        ["Geometry.Worker.run", 14],
+      ]);
     });
 
     it("drops a local that only reads like a member: a function is not a container a name descends through", async () => {
       const h = harness();
       h.outline(h.main, [
-        sym(MAIN_TEXT, "scaled", 12, [20, "scaled"], [20, ";"], [20, "scaled"], [
-          sym(MAIN_TEXT, "compute", 13, [20, "compute"], [20, "("], [20, "compute"]),
-        ]),
+        sym(
+          MAIN_TEXT,
+          "scaled",
+          12,
+          [20, "scaled"],
+          [20, ";"],
+          [20, "scaled"],
+          [sym(MAIN_TEXT, "compute", 13, [20, "compute"], [20, "("], [20, "compute"])],
+        ),
       ]);
       h.index([indexed(h.main, "compute", 13, 20, 16, "scaled")]);
 
       const out = await h.run({ symbol: "scaled.compute", anchor: h.ws });
       expect(out.isError).toBe(true);
-      expect(textOf(out)).toContain('no declaration named "scaled.compute" was found in the whole workspace');
+      expect(textOf(out)).toContain(
+        'no declaration named "scaled.compute" was found in the whole workspace',
+      );
     });
 
     it("keeps a dotted row whose outline cannot be read, and says why in `pathUnverified`", async () => {
@@ -611,12 +705,17 @@ describe("runTsFindSymbol", () => {
       expect(rowsOf(unreadable)).toHaveLength(1);
       expect(rowsOf(unreadable)[0]).toMatchObject({ name: "Driver.run", line: 5 });
       expect(String(rowsOf(unreadable)[0]?.pathUnverified)).toMatch(/answered no outline/);
-      expect(textOf(unreadable)).toContain("path unverified: tsgo answered no outline for its file");
+      expect(textOf(unreadable)).toContain(
+        "path unverified: tsgo answered no outline for its file",
+      );
 
       const h2 = harness();
       h2.index([indexed(h2.main, "run", 6, 4, 2, "Driver")]);
       h2.hangOutline(h2.main);
-      const late = await runUntilBudgetExpires(() => h2.run({ symbol: "Driver.run", anchor: h2.ws, timeBudgetMs: 300 }), 300);
+      const late = await runUntilBudgetExpires(
+        () => h2.run({ symbol: "Driver.run", anchor: h2.ws, timeBudgetMs: 300 }),
+        300,
+      );
       expect(late.isError, textOf(late)).toBeFalsy();
       expect(String(rowsOf(late)[0]?.pathUnverified)).toMatch(/budget ran out before the outline/);
     });
@@ -630,9 +729,15 @@ describe("runTsFindSymbol", () => {
         indexed(ghost, "run", 6, 4, 2, "Driver"),
       ]);
       h.outline(h.shapeArea, [
-        sym(SHAPE_AREA_TEXT, "Driver", 5, [0, "area"], [2, "}"], [0, "area"], [
-          sym(SHAPE_AREA_TEXT, "run", 6, [0, "area"], [0, "area"], [0, "area"]),
-        ]),
+        sym(
+          SHAPE_AREA_TEXT,
+          "Driver",
+          5,
+          [0, "area"],
+          [2, "}"],
+          [0, "area"],
+          [sym(SHAPE_AREA_TEXT, "run", 6, [0, "area"], [0, "area"], [0, "area"])],
+        ),
       ]);
       h.failOutline(h.shapeArea, "boom: no outline");
 
@@ -648,7 +753,10 @@ describe("runTsFindSymbol", () => {
       const h = harness();
       h.hangInitialize();
 
-      const out = await runUntilBudgetExpires(() => h.run({ symbol: "area", anchor: h.ws, timeBudgetMs: 100 }), 100);
+      const out = await runUntilBudgetExpires(
+        () => h.run({ symbol: "area", anchor: h.ws, timeBudgetMs: 100 }),
+        100,
+      );
       expect(out.isError).toBe(true);
       expect(textOf(out)).toContain("100 ms budget");
       expect(textOf(out)).toContain("tsgo did not start");
@@ -721,7 +829,11 @@ describe("runTsFindSymbol", () => {
       const out = await h.run({ symbol: "area", anchor: h.ws });
       const rows = rowsOf(out);
       expect(rows).toHaveLength(3);
-      expect(rows[0]).toMatchObject({ file: h.area, external: false, container: "packages/ui/src/lib" });
+      expect(rows[0]).toMatchObject({
+        file: h.area,
+        external: false,
+        container: "packages/ui/src/lib",
+      });
       const external = rows.slice(1).map((row) => ({ ...row }));
       expect(external).toContainEqual({
         name: "area",
@@ -732,7 +844,9 @@ describe("runTsFindSymbol", () => {
         external: true,
         descriptionUnavailable: "outside the workspace root; not read",
       });
-      expect(external).toContainEqual(expect.objectContaining({ file: nodeModules, external: true, container: null }));
+      expect(external).toContainEqual(
+        expect.objectContaining({ file: nodeModules, external: true, container: null }),
+      );
       expect(hoveredPaths(h.server)).toEqual([h.area]);
       expect(openedPaths(h.server)).not.toContain(h.outside);
       expect(openedPaths(h.server)).not.toContain(nodeModules);
@@ -786,7 +900,9 @@ describe("runTsFindSymbol", () => {
       h.indexOfSize(TS_WORKSPACE_SYMBOL_CAP_WATERMARK, [indexed(h.main, "Nearby", 12, 3, 16)]);
       const capped = await h.run({ symbol: "Absent", anchor: h.ws });
       expect(capped.isError).toBe(true);
-      expect(textOf(capped)).toContain('no declaration named "Absent" was found in the whole workspace');
+      expect(textOf(capped)).toContain(
+        'no declaration named "Absent" was found in the whole workspace',
+      );
       expect(textOf(capped)).toContain("The match is exact, not fuzzy");
       expect(textOf(capped)).toContain("may have been ranked out of it");
 
@@ -801,9 +917,14 @@ describe("runTsFindSymbol", () => {
       h.index([indexed(h.area, "area", 12, 0, 16)]);
       h.hangHover();
 
-      const out = await runUntilBudgetExpires(() => h.run({ symbol: "area", anchor: h.ws, timeBudgetMs: 300 }), 300);
+      const out = await runUntilBudgetExpires(
+        () => h.run({ symbol: "area", anchor: h.ws, timeBudgetMs: 300 }),
+        300,
+      );
       expect(out.isError, textOf(out)).toBeFalsy();
-      expect(String(rowsOf(out)[0]?.descriptionUnavailable)).toMatch(/hover never arrived inside this call's 300 ms budget/);
+      expect(String(rowsOf(out)[0]?.descriptionUnavailable)).toMatch(
+        /hover never arrived inside this call's 300 ms budget/,
+      );
     });
 
     it("fails loudly on an index entry it cannot read rather than reporting fewer declarations", async () => {
@@ -820,7 +941,10 @@ describe("runTsFindSymbol", () => {
       const h = harness();
       h.hangSymbol();
 
-      const out = await runUntilBudgetExpires(() => h.run({ symbol: "area", anchor: h.ws, timeBudgetMs: 100 }), 100);
+      const out = await runUntilBudgetExpires(
+        () => h.run({ symbol: "area", anchor: h.ws, timeBudgetMs: 100 }),
+        100,
+      );
       expect(out.isError).toBe(true);
       expect(textOf(out)).toContain('search the workspace for "area"');
       expect(textOf(out)).toMatch(/do not read this as an empty answer/);
@@ -947,7 +1071,10 @@ describe("runTsFindSymbol", () => {
       const h = harness();
       h.index([indexed(h.area, "area", 12, 0, 16)]);
 
-      const out = await h.run({ symbol: "area", anchor: join(h.ws, "packages", "ui", "src", "lib") });
+      const out = await h.run({
+        symbol: "area",
+        anchor: join(h.ws, "packages", "ui", "src", "lib"),
+      });
       expect(out.isError, textOf(out)).toBeFalsy();
       expect(scopeOf(out)).toMatchObject({ workspaceRoot: h.ws, lookup: "workspace-symbol" });
     });
@@ -1014,9 +1141,14 @@ describe("runTsFindSymbol", () => {
 
     it("sets it on the elided run of members that reads `... N more ...`", async () => {
       const h = harness();
-      h.hovers({ [h.main]: hover("const scaled: {\n    a: 1;\n    ... 12 more ...;\n    z: 1;\n}") });
+      h.hovers({
+        [h.main]: hover("const scaled: {\n    a: 1;\n    ... 12 more ...;\n    z: 1;\n}"),
+      });
 
-      expect(rowsOf(await h.run({ symbol: "scaled" }))[0]).toHaveProperty("signatureTruncated", true);
+      expect(rowsOf(await h.run({ symbol: "scaled" }))[0]).toHaveProperty(
+        "signatureTruncated",
+        true,
+      );
     });
 
     it("leaves a rest parameter alone: `...args: T[]` is the signature, not an elision", async () => {

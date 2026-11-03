@@ -68,11 +68,10 @@ export type FindReferencesPayload = {
 export const GoFindReferencesInput = z.object({
   sourceRoots: GoSourceRootsSchema,
   file: GoDeclaringFileSchema,
-  symbol: NameInput
-    .describe(
-      "Exact name as declared at the top level of `file`; a method takes its receiver (`Concrete.Get` or " +
-        "`(*Concrete).Get`), and a bare `Get` means the package-level `Get`.",
-    ),
+  symbol: NameInput.describe(
+    "Exact name as declared at the top level of `file`; a method takes its receiver (`Concrete.Get` or " +
+      "`(*Concrete).Get`), and a bare `Get` means the package-level `Get`.",
+  ),
   includeDeclaration: z
     .boolean()
     .default(false)
@@ -100,7 +99,11 @@ function groupByFile(locations: readonly ReportedLocation[]): readonly Reference
   for (const location of locations) {
     const seen = byKey.get(location.key);
     if (seen === undefined) {
-      byKey.set(location.key, { file: location.file, external: location.external, sites: [location] });
+      byKey.set(location.key, {
+        file: location.file,
+        external: location.external,
+        sites: [location],
+      });
     } else {
       seen.sites.push(location);
     }
@@ -160,28 +163,35 @@ async function buildListing(
 
 function fileText(group: ReferenceFile): string {
   const where = group.external ? "outside the module" : "in the module";
-  const tail = group.sitesTruncated > 0 ? `, ${group.sitesTruncated} site(s) not listed` : "";
-  return `  ${group.file} - ${group.count} reference(s) ${where}${tail}`;
+  const tail =
+    group.sitesTruncated > 0 ? `, ${String(group.sitesTruncated)} site(s) not listed` : "";
+  return `  ${group.file} - ${String(group.count)} reference(s) ${where}${tail}`;
 }
 
 function siteText(site: ReferenceSite): string {
-  const column = site.column === null ? "" : `:${site.column}`;
-  return `    ${site.line}${column} in ${site.in ?? "<unnamed>"}${site.reason ? ` - ${site.reason}` : ""}`;
+  const column = site.column === null ? "" : `:${String(site.column)}`;
+  return `    ${String(site.line)}${column} in ${site.in ?? "<unnamed>"}${site.reason ? ` - ${site.reason}` : ""}`;
 }
 
 /** The same JSON, phrased once for a reader who will not parse it. */
 function humanSummary(payload: FindReferencesPayload): string {
   const { resolved, totalReferences, files, filesTruncated, scope } = payload;
   const sites = files.reduce((total, group) => total + group.sitesTruncated, 0);
-  const listing = files.map((group) => [fileText(group), ...group.sites.map(siteText)].join("\n")).join("\n");
+  const listing = files
+    .map((group) => [fileText(group), ...group.sites.map(siteText)].join("\n"))
+    .join("\n");
   const tail = capsText([
-    filesTruncated > 0 ? `${filesTruncated} file group(s) dropped by the ${REFERENCE_FILES_LIMIT}-file cap` : undefined,
-    sites > 0 ? `${sites} site(s) dropped by the ${REFERENCE_SITES_PER_FILE_LIMIT}-sites-per-file cap` : undefined,
+    filesTruncated > 0
+      ? `${String(filesTruncated)} file group(s) dropped by the ${String(REFERENCE_FILES_LIMIT)}-file cap`
+      : undefined,
+    sites > 0
+      ? `${String(sites)} site(s) dropped by the ${String(REFERENCE_SITES_PER_FILE_LIMIT)}-sites-per-file cap`
+      : undefined,
   ]);
   const head =
-    `References to ${resolved.kind} "${resolved.name}" (${resolved.file}:${resolved.line}) in module ` +
-    `"${scope.moduleRoot}"${environmentText(scope)} - ${totalReferences} reference(s) across ` +
-    `${files.length + filesTruncated} file(s), visibility: ${scope.visibility}, ` +
+    `References to ${resolved.kind} "${resolved.name}" (${resolved.file}:${String(resolved.line)}) in module ` +
+    `"${scope.moduleRoot}"${environmentText(scope)} - ${String(totalReferences)} reference(s) across ` +
+    `${String(files.length + filesTruncated)} file(s), visibility: ${scope.visibility}, ` +
     `freshness: ${freshnessText(scope.freshness)}${tail}.`;
   return `${head}\nlimits: ${scope.limits.join(", ")}${listing === "" ? "" : `\n${listing}`}`;
 }
@@ -193,9 +203,16 @@ export async function runGoFindReferences(
 ) {
   let resolution: ResolvedPath | undefined;
   try {
-    const opened = await openGoQuery(TOOL, sessions, input, deps, acceptAnyDeclaration, (resolved) => {
-      resolution = resolved;
-    });
+    const opened = await openGoQuery(
+      TOOL,
+      sessions,
+      input,
+      deps,
+      acceptAnyDeclaration,
+      (resolved) => {
+        resolution = resolved;
+      },
+    );
     if (!opened.ok) return errorResult(opened.error);
     const query = opened.value;
     const { file, moduleRoot, budget, session, symbols, picked } = query;
@@ -214,7 +231,13 @@ export async function runGoFindReferences(
       `answer the query for "${input.symbol}"`,
     );
     if (!answered.ok) return errorResult(answered.error);
-    const locations = toReported("gopls", TOOL, answered.value, outsideRoot(moduleRoot), input.symbol);
+    const locations = toReported(
+      "gopls",
+      TOOL,
+      answered.value,
+      outsideRoot(moduleRoot),
+      input.symbol,
+    );
     if (!locations.ok) return errorResult(locations.error);
 
     const { files, filesTruncated, sitesTruncated } = await buildListing(
@@ -224,7 +247,11 @@ export async function runGoFindReferences(
       symbols,
       budget,
     );
-    const scope = await navigationScope(query, "references", filesTruncated > 0 || sitesTruncated > 0);
+    const scope = await navigationScope(
+      query,
+      "references",
+      filesTruncated > 0 || sitesTruncated > 0,
+    );
     const payload: FindReferencesPayload = {
       resolved: picked.resolved,
       totalReferences: locations.value.length,

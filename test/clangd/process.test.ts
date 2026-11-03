@@ -46,6 +46,9 @@ describe("clangdConfig.argv", () => {
     expect(clangdConfig.argv("C:/build")).toEqual([
       "--compile-commands-dir=C:/build",
       "--background-index=true",
+      "--background-index-priority=low",
+      "--pch-storage=disk",
+      expect.stringMatching(/^-j=[1-9]\d*$/),
       "--log=error",
     ]);
   });

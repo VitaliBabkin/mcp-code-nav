@@ -178,7 +178,8 @@ function describeCall(result: TsExecResult): string {
   const detail = clip(result.stderr || result.stdout);
   const tail = detail === "" ? "" : `: ${detail}`;
   if (result.spawnCode !== undefined) return `did not answer (${result.spawnCode}${tail})`;
-  if (result.exitCode !== undefined && result.exitCode !== 0) return `exited with code ${result.exitCode}${tail}`;
+  if (result.exitCode !== undefined && result.exitCode !== 0)
+    return `exited with code ${String(result.exitCode)}${tail}`;
   return `answered nothing usable${tail}`;
 }
 
@@ -238,12 +239,18 @@ function findNativeExecutable(
 }
 
 /** The global `typescript@7` package directory and the version it states, or the reason there is neither. */
-function typescriptPackage(root: string, deps: ResolvedDeps): { dir: string; version: string } | TsgoBinaryMiss {
+function typescriptPackage(
+  root: string,
+  deps: ResolvedDeps,
+): { dir: string; version: string } | TsgoBinaryMiss {
   const dir = join(root, "typescript");
   const manifestPath = join(dir, PACKAGE_JSON);
   const manifest = deps.readJson(manifestPath);
   if (manifest === undefined) {
-    return miss(`the global package directory "${root}" has no readable typescript/package.json`, manifestPath);
+    return miss(
+      `the global package directory "${root}" has no readable typescript/package.json`,
+      manifestPath,
+    );
   }
   const version = asText(manifest.version).trim();
   const major = majorOf(version);
@@ -252,7 +259,7 @@ function typescriptPackage(root: string, deps: ResolvedDeps): { dir: string; ver
   }
   if (major < MINIMUM_TYPESCRIPT_MAJOR) {
     return miss(
-      `the typescript package at "${dir}" is version ${version}, which is below the ${MINIMUM_TYPESCRIPT_MAJOR}.x ` +
+      `the typescript package at "${dir}" is version ${version}, which is below the ${String(MINIMUM_TYPESCRIPT_MAJOR)}.x ` +
         "native server",
       dir,
     );
@@ -262,7 +269,12 @@ function typescriptPackage(root: string, deps: ResolvedDeps): { dir: string; ver
 
 /** `npm root -g`, or the miss naming how that question went unanswered. */
 async function askGlobalRoot(deps: ResolvedDeps): Promise<{ directory: string } | TsgoBinaryMiss> {
-  const result = await deps.exec(NPM_BINARY, ["root", "-g"], process.cwd(), withoutNpmPrefix(process.env));
+  const result = await deps.exec(
+    NPM_BINARY,
+    ["root", "-g"],
+    process.cwd(),
+    withoutNpmPrefix(process.env),
+  );
   const directory = result.stdout.trim();
   if (directory !== "" && deps.exists(directory)) return { directory };
   if (directory !== "") {
@@ -305,13 +317,19 @@ async function askVersion(executable: string, deps: ResolvedDeps): Promise<strin
 async function fromOverride(override: string, deps: ResolvedDeps): Promise<TsgoBinaryResult> {
   if (!deps.exists(override)) {
     return {
-      unavailable: unavailableMessage({ config: TSGO_IDENTITY, attempted: override, fromOverride: true }, "ENOENT"),
+      unavailable: unavailableMessage(
+        { config: TSGO_IDENTITY, attempted: override, fromOverride: true },
+        "ENOENT",
+      ),
       attempted: override,
     };
   }
-  const version = await versionBeside(override, deps) ?? await askVersion(override, deps);
+  const version = versionBeside(override, deps) ?? (await askVersion(override, deps));
   if (version === undefined) {
-    return miss(`${TSGO_IDENTITY.commandEnvOverride}="${override}" states no version beside it or to --version`, override);
+    return miss(
+      `${TSGO_IDENTITY.commandEnvOverride}="${override}" states no version beside it or to --version`,
+      override,
+    );
   }
   return { binary: { executable: override, version, source: "override" } };
 }
@@ -323,7 +341,9 @@ async function fromGlobal(deps: ResolvedDeps): Promise<TsgoBinaryResult> {
   if ("unavailable" in typescript) return typescript;
   const native = findNativeExecutable(typescript.dir, deps);
   if ("unavailable" in native) return native;
-  return { binary: { executable: native.executable, version: typescript.version, source: "global" } };
+  return {
+    binary: { executable: native.executable, version: typescript.version, source: "global" },
+  };
 }
 
 /**
@@ -332,7 +352,9 @@ async function fromGlobal(deps: ResolvedDeps): Promise<TsgoBinaryResult> {
  * of the process; a miss is asked again by the next call, because a search that failed
  * once is not a fact about the host.
  */
-export async function resolveTsgoBinary(deps: Partial<TsgoBinaryDeps> = {}): Promise<TsgoBinaryResult> {
+export async function resolveTsgoBinary(
+  deps: Partial<TsgoBinaryDeps> = {},
+): Promise<TsgoBinaryResult> {
   const resolved = resolveDeps(deps);
   const override = resolved.override;
   if (override !== undefined && override !== "") return fromOverride(override, resolved);

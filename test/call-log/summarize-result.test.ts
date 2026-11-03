@@ -47,16 +47,27 @@ const tsScope = {
 /** One realistic answer per tool, keyed by the tool the selector belongs to. */
 const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
   cpp_file_symbols: {
-    payload: { symbols: [{ name: "Foo", kind: "class", range: { startLine: 1, endLine: 3 } }, {}, {}] },
+    payload: {
+      symbols: [{ name: "Foo", kind: "class", range: { startLine: 1, endLine: 3 } }, {}, {}],
+    },
     results: 3,
   },
   go_file_symbols: { payload: { symbols: [] }, results: 0 },
   cpp_find_symbol: {
-    payload: { name: "Foo", kind: "class", file: "D:\\src\\a.cpp", range: { startLine: 1, endLine: 3 }, scope: cppScope },
+    payload: {
+      name: "Foo",
+      kind: "class",
+      file: "D:\\src\\a.cpp",
+      range: { startLine: 1, endLine: 3 },
+      scope: cppScope,
+    },
     results: 1,
   },
   go_find_symbol: {
-    payload: { declarations: [{ name: "Store" }, { name: "Open" }, { name: "Close" }], scope: { ...goScope, lookup: "workspace-symbol" } },
+    payload: {
+      declarations: [{ name: "Store" }, { name: "Open" }, { name: "Close" }],
+      scope: { ...goScope, lookup: "workspace-symbol" },
+    },
     results: 3,
   },
   cpp_find_references: {
@@ -83,9 +94,23 @@ const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
     payload: {
       resolved: { name: "Run", kind: "function", file: "D:\\src\\a.cpp", line: 8 },
       totalCallers: 2,
-      callers: [{ name: "Main", kind: "function", file: "D:\\src\\b.cpp", line: 3, external: false, callSites: [], callSitesTruncated: 0 }, {}],
+      callers: [
+        {
+          name: "Main",
+          kind: "function",
+          file: "D:\\src\\b.cpp",
+          line: 3,
+          external: false,
+          callSites: [],
+          callSitesTruncated: 0,
+        },
+        {},
+      ],
       callersTruncated: 0,
-      scope: { ...cppScope, limits: ["compile-database-only", "indirect-dispatch-not-resolved", "listing-capped"] },
+      scope: {
+        ...cppScope,
+        limits: ["compile-database-only", "indirect-dispatch-not-resolved", "listing-capped"],
+      },
     },
     results: 2,
   },
@@ -104,7 +129,13 @@ const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
       derivation: "transitive",
       matches: [{ className: "Widget", file: "D:\\src\\w.cpp", line: 4, column: 7, direct: false }],
       counts: { transitive: 1, direct: 1 },
-      sweep: { totalTus: 9, cachedTus: 4, elapsedMs: 320, cache: "partial", uncoveredSources: { count: 0, files: [] } },
+      sweep: {
+        totalTus: 9,
+        cachedTus: 4,
+        elapsedMs: 320,
+        cache: "partial",
+        uncoveredSources: { count: 0, files: [] },
+      },
     },
     results: 1,
   },
@@ -112,15 +143,25 @@ const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
     payload: {
       resolved: { name: "Store", kind: "interface", file: "D:\\mod\\s.go", line: 4 },
       direction: "implementers-of-interface",
-      implementations: [{ name: "PgStore", kind: "struct", file: "D:\\mod\\pg.go", line: 9, external: false }],
+      implementations: [
+        { name: "PgStore", kind: "struct", file: "D:\\mod\\pg.go", line: 9, external: false },
+      ],
       truncated: 0,
-      scope: { moduleRoot: "D:\\mod", freshness: { kind: "unchanged" }, environment: goScope.environment, osArchExcluded: goScope.osArchExcluded },
+      scope: {
+        moduleRoot: "D:\\mod",
+        freshness: { kind: "unchanged" },
+        environment: goScope.environment,
+        osArchExcluded: goScope.osArchExcluded,
+      },
     },
     results: 1,
   },
   ts_file_symbols: { payload: { symbols: [{ name: "Driver" }, { name: "run" }] }, results: 2 },
   ts_find_symbol: {
-    payload: { declarations: [{ name: "Driver" }, { name: "Driver" }, { name: "Driver" }], scope: { ...tsScope, lookup: "workspace-symbol" } },
+    payload: {
+      declarations: [{ name: "Driver" }, { name: "Driver" }, { name: "Driver" }],
+      scope: { ...tsScope, lookup: "workspace-symbol" },
+    },
     results: 3,
   },
   ts_find_references: {
@@ -146,7 +187,9 @@ const REAL_ANSWERS: Record<string, { payload: unknown; results: number }> = {
   ts_find_implementations: {
     payload: {
       resolved: { name: "Storage", kind: "interface", file: "D:\\ws\\a.ts", line: 1 },
-      implementations: [{ name: "Driver", kind: "class", file: "D:\\ws\\d.ts", line: 2, external: false }],
+      implementations: [
+        { name: "Driver", kind: "class", file: "D:\\ws\\d.ts", line: 2, external: false },
+      ],
       truncated: 0,
       scope: tsScope,
     },
@@ -165,7 +208,10 @@ describe("each result-count selector against the payload its own tool answers wi
     const root = mkdtempSync(join(tmpdir(), "mcp-code-nav-sel-"));
     tempDirs.push(root);
     writeFileSync(join(root, "a.cpp"), "class Base {};\n");
-    writeFileSync(join(root, "compile_commands.json"), JSON.stringify([{ directory: root, file: "a.cpp" }]));
+    writeFileSync(
+      join(root, "compile_commands.json"),
+      JSON.stringify([{ directory: root, file: "a.cpp" }]),
+    );
 
     const out = await runCppFindDerivedClasses(
       { exec: cleanExec, cache: new SweepCache() },
@@ -200,7 +246,10 @@ describe("pickArgs", () => {
   });
 
   it("caps a string at 300 characters and an array at 20 entries", () => {
-    const picked = pickArgs({ file: "x".repeat(400), sourceRoots: Array.from({ length: 40 }, (_u, i) => `r${i}`) });
+    const picked = pickArgs({
+      file: "x".repeat(400),
+      sourceRoots: Array.from({ length: 40 }, (_u, i) => `r${i}`),
+    });
 
     expect(picked.args.file).toHaveLength(300);
     expect(picked.args.sourceRoots).toHaveLength(20);
@@ -208,7 +257,11 @@ describe("pickArgs", () => {
   });
 
   it("keeps an array of non-strings out of the record entirely, naming it instead", () => {
-    const picked = pickArgs({ files: [{ path: "a.cpp" }], mixed: [1, "a"], sourceRoots: ["a", "b"] });
+    const picked = pickArgs({
+      files: [{ path: "a.cpp" }],
+      mixed: [1, "a"],
+      sourceRoots: ["a", "b"],
+    });
 
     expect(picked.argKeys).toEqual(["files", "mixed"]);
     expect(picked.args.sourceRoots).toEqual(["a", "b"]);
@@ -271,7 +324,12 @@ describe("withinRecordCap", () => {
   });
 
   it("drops the arguments whole when the record would pass 4 KiB", () => {
-    const fat = record({ args: { projectRoot: "p".repeat(300), files: Array.from({ length: 20 }, () => "f".repeat(300)) } });
+    const fat = record({
+      args: {
+        projectRoot: "p".repeat(300),
+        files: Array.from({ length: 20 }, () => "f".repeat(300)),
+      },
+    });
     const capped = withinRecordCap(fat);
 
     expect(capped.args).toEqual({});
@@ -298,7 +356,14 @@ describe("summarizeCall", () => {
   const message = (result: Record<string, unknown>) => ({ jsonrpc: "2.0", id: 1, result });
 
   it("calls an answer without `isError` ok and reads nothing as an error", () => {
-    const summary = summarizeCall("cpp_find_symbol", message({ content: [{ type: "text", text: "found" }], structuredContent: { name: "Foo", scope: cppScope } }), {});
+    const summary = summarizeCall(
+      "cpp_find_symbol",
+      message({
+        content: [{ type: "text", text: "found" }],
+        structuredContent: { name: "Foo", scope: cppScope },
+      }),
+      {},
+    );
 
     expect(summary).toMatchObject({
       outcome: "ok",
@@ -317,7 +382,11 @@ describe("summarizeCall", () => {
   it("calls `isError` with a payload partial, which is what a stopped sweep answers with", () => {
     const summary = summarizeCall(
       "cpp_find_derived_classes",
-      message({ content: [{ type: "text", text: "stopped" }], structuredContent: REAL_ANSWERS.cpp_find_derived_classes?.payload, isError: true }),
+      message({
+        content: [{ type: "text", text: "stopped" }],
+        structuredContent: REAL_ANSWERS.cpp_find_derived_classes?.payload,
+        isError: true,
+      }),
       { projectRoot: "D:\\build" },
     );
 
@@ -349,19 +418,36 @@ describe("summarizeCall", () => {
   });
 
   it("counts the bytes a caller read, in UTF-8 rather than in code units", () => {
-    const summary = summarizeCall("cpp_file_symbols", message({ content: [{ type: "text", text: "Ω Ω" }] }), {});
+    const summary = summarizeCall(
+      "cpp_file_symbols",
+      message({ content: [{ type: "text", text: "Ω Ω" }] }),
+      {},
+    );
 
     expect(summary.textBytes).toBe(5);
   });
 
   it("ignores content blocks that are not text", () => {
-    const summary = summarizeCall("cpp_file_symbols", message({ content: [{ type: "image", data: "AAA" }, { type: "text", text: "x" }] }), {});
+    const summary = summarizeCall(
+      "cpp_file_symbols",
+      message({
+        content: [
+          { type: "image", data: "AAA" },
+          { type: "text", text: "x" },
+        ],
+      }),
+      {},
+    );
 
     expect(summary.textBytes).toBe(1);
   });
 
   it("reads a JSON-RPC error response as protocol-error and derives nothing from a payload", () => {
-    const summary = summarizeCall("cpp_file_symbols", { jsonrpc: "2.0", id: 1, error: { code: -32603, message: "Input validation error: nope" } }, {});
+    const summary = summarizeCall(
+      "cpp_file_symbols",
+      { jsonrpc: "2.0", id: 1, error: { code: -32603, message: "Input validation error: nope" } },
+      {},
+    );
 
     expect(summary).toMatchObject({
       outcome: "protocol-error",
@@ -376,7 +462,13 @@ describe("summarizeCall", () => {
   });
 
   it("answers nothing at all, and never throws, for a message that is neither", () => {
-    for (const response of [undefined, null, "text", [], { jsonrpc: "2.0", method: "notifications/progress" }]) {
+    for (const response of [
+      undefined,
+      null,
+      "text",
+      [],
+      { jsonrpc: "2.0", method: "notifications/progress" },
+    ]) {
       expect(() => summarizeCall("cpp_file_symbols", response, {})).not.toThrow();
     }
     expect(summarizeCall("cpp_file_symbols", undefined, {}).outcome).toBe("ok");
@@ -385,7 +477,13 @@ describe("summarizeCall", () => {
   it("keeps a state a newer payload invented out of an enum field", () => {
     const summary = summarizeCall(
       "cpp_find_derived_classes",
-      message({ structuredContent: { matches: [], sweep: { cache: "rebuild" }, scope: { index: { state: "warming" }, limits: ["listing-capped", 7] } } }),
+      message({
+        structuredContent: {
+          matches: [],
+          sweep: { cache: "rebuild" },
+          scope: { index: { state: "warming" }, limits: ["listing-capped", 7] },
+        },
+      }),
       {},
     );
 
@@ -398,34 +496,69 @@ describe("summarizeCall", () => {
   it("takes a TS answer's project from its workspace root, else the first declared root", () => {
     const answer = message({ structuredContent: { declarations: [], scope: tsScope } });
 
-    expect(summarizeCall("ts_find_symbol", answer, { sourceRoots: ["D:\\ws\\packages"] }).project).toBe("D:\\ws");
     expect(
-      summarizeCall("ts_find_symbol", message({ structuredContent: { declarations: [] } }), { sourceRoots: ["D:\\ws\\packages"] }).project,
+      summarizeCall("ts_find_symbol", answer, { sourceRoots: ["D:\\ws\\packages"] }).project,
+    ).toBe("D:\\ws");
+    expect(
+      summarizeCall("ts_find_symbol", message({ structuredContent: { declarations: [] } }), {
+        sourceRoots: ["D:\\ws\\packages"],
+      }).project,
     ).toBe("D:\\ws\\packages");
   });
 
   it("takes the project from the C++ argument, then the Go module, then the first declared root", () => {
     const goAnswer = message({ structuredContent: { declarations: [], scope: goScope } });
 
-    expect(summarizeCall("cpp_find_symbol", message({ structuredContent: { name: "F" } }), { projectRoot: "D:\\b" }).project).toBe("D:\\b");
-    expect(summarizeCall("go_find_symbol", goAnswer, { sourceRoots: ["D:\\mod"] }).project).toBe("D:\\mod");
-    expect(summarizeCall("go_find_symbol", message({ structuredContent: { declarations: [] } }), { sourceRoots: ["D:\\mod", "D:\\other"] }).project).toBe("D:\\mod");
-    expect(summarizeCall("go_find_symbol", message({ structuredContent: { declarations: [] } }), {}).project).toBeNull();
-    expect(summarizeCall("go_find_symbol", goAnswer, { sourceRoots: [3] as never }).project).toBe("D:\\mod");
+    expect(
+      summarizeCall("cpp_find_symbol", message({ structuredContent: { name: "F" } }), {
+        projectRoot: "D:\\b",
+      }).project,
+    ).toBe("D:\\b");
+    expect(summarizeCall("go_find_symbol", goAnswer, { sourceRoots: ["D:\\mod"] }).project).toBe(
+      "D:\\mod",
+    );
+    expect(
+      summarizeCall("go_find_symbol", message({ structuredContent: { declarations: [] } }), {
+        sourceRoots: ["D:\\mod", "D:\\other"],
+      }).project,
+    ).toBe("D:\\mod");
+    expect(
+      summarizeCall("go_find_symbol", message({ structuredContent: { declarations: [] } }), {})
+        .project,
+    ).toBeNull();
+    expect(summarizeCall("go_find_symbol", goAnswer, { sourceRoots: [3] as never }).project).toBe(
+      "D:\\mod",
+    );
   });
 
   it("caps the root a payload names, so a record cannot be filled by one path", () => {
     const long = "p".repeat(900);
 
     expect(
-      summarizeCall("cpp_find_symbol", message({ structuredContent: { name: "F", scope: { ...cppScope, projectRoot: long } } }), {}).project,
+      summarizeCall(
+        "cpp_find_symbol",
+        message({ structuredContent: { name: "F", scope: { ...cppScope, projectRoot: long } } }),
+        {},
+      ).project,
     ).toHaveLength(300);
     expect(
-      summarizeCall("go_find_symbol", message({ structuredContent: { declarations: [], scope: { ...goScope, moduleRoot: long } } }), {}).project,
+      summarizeCall(
+        "go_find_symbol",
+        message({
+          structuredContent: { declarations: [], scope: { ...goScope, moduleRoot: long } },
+        }),
+        {},
+      ).project,
     ).toHaveLength(300);
   });
 
   it("has no selector entry for a tool the server does not have, and answers null", () => {
-    expect(summarizeCall("no_such_tool", message({ content: [], structuredContent: { symbols: [{}] } }), {}).results).toBeNull();
+    expect(
+      summarizeCall(
+        "no_such_tool",
+        message({ content: [], structuredContent: { symbols: [{}] } }),
+        {},
+      ).results,
+    ).toBeNull();
   });
 });

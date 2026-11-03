@@ -22,6 +22,12 @@ That is your fork (step 1 below). Maintainers clone https://github.com/VitaliBab
 Run the server from source with `npm run dev` (watches `src/`), or build it with `npm run build` and point an MCP client
 at `dist/index.js` (see the README). `npm run bundle` writes a single self-contained file to `dist-bundle/index.js`.
 
+`npm run deploy` installs the bundle as `~/.mcp/mcp-code-nav/index.js`, the copy an MCP client should run, so a branch
+switch or a half-finished build here never changes a connected server. It refuses a tree with uncommitted changes
+(`--allow-dirty` deploys one with a warning), keeps the file it replaces as `index.js.bak`, proves the installed copy by
+a handshake that must report the build just made (the old file is restored when it does not), and prints the deployed
+identity. Running sessions pick the new copy up when they restart.
+
 ## Branch and pull request
 
 Steps 1 and 5 belong to the human contributor. An assistant works in the checkout it was given, does steps 2-4, and
@@ -41,28 +47,31 @@ an unrequested commit or branch has to be undone by hand.
 5. Open a pull request against `main` with that report: what changed and why, which rule in `PRINCIPLES.md` it touches
    if any, and how you checked it (which tools the live suite ran against).
 
-CI runs the three gates on Linux (Node 20 and 22) and Windows (Node 22). It also runs the live suite on Linux; that job
+CI runs the four gates on Linux (Node 20 and 22) and Windows (Node 22). It also runs the live suite on Linux; that job
 is advisory (`continue-on-error` in `.github/workflows/ci.yml`) and a maintainer reads its result. A pull
-request merges when the three-gate jobs are green and a maintainer has approved it.
+request merges when the four-gate jobs are green and a maintainer has approved it.
 
 ## Gates
 
-Three gates must pass locally before a change is reported done. They supplement CI, which also covers Node 20 and
+Four gates must pass locally before a change is reported done. They supplement CI, which also covers Node 20 and
 Windows.
 
-| Command             | What it checks                                                                          |
-| ------------------- | --------------------------------------------------------------------------------------- |
-| `npm run lint`      | ESLint over `src` and `scripts`: at most 150 lines per function, cognitive complexity 25 |
-| `npm run typecheck` | `tsc --noEmit` for `src`, then `tsc -p tsconfig.scripts.json` for `scripts`             |
-| `npm test`          | The default suite (vitest). Needs only Node; no language server is started              |
+| Command                | What it checks                                                                               |
+| ---------------------- | -------------------------------------------------------------------------------------------- |
+| `npm run format:check` | Biome formatting of the TypeScript, JavaScript and JSON files; `npm run format` fixes it      |
+| `npm run lint`         | ESLint over `src` and `scripts`: typescript-eslint `strictTypeChecked`, at most 150 lines per function, cognitive complexity 25 |
+| `npm run typecheck`    | `tsc --noEmit` for `src`, then `tsc -p tsconfig.scripts.json` for `scripts`                  |
+| `npm test`             | The default suite (vitest). Needs only Node; no language server is started                   |
 
-A docs-only change needs no gate. A conditional fourth check, `npm run test:live`, runs the same code paths against the
+A docs-only change needs no gate. A conditional fifth check, `npm run test:live`, runs the same code paths against the
 real tools; run it when the change touches behaviour that depends on a real binary (see Tests).
 
 Lint and typecheck cover `src` and `scripts`; test files are checked only by running them.
 
-There is no formatter. Match the surrounding code: two-space indent, double quotes, semicolons, trailing commas in
-multi-line literals, `node:` prefix on Node built-ins, `.js` extensions in relative imports.
+Biome formats (`biome.json`: two spaces, width 100, double quotes) and its linter is off; ESLint lints. Existing lint
+debt sits in `eslint-suppressions.json`: a new violation fails, and a fixed one is pruned with
+`npx eslint src scripts --prune-suppressions` in the same change. Keep the `node:` prefix on Node built-ins and `.js`
+extensions in relative imports.
 
 Aim for functions under 80 lines; 150 is the hard lint limit. Count lines the way the lint rule does (blank lines and
 comments excluded). A function already over 80 lines takes no new behaviour: put it in its own named function. A fix
@@ -105,7 +114,7 @@ when `clang-cl` is not on `PATH`; the CI runners have none, so those cases run o
 ## Releasing
 
 A maintainer cuts a release by pushing a tag `vX.Y.Z` on a commit of `main` whose `package.json` version is `X.Y.Z` and
-whose CI is green. `.github/workflows/release.yml` then runs the three gates, fails when the tag and the version differ,
+whose CI is green. `.github/workflows/release.yml` then runs the four gates, fails when the tag and the version differ,
 bundles the server, checks that the bundle starts (`scripts/check-bundle.cjs`), attests its provenance and publishes a
 GitHub Release with `mcp-code-nav.js` and `SHA256SUMS`.
 

@@ -46,7 +46,13 @@ const range = (startLine: number, endLine: number) => ({
 });
 
 /** A callable as a call hierarchy states it: its own declaration range, and where its name is. */
-const hierarchyItem = (name: string, kind: number, file: string, startLine: number, nameLine: number) => ({
+const hierarchyItem = (
+  name: string,
+  kind: number,
+  file: string,
+  startLine: number,
+  nameLine: number,
+) => ({
   name,
   kind,
   uri: fileUri(file),
@@ -94,7 +100,10 @@ describe("cpp_find_callers against a faked clangd", () => {
     widget = join(sourceDir, "widget.cpp");
     helper = join(sourceDir, "helper.cpp");
     elsewhere = join(outsideDir, "elsewhere.cpp");
-    writeFileSync(widget, "class Widget {\npublic:\n  int value();\n};\n\nint Widget::value() {\n  return helper()\n    + helper()\n    + helper();\n}\n");
+    writeFileSync(
+      widget,
+      "class Widget {\npublic:\n  int value();\n};\n\nint Widget::value() {\n  return helper()\n    + helper()\n    + helper();\n}\n",
+    );
     writeFileSync(helper, "int helper() {\n  return 1;\n}\n");
     writeFileSync(elsewhere, "int elsewhere() { return helper(); }\n");
     writeFileSync(
@@ -119,7 +128,10 @@ describe("cpp_find_callers against a faked clangd", () => {
       {
         name: "helper",
         kind: 12,
-        location: { uri: fileUri(helper), range: { start: { line: 2, character: 4 }, end: { line: 2, character: 10 } } },
+        location: {
+          uri: fileUri(helper),
+          range: { start: { line: 2, character: 4 }, end: { line: 2, character: 10 } },
+        },
       },
     ];
     onIndex = [];
@@ -253,7 +265,11 @@ describe("cpp_find_callers against a faked clangd", () => {
 
       const found = payload(await run());
 
-      expect(found.callers[0]).toMatchObject({ file: widget, name: "Widget::value", kind: "function" });
+      expect(found.callers[0]).toMatchObject({
+        file: widget,
+        name: "Widget::value",
+        kind: "function",
+      });
       expect(found.callers[0]?.reason).toBeUndefined();
     } finally {
       vi.useRealTimers();
@@ -272,7 +288,10 @@ describe("cpp_find_callers against a faked clangd", () => {
     // The second entry repeats the first declaration, so it adds a site; the third is a different
     // declaration in the same file — and, at line 3, one that sits in the class and not in its member.
     expect(found.totalCallers).toBe(2);
-    expect(found.callers.map((row) => `${row.name}:${row.line}`)).toEqual(["Widget::value:6", "Widget:3"]);
+    expect(found.callers.map((row) => `${row.name}:${row.line}`)).toEqual([
+      "Widget::value:6",
+      "Widget:3",
+    ]);
     expect(found.callers[1]?.callSites).toEqual([{ line: 4, column: 3 }]);
   });
 
@@ -300,7 +319,9 @@ describe("cpp_find_callers against a faked clangd", () => {
     expect(textOf(failed)).toContain("a class is not called, so no one calls it");
     expect(textOf(failed)).toContain("Ask `cpp_find_references` for where it is used instead");
     // The refusal comes before the hierarchy: a class has no callers to ask about, so clangd is not asked.
-    expect(server.requests.some(([method]) => method === "textDocument/prepareCallHierarchy")).toBe(false);
+    expect(server.requests.some(([method]) => method === "textDocument/prepareCallHierarchy")).toBe(
+      false,
+    );
   });
 
   it("refuses a call hierarchy that prepared nothing rather than answering nobody calls it", async () => {
@@ -322,10 +343,12 @@ describe("cpp_find_callers against a faked clangd", () => {
     const failed = await run();
 
     expect(failed.isError).toBe(true);
-    expect(textOf(failed)).toContain("clangd offered 2 call-hierarchy items for \"helper\"");
+    expect(textOf(failed)).toContain('clangd offered 2 call-hierarchy items for "helper"');
     expect(textOf(failed)).toContain("  - helper (function) at ");
     expect(textOf(failed)).toMatch(/helper \(function\) at .*:10$/m);
-    expect(server.requests.some(([method]) => method === "callHierarchy/incomingCalls")).toBe(false);
+    expect(server.requests.some(([method]) => method === "callHierarchy/incomingCalls")).toBe(
+      false,
+    );
   });
 
   it("refuses an entry it cannot read as a caller rather than dropping part of the listing", async () => {
@@ -413,7 +436,15 @@ describe("cpp_find_callers against a faked clangd", () => {
     const extras = Array.from({ length: 45 }, (_, index) =>
       incoming(`caller${index}`, join(outsideDir, `c${index}.cpp`), 1, [1]),
     );
-    callers = [incoming("value", widget, 5, Array.from({ length: 25 }, (_, index) => index + 10)), ...extras];
+    callers = [
+      incoming(
+        "value",
+        widget,
+        5,
+        Array.from({ length: 25 }, (_, index) => index + 10),
+      ),
+      ...extras,
+    ];
 
     const found = payload(await run());
     const first = found.callers[0];
@@ -452,7 +483,13 @@ describe("cpp_find_callers against a faked clangd", () => {
   it("states the scope exactly, with no freshness key", async () => {
     const built = scope(await run());
 
-    expect(Object.keys(built).sort()).toEqual(["index", "limits", "projectRoot", "sourceRoots", "uncoveredSources"]);
+    expect(Object.keys(built).sort()).toEqual([
+      "index",
+      "limits",
+      "projectRoot",
+      "sourceRoots",
+      "uncoveredSources",
+    ]);
     expect(built.projectRoot).toBe(buildDir);
     expect(built.freshness).toBeUndefined();
     // A first call over these roots cannot say what moved, and its index state is unobserved: both codes,
@@ -468,7 +505,9 @@ describe("cpp_find_callers against a faked clangd", () => {
   it("asks the hierarchy about the declaration it resolved, at the position of its own name", async () => {
     await run();
 
-    const request = server.requests.find(([method]) => method === "textDocument/prepareCallHierarchy");
+    const request = server.requests.find(
+      ([method]) => method === "textDocument/prepareCallHierarchy",
+    );
 
     expect(request?.[1]).toMatchObject({
       textDocument: { uri: fileUri(helper) },
@@ -492,7 +531,9 @@ describe("cpp_find_callers against a faked clangd", () => {
     // of. The journal is the proof the window covers all of it, because the state beside the answer is
     // latched across exactly that span.
     const journal = server.journal;
-    expect(journal.indexOf("req:workspace/symbol")).toBeLessThan(journal.indexOf("req:textDocument/prepareCallHierarchy"));
+    expect(journal.indexOf("req:workspace/symbol")).toBeLessThan(
+      journal.indexOf("req:textDocument/prepareCallHierarchy"),
+    );
     expect(journal.indexOf("req:textDocument/prepareCallHierarchy")).toBeLessThan(
       journal.indexOf("req:callHierarchy/incomingCalls"),
     );
@@ -509,12 +550,18 @@ describe("cpp_find_callers against a faked clangd", () => {
 
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toContain('no declaration named "Gone" was found in clangd\'s index');
-    expect(server.requests.some(([method]) => method === "textDocument/prepareCallHierarchy")).toBe(false);
+    expect(server.requests.some(([method]) => method === "textDocument/prepareCallHierarchy")).toBe(
+      false,
+    );
   });
 
   it("leaves nothing it resolved through the index in the session's opened set", async () => {
     const unscoped = () =>
-      runCppFindCallers(sessions, { projectRoot: buildDir, name: "helper", sourceRoots: [sourceDir] } as never);
+      runCppFindCallers(sessions, {
+        projectRoot: buildDir,
+        name: "helper",
+        sourceRoots: [sourceDir],
+      } as never);
 
     const built = await unscoped();
     expect(payload(built).resolved.name).toBe("helper");
@@ -556,7 +603,9 @@ describe("cpp_find_callers against a faked clangd", () => {
     expect(failed.isError).toBe(true);
     expect(textOf(failed)).toContain("outside every declared source root");
     expect(textOf(failed)).toContain("reported and never opened");
-    expect(server.requests.some(([method]) => method === "textDocument/prepareCallHierarchy")).toBe(false);
+    expect(server.requests.some(([method]) => method === "textDocument/prepareCallHierarchy")).toBe(
+      false,
+    );
     expect(
       server.notifications
         .filter(([method]) => method === "textDocument/didOpen")

@@ -125,7 +125,9 @@ function byProducts(
   return {
     sourceTus: state.sourceRoots.length === 0 ? undefined : state.sourceTus,
     walkIncomplete: state.walkIncomplete,
-    unreachableSourceRoots: dropped.filter(({ key }) => !state.visited.has(key)).map(({ root }) => root),
+    unreachableSourceRoots: dropped
+      .filter(({ key }) => !state.visited.has(key))
+      .map(({ root }) => root),
   };
 }
 
@@ -180,7 +182,7 @@ export function computeProjectFingerprint(
 
   if (isBounded(state)) {
     return {
-      reason: `directory walk enumerated more than ${state.maxEntries} entries — caching disabled for this call`,
+      reason: `directory walk enumerated more than ${String(state.maxEntries)} entries — caching disabled for this call`,
       entriesScanned: state.entriesScanned,
       ...collected,
     };

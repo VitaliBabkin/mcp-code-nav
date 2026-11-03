@@ -1,6 +1,14 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -149,102 +157,139 @@ describe("clangd's own index on disk, against a real clangd binary", () => {
     return manager;
   }
 
-  itIfClangd("puts its index under the directory the client is rooted at, not the source tree", async () => {
-    const buildDir = join(tmp, "out", "build");
-    const sourceDir = join(tmp, "src");
-    writeProject(sourceDir, buildDir, ["Alpha", "Beta", "Gamma", "Delta"]);
-    const source = join(sourceDir, "Alpha.cpp");
-    const database = join(buildDir, "compile_commands.json");
-    const before = { source: digest(source), database: digest(database), sources: tree(sourceDir), build: tree(buildDir) };
+  itIfClangd(
+    "puts its index under the directory the client is rooted at, not the source tree",
+    async () => {
+      const buildDir = join(tmp, "out", "build");
+      const sourceDir = join(tmp, "src");
+      writeProject(sourceDir, buildDir, ["Alpha", "Beta", "Gamma", "Delta"]);
+      const source = join(sourceDir, "Alpha.cpp");
+      const database = join(buildDir, "compile_commands.json");
+      const before = {
+        source: digest(source),
+        database: digest(database),
+        sources: tree(sourceDir),
+        build: tree(buildDir),
+      };
 
-    const outlined = await runCppFileSymbols(freshManager(), {
-      projectRoot: buildDir,
-      file: source,
-      sourceRoots: [sourceDir],
-      depth: 2,
-    });
-    expect(outlined.isError).toBeFalsy();
+      const outlined = await runCppFileSymbols(freshManager(), {
+        projectRoot: buildDir,
+        file: source,
+        sourceRoots: [sourceDir],
+        depth: 2,
+      });
+      expect(outlined.isError).toBeFalsy();
 
-    const appearedInBuild = await settled(() => existsSync(join(buildDir, ".cache", "clangd")), 45_000);
-    const appearedInSource = existsSync(join(sourceDir, ".cache", "clangd"));
+      const appearedInBuild = await settled(
+        () => existsSync(join(buildDir, ".cache", "clangd")),
+        45_000,
+      );
+      const appearedInSource = existsSync(join(sourceDir, ".cache", "clangd"));
 
-    expect(appearedInBuild, "no .cache/clangd appeared under the build directory").toBe(true);
-    expect(appearedInSource, "clangd wrote an index into the source tree as well").toBe(false);
-    // Whatever appeared is the index directory and nothing else: no object files, no lock, no stray.
-    expect(tree(buildDir).filter((p) => !before.build.includes(p)).map((p) => p.split("/")[0]))
-      .toEqual(expect.arrayContaining([".cache"]));
-    expect(tree(buildDir).filter((p) => !before.build.includes(p) && !p.startsWith(".cache"))).toEqual([]);
-    expect(tree(sourceDir).filter((p) => !before.sources.includes(p))).toEqual([]);
-    // The caller's own bytes are untouched: a compile database and a source that came back identical.
-    expect(digest(source)).toBe(before.source);
-    expect(digest(database)).toBe(before.database);
-  }, 120_000);
+      expect(appearedInBuild, "no .cache/clangd appeared under the build directory").toBe(true);
+      expect(appearedInSource, "clangd wrote an index into the source tree as well").toBe(false);
+      // Whatever appeared is the index directory and nothing else: no object files, no lock, no stray.
+      expect(
+        tree(buildDir)
+          .filter((p) => !before.build.includes(p))
+          .map((p) => p.split("/")[0]),
+      ).toEqual(expect.arrayContaining([".cache"]));
+      expect(
+        tree(buildDir).filter((p) => !before.build.includes(p) && !p.startsWith(".cache")),
+      ).toEqual([]);
+      expect(tree(sourceDir).filter((p) => !before.sources.includes(p))).toEqual([]);
+      // The caller's own bytes are untouched: a compile database and a source that came back identical.
+      expect(digest(source)).toBe(before.source);
+      expect(digest(database)).toBe(before.database);
+    },
+    120_000,
+  );
 
-  itIfClangd("writes shards and its own .gitignore beside them, which is what keeps the caller's status clean", async () => {
-    const project = join(tmp, "in-tree");
-    writeProject(project, project, ["Alpha", "Beta", "Gamma"]);
+  itIfClangd(
+    "writes shards and its own .gitignore beside them, which is what keeps the caller's status clean",
+    async () => {
+      const project = join(tmp, "in-tree");
+      writeProject(project, project, ["Alpha", "Beta", "Gamma"]);
 
-    const outlined = await runCppFileSymbols(freshManager(), {
-      projectRoot: project,
-      file: join(project, "Alpha.cpp"),
-      sourceRoots: [project],
-      depth: 2,
-    });
-    expect(outlined.isError).toBeFalsy();
+      const outlined = await runCppFileSymbols(freshManager(), {
+        projectRoot: project,
+        file: join(project, "Alpha.cpp"),
+        sourceRoots: [project],
+        depth: 2,
+      });
+      expect(outlined.isError).toBeFalsy();
 
-    // Waits for the shard this case then names: clangd indexes its TUs in its own order, so waiting for any
-    // shard to appear and asserting afterwards that Alpha's is among them races the very next line. `tree`
-    // answers relative to the directory it was given, so the predicate matches on the name alone.
-    const indexed = await settled(
-      () => tree(join(project, ".cache")).some((p) => p.endsWith(".idx") && p.includes("Alpha.cpp.")),
-      45_000,
-    );
-    const entries = tree(project).filter((p) => p.startsWith(".cache"));
-    const shards = entries.filter((p) => p.endsWith(".idx"));
-    const ignoreFile = entries.find((p) => p.endsWith(".gitignore"));
+      // Waits for the shard this case then names: clangd indexes its TUs in its own order, so waiting for any
+      // shard to appear and asserting afterwards that Alpha's is among them races the very next line. `tree`
+      // answers relative to the directory it was given, so the predicate matches on the name alone.
+      const indexed = await settled(
+        () =>
+          tree(join(project, ".cache")).some((p) => p.endsWith(".idx") && p.includes("Alpha.cpp.")),
+        45_000,
+      );
+      const entries = tree(project).filter((p) => p.startsWith(".cache"));
+      const shards = entries.filter((p) => p.endsWith(".idx"));
+      const ignoreFile = entries.find((p) => p.endsWith(".gitignore"));
 
-    expect(indexed, `no Alpha.cpp index shard appeared; .cache held ${JSON.stringify(entries)}`).toBe(true);
-    expect(shards.length).toBeGreaterThan(0);
-    // The layout, and the name a shard carries: one file per source, hashed.
-    expect(shards.every((shard) => shard.startsWith(".cache/clangd/index/"))).toBe(true);
-    expect(shards.some((shard) => shard.startsWith(".cache/clangd/index/Alpha.cpp."))).toBe(true);
-    expect(ignoreFile, `no .gitignore beside the shards: ${JSON.stringify(entries)}`).toMatch(
-      /^\.cache\/clangd\/.*\.gitignore$/,
-    );
-    expect(readFileSync(join(project, ignoreFile as string), "utf-8")).toContain("*");
-  }, 120_000);
+      expect(
+        indexed,
+        `no Alpha.cpp index shard appeared; .cache held ${JSON.stringify(entries)}`,
+      ).toBe(true);
+      expect(shards.length).toBeGreaterThan(0);
+      // The layout, and the name a shard carries: one file per source, hashed.
+      expect(shards.every((shard) => shard.startsWith(".cache/clangd/index/"))).toBe(true);
+      expect(shards.some((shard) => shard.startsWith(".cache/clangd/index/Alpha.cpp."))).toBe(true);
+      expect(ignoreFile, `no .gitignore beside the shards: ${JSON.stringify(entries)}`).toMatch(
+        /^\.cache\/clangd\/.*\.gitignore$/,
+      );
+      expect(readFileSync(join(project, ignoreFile as string), "utf-8")).toContain("*");
+    },
+    120_000,
+  );
 
-  itIfClangd("lets a client that asked for progress tell in-flight from quiescent", async () => {
-    const project = join(tmp, "progress");
-    writeProject(project, project, ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta"]);
-    const session = new LspSession({ root: project, config: clangdConfig });
-    sessions.push(session);
+  itIfClangd(
+    "lets a client that asked for progress tell in-flight from quiescent",
+    async () => {
+      const project = join(tmp, "progress");
+      writeProject(project, project, ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta"]);
+      const session = new LspSession({ root: project, config: clangdConfig });
+      sessions.push(session);
 
-    const verdicts: string[] = [];
-    // Opening every TU inside its own window is what gives the background index work to report, and each
-    // window is answered by the request it holds the documents for — clangd answers no request about a
-    // document this client never opened, which this suite pins.
-    for (const tu of ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta"]) {
-      const { index } = await session.withIndexWindow(() => session.documentSymbol(join(project, `${tu}.cpp`)));
-      verdicts.push(index);
-    }
-    const stopAt = Date.now() + 60_000;
-    while (Date.now() < stopAt && verdicts[verdicts.length - 1] !== "quiescent") {
-      const { index } = await session.withIndexWindow(() => session.documentSymbol(join(project, "Alpha.cpp")));
-      verdicts.push(index);
-      await sleep(400);
-    }
-    // Reaching `quiescent` is the whole question: clangd's progress reaches this client, so
-    // "in flight" and "idle" are tellable apart and the `unknown` branch of the table is not the one this
-    // host settles on. A run that never leaves `unknown` is the other branch — every
-    // index-backed answer would carry `index-state-unknown` and an empty one would fail loudly. The exact
-    // sequence a real clangd produces here is recorded in the slice report; it is timing-dependent, so it
-    // is not what this case asserts.
-    const firstIdle = verdicts.indexOf("quiescent");
-    expect(firstIdle, `verdicts: ${JSON.stringify(verdicts)}`).toBeGreaterThanOrEqual(0);
-    expect(verdicts[verdicts.length - 1], `verdicts: ${JSON.stringify(verdicts)}`).toBe("quiescent");
-    // Once a process has seen progress it never claims to know nothing again: `unknown` can only precede
-    // the first idle reading, which is what lets a caller read the state as about this answer's window.
-    expect(verdicts.slice(firstIdle)).toEqual(verdicts.slice(firstIdle).filter((v) => v !== "unknown"));
-  }, 120_000);
+      const verdicts: string[] = [];
+      // Opening every TU inside its own window is what gives the background index work to report, and each
+      // window is answered by the request it holds the documents for — clangd answers no request about a
+      // document this client never opened, which this suite pins.
+      for (const tu of ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta"]) {
+        const { index } = await session.withIndexWindow(() =>
+          session.documentSymbol(join(project, `${tu}.cpp`)),
+        );
+        verdicts.push(index);
+      }
+      const stopAt = Date.now() + 60_000;
+      while (Date.now() < stopAt && verdicts[verdicts.length - 1] !== "quiescent") {
+        const { index } = await session.withIndexWindow(() =>
+          session.documentSymbol(join(project, "Alpha.cpp")),
+        );
+        verdicts.push(index);
+        await sleep(400);
+      }
+      // Reaching `quiescent` is the whole question: clangd's progress reaches this client, so
+      // "in flight" and "idle" are tellable apart and the `unknown` branch of the table is not the one this
+      // host settles on. A run that never leaves `unknown` is the other branch — every
+      // index-backed answer would carry `index-state-unknown` and an empty one would fail loudly. The exact
+      // sequence a real clangd produces here is recorded in the slice report; it is timing-dependent, so it
+      // is not what this case asserts.
+      const firstIdle = verdicts.indexOf("quiescent");
+      expect(firstIdle, `verdicts: ${JSON.stringify(verdicts)}`).toBeGreaterThanOrEqual(0);
+      expect(verdicts[verdicts.length - 1], `verdicts: ${JSON.stringify(verdicts)}`).toBe(
+        "quiescent",
+      );
+      // Once a process has seen progress it never claims to know nothing again: `unknown` can only precede
+      // the first idle reading, which is what lets a caller read the state as about this answer's window.
+      expect(verdicts.slice(firstIdle)).toEqual(
+        verdicts.slice(firstIdle).filter((v) => v !== "unknown"),
+      );
+    },
+    120_000,
+  );
 });

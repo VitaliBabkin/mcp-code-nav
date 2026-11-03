@@ -1,5 +1,8 @@
 /** The transport decorator that turns a client's `notifications/cancelled` into an `AbortSignal` for the call. */
-import type { Transport, TransportSendOptions } from "@modelcontextprotocol/sdk/shared/transport.js";
+import type {
+  Transport,
+  TransportSendOptions,
+} from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
   isJSONRPCErrorResponse,
   isJSONRPCNotification,
@@ -38,7 +41,9 @@ class CancellationTransport implements Transport {
       this.onclose?.();
     };
     inner.onerror = (error) => this.onerror?.(error);
-    inner.onmessage = (message, extra) => this.handleMessage(message, extra);
+    inner.onmessage = (message, extra) => {
+      this.handleMessage(message, extra);
+    };
   }
 
   get sessionId(): string | undefined {
@@ -60,7 +65,10 @@ class CancellationTransport implements Transport {
 
   async send(message: JSONRPCMessage, options?: TransportSendOptions): Promise<void> {
     await this.inner.send(message, options);
-    if ((isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) && message.id !== undefined) {
+    if (
+      (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) &&
+      message.id !== undefined
+    ) {
       this.inflight.delete(message.id);
     }
   }
@@ -75,9 +83,12 @@ class CancellationTransport implements Transport {
     if (isJSONRPCRequest(message) && message.method === TOOL_CALL) {
       const controller = new AbortController();
       this.inflight.set(message.id, controller);
-      return withRequestSignal(controller.signal, () => handler(message, extra));
+      withRequestSignal(controller.signal, () => {
+        handler(message, extra);
+      });
+      return;
     }
-    return handler(message, extra);
+    handler(message, extra);
   }
 
   private abort(id: string | number): void {

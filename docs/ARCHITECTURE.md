@@ -12,7 +12,8 @@ src/
   lsp/              generic language-server plumbing
     process.ts        spawn a child, JSON-RPC over stdio, lifecycle (error/exit handling)
     session.ts        one live server per (server kind, root): handshake, readiness, request allow-list, respawn-once
-    session-manager.ts  lazily creates and caches sessions
+    session-manager.ts  lazily creates and caches sessions; bounds child lifetime (idle shutdown, per-server cap)
+    resource-limits.ts  parses MCP_CODE_NAV_IDLE_MS / _MAX_SESSIONS / _CLANGD_JOBS
     server-config.ts  one LanguageServerConfig per backend: command, env override, argv, capabilities, allowed requests
     module-freshness.ts  proves a server's package graph is current before a type-aware answer is served
   clangd/ gopls/ tsgo/ clang-query/   per-backend helpers (outline conversion, module/workspace discovery, binary lookup)
@@ -27,6 +28,17 @@ test/               fast suite with fakes; *.live.test.ts run against real tools
 
 - **A backend is configuration.** Adding a language server means adding a `LanguageServerConfig`; `LspSession` is shared.
   The config also lists the only LSP methods the session may send, enforced in one place.
+- **A child's lifetime is bounded.** `LspSessionManager` keeps a session object per `(server kind, root)` but not its
+  child. A session counts its running public calls; with none for `MCP_CODE_NAV_IDLE_MS` (default 10 minutes) the
+  manager retires the session. Starting a call beyond `MCP_CODE_NAV_MAX_SESSIONS` (default 3) live children of the same
+  server retires the least recently used idle ones, but never one used within the last 30 seconds (`EVICT_GRACE_MS`),
+  which protects the gap between the session calls of one tool operation; if every other child is busy or recent the cap
+  is exceeded rather than a call refused. When a call finishes and the live count is above the cap, the idle children
+  beyond it (the most recently used are kept) are retired 30 seconds after their last use instead of after the full idle
+  window. Retiring is `dispose()` plus an advance of the session's generation, so a cache keyed on the generation (the
+  TypeScript project map) is rebuilt for the next child; `module-freshness` and shutdown use plain `dispose()`. The next
+  call on a retired session spawns through the crash-recovery path, which resets readiness, so a restarted child is cold
+  and answers as cold. Timers are unref'd and the clock is injectable.
 - **Answers state their limits.** Tool results carry a `scope` block (files not searched, index still building, module
   boundary, fuzzy-match cap reached) so an agent can tell a complete answer from a partial one.
 - **Failure is contained.** A missing binary, a crashed child or a bad configuration becomes a tool error with an

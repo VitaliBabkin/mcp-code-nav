@@ -12,7 +12,11 @@ import {
   readToolchain,
   type GoToolchain,
 } from "../gopls/go-env.js";
-import { filenameExcluded, osArchExcluded, type OsArchExcluded } from "../gopls/os-arch-excluded.js";
+import {
+  filenameExcluded,
+  osArchExcluded,
+  type OsArchExcluded,
+} from "../gopls/os-arch-excluded.js";
 import type { FreshnessOutcome, LspSession, ReadinessOutcome } from "../lsp/session.js";
 import type { LspSessionManager } from "../lsp/session-manager.js";
 import type { ResolvedPath } from "../paths/resolve-safe-path.js";
@@ -46,12 +50,17 @@ export interface Target {
  * beside `environment` exactly one of `osArchExcluded` / `osArchExcludedUnavailable`.
  */
 export type GoEnvironmentScope =
-  | ({ readonly environment: GoEnvironment } &
-      ({ readonly osArchExcluded: OsArchExcluded } | { readonly osArchExcludedUnavailable: string }))
+  | ({ readonly environment: GoEnvironment } & (
+      | { readonly osArchExcluded: OsArchExcluded }
+      | { readonly osArchExcludedUnavailable: string }
+    ))
   | { readonly environmentUnavailable: string };
 
 /** The part of `scope` every Go type-aware answer carries, whatever question it answers. */
-export type GoScopeBase = { readonly moduleRoot: string; readonly freshness: FreshnessOutcome } & GoEnvironmentScope;
+export type GoScopeBase = {
+  readonly moduleRoot: string;
+  readonly freshness: FreshnessOutcome;
+} & GoEnvironmentScope;
 
 /** Go's export test read off the subject's own identifier (a method's is its method name); `exported` means
  *  code outside this module may denote it. */
@@ -108,9 +117,12 @@ export function declarationKey(name: string): string {
  * rather than in whichever caller happens to be looking. A package path (`example.com/m/storage`) is
  * neither: its segments carry dots, and a name with more than one dot is no method's spelling.
  */
-export function methodParts(name: string): { readonly type: string; readonly method: string } | undefined {
+export function methodParts(
+  name: string,
+): { readonly type: string; readonly method: string } | undefined {
   const receiver = /^\(([^)]*)\)\.(.*)$/.exec(name);
-  if (receiver !== null) return { type: receiverType(receiver[1] ?? ""), method: receiver[2] ?? "" };
+  if (receiver !== null)
+    return { type: receiverType(receiver[1] ?? ""), method: receiver[2] ?? "" };
   const dotted = /^(.+)\.([^\s.]+)$/.exec(name);
   if (dotted === null) return undefined;
   return { type: receiverType(dotted[1] ?? ""), method: dotted[2] ?? "" };
@@ -158,7 +170,12 @@ function candidateLine(symbol: LspDocumentSymbol, file: string): string {
  * `symbol` is matched against TOP-LEVEL entries only, gopls reports methods at top
  * level under their receiver spelling, and children are not searched. Ambiguity is never resolved by picking.
  */
-function pickTarget(tool: string, outline: readonly LspDocumentSymbol[], symbol: string, file: string): Step<Target> {
+function pickTarget(
+  tool: string,
+  outline: readonly LspDocumentSymbol[],
+  symbol: string,
+  file: string,
+): Step<Target> {
   const wanted = declarationKey(symbol);
   const matches = outline.filter((entry) => declarationKey(entry.name) === wanted);
   if (matches.length === 0) {
@@ -167,19 +184,20 @@ function pickTarget(tool: string, outline: readonly LspDocumentSymbol[], symbol:
       error:
         `${tool} failed: no top-level declaration named "${symbol}" in "${file}". Only a file's own top-level ` +
         "declarations are searched, and a method is named with its receiver - `(Concrete).Method` or " +
-        '`Concrete.Method` - not by its bare name.',
+        "`Concrete.Method` - not by its bare name.",
     };
   }
   if (matches.length > 1) {
     return {
       ok: false,
       error:
-        `${tool} failed: "${symbol}" matches ${matches.length} top-level declarations in "${file}"; name one ` +
+        `${tool} failed: "${symbol}" matches ${String(matches.length)} top-level declarations in "${file}"; name one ` +
         `file or a more specific spelling:\n${matches.map((entry) => candidateLine(entry, file)).join("\n")}`,
     };
   }
   const only = matches[0];
-  if (only === undefined) return { ok: false, error: `${tool} failed: "${symbol}" matched nothing in "${file}"` };
+  if (only === undefined)
+    return { ok: false, error: `${tool} failed: "${symbol}" matched nothing in "${file}"` };
   const selection = only.selectionRange;
   if (selection === undefined) {
     return {
@@ -193,7 +211,12 @@ function pickTarget(tool: string, outline: readonly LspDocumentSymbol[], symbol:
     ok: true,
     value: {
       symbol: only,
-      resolved: { name: only.name, kind: symbolKindName(only.kind), file, line: only.range.start.line + 1 },
+      resolved: {
+        name: only.name,
+        kind: symbolKindName(only.kind),
+        file,
+        line: only.range.start.line + 1,
+      },
       position: { line: selection.start.line, character: selection.start.character },
     },
   };
@@ -210,7 +233,7 @@ function readinessText(
   if (outcome === "restarted") return restartedText(tool, symbol, moduleRoot);
   return (
     `${tool} failed: gopls never reported the initial workspace load of the module "${moduleRoot}" as ` +
-    `finished within this call's ${budget.ceilingMs} ms budget, so a type-aware answer for "${symbol}" cannot ` +
+    `finished within this call's ${String(budget.ceilingMs)} ms budget, so a type-aware answer for "${symbol}" cannot ` +
     "be proven complete and is not being returned. Raise timeBudgetMs or call again: a session whose load has " +
     "finished answers without waiting."
   );
@@ -244,7 +267,7 @@ export async function environmentScope(
     return {
       environmentUnavailable:
         "this server got no answer about the module's GOOS/GOARCH within this call's " +
-        `${budget.ceilingMs} ms budget`,
+        `${String(budget.ceilingMs)} ms budget`,
     };
   }
   const { environment, ports } = asked;
@@ -268,10 +291,11 @@ export function environmentText(scope: GoEnvironmentScope): string {
   }
   const { environment } = scope;
   const work = environment.goWork === null ? "" : `, go.work "${environment.goWork}" not spanned`;
-  const tags = environment.buildTags.length === 0 ? "" : `, build tags ${environment.buildTags.join(",")}`;
+  const tags =
+    environment.buildTags.length === 0 ? "" : `, build tags ${environment.buildTags.join(",")}`;
   const hidden =
     "osArchExcluded" in scope
-      ? `, ${scope.osArchExcluded.count} filename-excluded .go file(s) absent from this answer`
+      ? `, ${String(scope.osArchExcluded.count)} filename-excluded .go file(s) absent from this answer`
       : `, ${scope.osArchExcludedUnavailable}`;
   return ` under ${environment.goos}/${environment.goarch}${work}${tags}${hidden}`;
 }
@@ -292,7 +316,8 @@ function goNavigationLimits(
 ): NavigationLimit[] {
   const limits: NavigationLimit[] = ["one-module"];
   if ("environment" in scope) limits.push("one-port");
-  if ("osArchExcluded" in scope && scope.osArchExcluded.count > 0) limits.push("osarch-excluded-files");
+  if ("osArchExcluded" in scope && scope.osArchExcluded.count > 0)
+    limits.push("osarch-excluded-files");
   if (visibility === "exported") limits.push("exported-symbol-importers-invisible");
   if (flags.correspondingMethods) limits.push("corresponding-interface-methods-included");
   if (flags.indirectDispatch) limits.push("indirect-dispatch-not-resolved");
@@ -395,7 +420,10 @@ export async function readModuleOutline(
 ): Promise<Step<readonly LspDocumentSymbol[]>> {
   const outline = await withinBudget(opened.session.documentSymbol(file), opened.budget);
   if (outline === undefined) {
-    return { ok: false, error: budgetText(tool, opened.budget, `answer the outline of "${file}"`, opened.moduleRoot) };
+    return {
+      ok: false,
+      error: budgetText(tool, opened.budget, `answer the outline of "${file}"`, opened.moduleRoot),
+    };
   }
   // gopls's outline is syntactic and never premature, so an empty one is an answer about the file.
   return { ok: true, value: outline.state === "ok" ? outline.symbols : [] };
@@ -405,10 +433,17 @@ export async function readModuleOutline(
  * The initial-load progress `end` is the only proof, and without it no answer is returned. The
  * last shared step before a type-aware request, in the one place that phrases its two failures.
  */
-export async function proveWorkspaceReady(tool: string, opened: GoOpened, symbol: string): Promise<Step<true>> {
+export async function proveWorkspaceReady(
+  tool: string,
+  opened: GoOpened,
+  symbol: string,
+): Promise<Step<true>> {
   const readiness = await opened.session.awaitWorkspaceReady(opened.budget.remainingMs());
   if (readiness === "ready") return { ok: true, value: true };
-  return { ok: false, error: readinessText(tool, opened.budget, symbol, opened.moduleRoot, readiness) };
+  return {
+    ok: false,
+    error: readinessText(tool, opened.budget, symbol, opened.moduleRoot, readiness),
+  };
 }
 
 /**
@@ -438,7 +473,16 @@ export async function openGoQuery<G>(
   if (!gated.ok) return gated;
   const ready = await proveWorkspaceReady(tool, opened.value, input.symbol);
   if (!ready.ok) return ready;
-  return { ok: true, value: { ...opened.value, file, symbols: outline.value, picked: picked.value, gated: gated.value } };
+  return {
+    ok: true,
+    value: {
+      ...opened.value,
+      file,
+      symbols: outline.value,
+      picked: picked.value,
+      gated: gated.value,
+    },
+  };
 }
 
 /**
@@ -467,11 +511,16 @@ export type GoSymbolLookup = "document-symbol" | "workspace-symbol";
  * as a module-wide search that found one declaration. No visibility code: this answer lists declarations,
  * not uses, and a declaration answer has no `scope.visibility` for the code to key on.
  */
-function goDeclarationLimits(scope: GoEnvironmentScope, lookup: GoSymbolLookup, capped: boolean): NavigationLimit[] {
+function goDeclarationLimits(
+  scope: GoEnvironmentScope,
+  lookup: GoSymbolLookup,
+  capped: boolean,
+): NavigationLimit[] {
   const limits: NavigationLimit[] = ["one-module"];
   if (lookup === "document-symbol") limits.push("one-file");
   if ("environment" in scope) limits.push("one-port");
-  if ("osArchExcluded" in scope && scope.osArchExcluded.count > 0) limits.push("osarch-excluded-files");
+  if ("osArchExcluded" in scope && scope.osArchExcluded.count > 0)
+    limits.push("osarch-excluded-files");
   if (capped) limits.push("listing-capped");
   return limits;
 }
@@ -488,7 +537,13 @@ export async function declarationScope(
 ): Promise<GoDeclarationScope> {
   const { session, budget, moduleRoot, toolchain, freshness } = opened;
   const envScope = await environmentScope(session, budget, moduleRoot, namedFile, toolchain);
-  return { moduleRoot, freshness, lookup, ...envScope, limits: goDeclarationLimits(envScope, lookup, capped) };
+  return {
+    moduleRoot,
+    freshness,
+    lookup,
+    ...envScope,
+    limits: goDeclarationLimits(envScope, lookup, capped),
+  };
 }
 
 export type { DeclarationSource };
@@ -513,7 +568,8 @@ export async function describeDeclarations(
     },
     declarations,
   );
-  if (described === undefined) return { ok: false, error: restartedText(tool, symbol, opened.moduleRoot) };
+  if (described === undefined)
+    return { ok: false, error: restartedText(tool, symbol, opened.moduleRoot) };
   return { ok: true, value: described };
 }
 
@@ -575,10 +631,15 @@ export async function typeAwareRequest<T>(
       }),
     budget,
   );
-  if (answered === undefined) return { ok: false, error: budgetText(tool, budget, what, moduleRoot) };
+  if (answered === undefined)
+    return { ok: false, error: budgetText(tool, budget, what, moduleRoot) };
   if ("refusedFile" in answered) {
-    return { ok: false, error: await noPackageMetadataText(tool, answered.refusedFile, symbol, toolchain, budget) };
+    return {
+      ok: false,
+      error: await noPackageMetadataText(tool, answered.refusedFile, symbol, toolchain, budget),
+    };
   }
-  if (!session.isWorkspaceLoaded()) return { ok: false, error: restartedText(tool, symbol, moduleRoot) };
+  if (!session.isWorkspaceLoaded())
+    return { ok: false, error: restartedText(tool, symbol, moduleRoot) };
   return { ok: true, value: answered.value };
 }

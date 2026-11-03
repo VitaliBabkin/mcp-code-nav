@@ -25,10 +25,12 @@ export const OUTSIDE_SOURCE_ROOTS_REASON = "outside every declared source root; 
 
 /** The reason a row carries when its file's outline never arrived inside the call's budget. */
 function namingBudgetReason(budget: Budget): string {
-  return `its outline was not read: the naming step ran out of the call's ${budget.ceilingMs} ms budget`;
+  return `its outline was not read: the naming step ran out of the call's ${String(budget.ceilingMs)} ms budget`;
 }
 
-type OutlineRead = { readonly symbols: readonly LspDocumentSymbol[] } | { readonly failure: string };
+type OutlineRead =
+  | { readonly symbols: readonly LspDocumentSymbol[] }
+  | { readonly failure: string };
 
 /** What the naming step knows about one location, before any tool puts it into its own row shape. */
 export interface NamedSymbol {
@@ -62,7 +64,10 @@ export type NamedRow = {
 /** Containment by full position, or by line alone when either side carries no character to compare. */
 function encloses(symbol: LspDocumentSymbol, position: LinePosition): boolean {
   const { start, end } = symbol.range;
-  const byLine = start.character === undefined || end.character === undefined || position.character === undefined;
+  const byLine =
+    start.character === undefined ||
+    end.character === undefined ||
+    position.character === undefined;
   if (byLine) return position.line >= start.line && position.line <= end.line;
   return comparePositions(start, position) <= 0 && comparePositions(position, end) <= 0;
 }
@@ -73,11 +78,15 @@ function encloses(symbol: LspDocumentSymbol, position: LinePosition): boolean {
  * that shares the line is the wrong answer. Where several top-level declarations contain the position — a
  * whole-file wrapper, say — the one starting latest is the most specific.
  */
-function enclosingSymbol(symbols: readonly LspDocumentSymbol[], position: LinePosition): LspDocumentSymbol | undefined {
+function enclosingSymbol(
+  symbols: readonly LspDocumentSymbol[],
+  position: LinePosition,
+): LspDocumentSymbol | undefined {
   let best: LspDocumentSymbol | undefined;
   for (const symbol of symbols) {
     if (!encloses(symbol, position)) continue;
-    if (best === undefined || comparePositions(symbol.range.start, best.range.start) > 0) best = symbol;
+    if (best === undefined || comparePositions(symbol.range.start, best.range.start) > 0)
+      best = symbol;
   }
   return best;
 }
@@ -97,10 +106,13 @@ function enclosingDeclaration(
     (entry) => entry.range.startLine <= row && row <= entry.range.endLine,
   );
   const deepest = containing.reduce<(typeof containing)[number] | undefined>(
-    (best, entry) => (best === undefined || entry.qualifiedPath.length > best.qualifiedPath.length ? entry : best),
+    (best, entry) =>
+      best === undefined || entry.qualifiedPath.length > best.qualifiedPath.length ? entry : best,
     undefined,
   );
-  return deepest === undefined ? undefined : { name: deepest.qualifiedPath.join("::"), kind: deepest.kind };
+  return deepest === undefined
+    ? undefined
+    : { name: deepest.qualifiedPath.join("::"), kind: deepest.kind };
 }
 
 /**
@@ -108,18 +120,30 @@ function enclosingDeclaration(
  * `nestedNames` chooses the deepest-declaration rule for a listing whose rows are members, and leaves
  * Go's top-level rule — and its reason text — exactly as it was.
  */
-function namedSymbolAt(location: LinePosition, read: OutlineRead, nestedNames: boolean): NamedSymbol {
+function namedSymbolAt(
+  location: LinePosition,
+  read: OutlineRead,
+  nestedNames: boolean,
+): NamedSymbol {
   if ("failure" in read) {
     return { name: null, kind: null, reason: read.failure };
   }
   if (nestedNames) {
     const declaration = enclosingDeclaration(read.symbols, location);
     if (declaration !== undefined) return { name: declaration.name, kind: declaration.kind };
-    return { name: null, kind: null, reason: "no declaration in this file encloses the reported location" };
+    return {
+      name: null,
+      kind: null,
+      reason: "no declaration in this file encloses the reported location",
+    };
   }
   const enclosing = enclosingSymbol(read.symbols, location);
   if (enclosing === undefined) {
-    return { name: null, kind: null, reason: "no top-level declaration in this file encloses the reported location" };
+    return {
+      name: null,
+      kind: null,
+      reason: "no top-level declaration in this file encloses the reported location",
+    };
   }
   return { name: enclosing.name, kind: symbolKindName(enclosing.kind) };
 }
@@ -176,7 +200,11 @@ export async function nameLocations<T extends Located>(
   nestedNames = false,
   spellRow?: RowSpeller,
 ): Promise<Array<T & NamedSymbol>> {
-  const read = (file: string, symbols: readonly LspDocumentSymbol[], location: LinePosition): NamedSymbol =>
+  const read = (
+    file: string,
+    symbols: readonly LspDocumentSymbol[],
+    location: LinePosition,
+  ): NamedSymbol =>
     spellRow?.(file, symbols, location) ?? namedSymbolAt(location, { symbols }, nestedNames);
   const queried = pathKey(queriedFile);
   const others = new Map<string, string>();
@@ -188,10 +216,14 @@ export async function nameLocations<T extends Located>(
   return items.map((item) => {
     const { location } = item;
     if (location.external) return { ...item, name: null, kind: null, reason: outsideReason };
-    if (location.key === queried) return { ...item, ...read(queriedFile, queriedOutline, location) };
+    if (location.key === queried)
+      return { ...item, ...read(queriedFile, queriedOutline, location) };
     const outline = outlines.get(location.key);
     if (outline === undefined || "failure" in outline) {
-      return { ...item, ...namedSymbolAt(location, outline ?? { failure: namingBudgetReason(budget) }, nestedNames) };
+      return {
+        ...item,
+        ...namedSymbolAt(location, outline ?? { failure: namingBudgetReason(budget) }, nestedNames),
+      };
     }
     return { ...item, ...read(location.file, outline.symbols, location) };
   });

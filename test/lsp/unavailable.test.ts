@@ -59,15 +59,25 @@ describe("LanguageServerUnavailableError text", () => {
 describe("attachLifecycleHandlers", () => {
   it("records the spawn error's argument instead of discarding it", () => {
     const child = new EventEmitter();
-    const { isAlive, spawnFailure } = attachLifecycleHandlers(child, { dispose: () => {} }, {
-      config: clangdConfig,
-      attempted: "/nope/clangd.exe",
-      fromOverride: true,
-    });
+    const { isAlive, spawnFailure } = attachLifecycleHandlers(
+      child,
+      { dispose: () => {} },
+      {
+        config: clangdConfig,
+        attempted: "/nope/clangd.exe",
+        fromOverride: true,
+      },
+    );
     expect(spawnFailure()).toBeUndefined();
 
-    child.emit("error", Object.assign(new Error("spawn /nope/clangd.exe ENOENT"), { code: "ENOENT" }));
-    child.emit("error", Object.assign(new Error("spawn /nope/clangd.exe EACCES"), { code: "EACCES" }));
+    child.emit(
+      "error",
+      Object.assign(new Error("spawn /nope/clangd.exe ENOENT"), { code: "ENOENT" }),
+    );
+    child.emit(
+      "error",
+      Object.assign(new Error("spawn /nope/clangd.exe EACCES"), { code: "EACCES" }),
+    );
 
     const failure = spawnFailure();
     expect(failure).toBeInstanceOf(LanguageServerUnavailableError);
@@ -78,11 +88,15 @@ describe("attachLifecycleHandlers", () => {
 
   it("keeps an 'exit' a plain death, with no spawn failure to report", () => {
     const child = new EventEmitter();
-    const { spawnFailure } = attachLifecycleHandlers(child, { dispose: () => {} }, {
-      config: goplsConfig,
-      attempted: "gopls",
-      fromOverride: false,
-    });
+    const { spawnFailure } = attachLifecycleHandlers(
+      child,
+      { dispose: () => {} },
+      {
+        config: goplsConfig,
+        attempted: "gopls",
+        fromOverride: false,
+      },
+    );
     child.emit("exit", 1, null);
     expect(spawnFailure()).toBeUndefined();
   });

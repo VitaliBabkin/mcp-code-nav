@@ -30,41 +30,49 @@ function holdWithoutDeleteShare(path: string) {
 }
 
 describe("the holder lookup, against a real holder", () => {
-  itOnWindows("names the process that holds a file without delete sharing, in the failing delete's error", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "mcp-code-nav-holder-"));
-    const file = join(dir, "held.txt");
-    writeFileSync(file, "x");
-    const { child, held } = holdWithoutDeleteShare(file);
-    try {
-      await held;
-      expect(holdersOf(file)).toContain(`(pid ${child.pid})`);
-
-      let message = "";
-      try {
-        removeFileNamingHolder(file, { maxRetries: 0, retryDelay: 0 });
-      } catch (error) {
-        message = (error as Error).message;
-      }
-      expect(message).toContain("EPERM");
-      expect(message).toContain(`is held by: `);
-      expect(message).toContain(`(pid ${child.pid})`);
-    } finally {
-      child.stdin.end("\n");
-      if (child.exitCode === null && child.signalCode === null) {
-        await new Promise((resolve) => child.once("exit", resolve));
-      }
-      rmSync(dir, { recursive: true, force: true });
-    }
-  }, 60_000);
-
-  itOnWindows("answers an empty string for a file nothing holds", () => {
-    const dir = mkdtempSync(join(tmpdir(), "mcp-code-nav-holder-"));
-    try {
-      const file = join(dir, "free.txt");
+  itOnWindows(
+    "names the process that holds a file without delete sharing, in the failing delete's error",
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), "mcp-code-nav-holder-"));
+      const file = join(dir, "held.txt");
       writeFileSync(file, "x");
-      expect(holdersOf(file)).toBe("");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  }, 60_000);
+      const { child, held } = holdWithoutDeleteShare(file);
+      try {
+        await held;
+        expect(holdersOf(file)).toContain(`(pid ${child.pid})`);
+
+        let message = "";
+        try {
+          removeFileNamingHolder(file, { maxRetries: 0, retryDelay: 0 });
+        } catch (error) {
+          message = (error as Error).message;
+        }
+        expect(message).toContain("EPERM");
+        expect(message).toContain(`is held by: `);
+        expect(message).toContain(`(pid ${child.pid})`);
+      } finally {
+        child.stdin.end("\n");
+        if (child.exitCode === null && child.signalCode === null) {
+          await new Promise((resolve) => child.once("exit", resolve));
+        }
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+    60_000,
+  );
+
+  itOnWindows(
+    "answers an empty string for a file nothing holds",
+    () => {
+      const dir = mkdtempSync(join(tmpdir(), "mcp-code-nav-holder-"));
+      try {
+        const file = join(dir, "free.txt");
+        writeFileSync(file, "x");
+        expect(holdersOf(file)).toBe("");
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+    60_000,
+  );
 });

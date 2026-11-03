@@ -14,7 +14,10 @@ const itIfCaseInsensitive = process.platform === "win32" ? it : it.skip;
 
 const neverWalk = { ...goplsConfig, moduleSnapshot: () => new Map<string, string>() };
 
-function running(): { server: ReturnType<typeof fakeServer>; session: ReturnType<typeof sessionOver> } {
+function running(): {
+  server: ReturnType<typeof fakeServer>;
+  session: ReturnType<typeof sessionOver>;
+} {
   const server = fakeServer({ respond: () => [DECLARED] });
   return { server, session: sessionOver(server, { config: neverWalk }) };
 }
@@ -43,8 +46,12 @@ describe("LspSession.documentSymbolTransient", () => {
     const { server, session } = running();
     await session.documentSymbolTransient("/mod/pg.go");
     await session.documentSymbolTransient("/mod/pg.go");
-    expect(server.notifications.filter(([method]) => method === "textDocument/didOpen")).toHaveLength(2);
-    expect(server.notifications.filter(([method]) => method === "textDocument/didClose")).toHaveLength(2);
+    expect(
+      server.notifications.filter(([method]) => method === "textDocument/didOpen"),
+    ).toHaveLength(2);
+    expect(
+      server.notifications.filter(([method]) => method === "textDocument/didClose"),
+    ).toHaveLength(2);
   });
 
   it("does not close a file the session holds open for good, and does not re-open it", async () => {
@@ -66,8 +73,12 @@ describe("LspSession.documentSymbolTransient", () => {
       },
     });
     const session = sessionOver(server, { config: neverWalk });
-    await expect(session.documentSymbolTransient("/mod/pg.go")).rejects.toThrow("gopls refused the outline");
-    expect(server.notifications.filter(([method]) => method === "textDocument/didClose")).toHaveLength(1);
+    await expect(session.documentSymbolTransient("/mod/pg.go")).rejects.toThrow(
+      "gopls refused the outline",
+    );
+    expect(
+      server.notifications.filter(([method]) => method === "textDocument/didClose"),
+    ).toHaveLength(1);
     expect(session.getOpenedFiles()).toEqual([]);
   });
 
@@ -75,29 +86,40 @@ describe("LspSession.documentSymbolTransient", () => {
     const { server, session } = running();
     await session.documentSymbolTransient("/mod/pg.go");
     const didOpen = server.notifications.find(([method]) => method === "textDocument/didOpen");
-    expect(didOpen?.[1]).toMatchObject({ textDocument: { uri: uriOf("/mod/pg.go"), languageId: "go" } });
+    expect(didOpen?.[1]).toMatchObject({
+      textDocument: { uri: uriOf("/mod/pg.go"), languageId: "go" },
+    });
   });
 
-  itIfCaseInsensitive("asks about a re-spelled path with the URI the document was opened under", async () => {
-    tmp = mkdtempSync(join(tmpdir(), "mcp-code-nav-spell-"));
-    const written = join(tmp, "a.go");
-    writeFileSync(written, "package a\n");
-    const recased = join(tmp, "A.GO");
-    const server = fakeServer({ respond: () => [DECLARED] });
-    const session = sessionOver(server, { root: tmp, config: neverWalk, readFile: () => "package a\n" });
+  itIfCaseInsensitive(
+    "asks about a re-spelled path with the URI the document was opened under",
+    async () => {
+      tmp = mkdtempSync(join(tmpdir(), "mcp-code-nav-spell-"));
+      const written = join(tmp, "a.go");
+      writeFileSync(written, "package a\n");
+      const recased = join(tmp, "A.GO");
+      const server = fakeServer({ respond: () => [DECLARED] });
+      const session = sessionOver(server, {
+        root: tmp,
+        config: neverWalk,
+        readFile: () => "package a\n",
+      });
 
-    await session.documentSymbol(written);
-    await session.documentSymbol(recased);
+      await session.documentSymbol(written);
+      await session.documentSymbol(recased);
 
-    const didOpens = server.notifications.filter(([method]) => method === "textDocument/didOpen");
-    expect(didOpens).toHaveLength(1);
-    const requests = server.requests.filter(([method]) => method === "textDocument/documentSymbol");
-    expect(requests).toHaveLength(2);
-    const uriOfRequest = (params: unknown): unknown =>
-      (params as { textDocument: { uri: string } }).textDocument.uri;
-    // The second call named the same file with another spelling: it must ask about the document the
-    // server was given, not about a URI no `didOpen` ever carried.
-    expect(uriOfRequest(requests[0]?.[1])).toBe(uriOf(written));
-    expect(uriOfRequest(requests[1]?.[1])).toBe(uriOf(written));
-  });
+      const didOpens = server.notifications.filter(([method]) => method === "textDocument/didOpen");
+      expect(didOpens).toHaveLength(1);
+      const requests = server.requests.filter(
+        ([method]) => method === "textDocument/documentSymbol",
+      );
+      expect(requests).toHaveLength(2);
+      const uriOfRequest = (params: unknown): unknown =>
+        (params as { textDocument: { uri: string } }).textDocument.uri;
+      // The second call named the same file with another spelling: it must ask about the document the
+      // server was given, not about a URI no `didOpen` ever carried.
+      expect(uriOfRequest(requests[0]?.[1])).toBe(uriOf(written));
+      expect(uriOfRequest(requests[1]?.[1])).toBe(uriOf(written));
+    },
+  );
 });

@@ -60,10 +60,16 @@ describe("runCppFileSymbols", () => {
         join(repoRoot, "build", "compile_commands.json"),
         JSON.stringify([{ directory: repoRoot, file: "a.cpp" }]),
       );
-      const process = fakeProcess(() => [{ name: "Foo", kind: 5, range: { start: { line: 0 }, end: { line: 0 } } }]);
+      const process = fakeProcess(() => [
+        { name: "Foo", kind: 5, range: { start: { line: 0 }, end: { line: 0 } } },
+      ]);
       const sessions = new LspSessionManager({ spawn: () => process, sleep: async () => {} });
 
-      const out = await runCppFileSymbols(sessions, { projectRoot: repoRoot, file: "a.cpp", depth: 1 });
+      const out = await runCppFileSymbols(sessions, {
+        projectRoot: repoRoot,
+        file: "a.cpp",
+        depth: 1,
+      });
 
       expect(out.isError).toBeUndefined();
       // The text, unchanged, is what the degraded summary carries after its own first sentence.
@@ -80,12 +86,19 @@ describe("runCppFileSymbols", () => {
 
   it("returns isError when file escapes projectRoot", async () => {
     const sessions = new LspSessionManager({ sleep: async () => {} });
-    const out = await runCppFileSymbols(sessions, { projectRoot, file: "../outside.cpp", depth: 1 });
+    const out = await runCppFileSymbols(sessions, {
+      projectRoot,
+      file: "../outside.cpp",
+      depth: 1,
+    });
     expect(out.isError).toBe(true);
   });
 
   it("returns isError when the file matches ignoredPaths", async () => {
-    writeFileSync(join(projectRoot, "mcp-code-nav.config.json"), JSON.stringify({ ignoredPaths: ["a.cpp"] }));
+    writeFileSync(
+      join(projectRoot, "mcp-code-nav.config.json"),
+      JSON.stringify({ ignoredPaths: ["a.cpp"] }),
+    );
     const sessions = new LspSessionManager({ sleep: async () => {} });
     const out = await runCppFileSymbols(sessions, { projectRoot, file: "a.cpp", depth: 1 });
     expect(out.isError).toBe(true);
@@ -93,7 +106,9 @@ describe("runCppFileSymbols", () => {
   });
 
   it("returns the outline, 1-based lines, on a successful symbol response", async () => {
-    const process = fakeProcess(() => [{ name: "Foo", kind: 5, range: { start: { line: 0 }, end: { line: 0 } } }]);
+    const process = fakeProcess(() => [
+      { name: "Foo", kind: 5, range: { start: { line: 0 }, end: { line: 0 } } },
+    ]);
     const sessions = new LspSessionManager({ spawn: () => process, sleep: async () => {} });
     const out = await runCppFileSymbols(sessions, { projectRoot, file: "a.cpp", depth: 1 });
     expect(out.isError).toBeFalsy();
@@ -113,7 +128,9 @@ describe("runCppFileSymbols", () => {
   it("returns isError instead of throwing when mcp-code-nav.config.json is malformed", async () => {
     writeFileSync(join(projectRoot, "mcp-code-nav.config.json"), "{ not json");
     const sessions = new LspSessionManager({ sleep: async () => {} });
-    await expect(runCppFileSymbols(sessions, { projectRoot, file: "a.cpp", depth: 1 })).resolves.toMatchObject({
+    await expect(
+      runCppFileSymbols(sessions, { projectRoot, file: "a.cpp", depth: 1 }),
+    ).resolves.toMatchObject({
       isError: true,
     });
   });
@@ -141,7 +158,9 @@ describe("runCppFileSymbols with sourceRoots (out-of-tree build layout)", () => 
   });
 
   it("resolves a file inside a declared sourceRoots entry, outside projectRoot", async () => {
-    const process = fakeProcess(() => [{ name: "Widget", kind: 5, range: { start: { line: 0 }, end: { line: 0 } } }]);
+    const process = fakeProcess(() => [
+      { name: "Widget", kind: 5, range: { start: { line: 0 }, end: { line: 0 } } },
+    ]);
     const sessions = new LspSessionManager({ spawn: () => process, sleep: async () => {} });
     const out = await runCppFileSymbols(sessions, {
       projectRoot: buildRoot,
@@ -176,7 +195,10 @@ describe("runCppFileSymbols with sourceRoots (out-of-tree build layout)", () => 
   it("matches an ignoredPaths pattern computed relative to the sourceRoots entry that actually contained the file", async () => {
     // Pattern is written relative to sourceRoot (the vendor dir lives under the SOURCE tree, not the
     // build tree) — this only matches if isIgnoredPath keys off sourceRoot, not always projectRoot.
-    writeFileSync(join(buildRoot, "mcp-code-nav.config.json"), JSON.stringify({ ignoredPaths: ["widget.cpp"] }));
+    writeFileSync(
+      join(buildRoot, "mcp-code-nav.config.json"),
+      JSON.stringify({ ignoredPaths: ["widget.cpp"] }),
+    );
     const sessions = new LspSessionManager({ sleep: async () => {} });
     const out = await runCppFileSymbols(sessions, {
       projectRoot: buildRoot,

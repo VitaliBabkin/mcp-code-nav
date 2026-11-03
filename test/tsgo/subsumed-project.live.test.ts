@@ -107,7 +107,12 @@ function under(path: string | null | undefined): string {
   // The same directory spelled with another drive-letter case is still under it: `relative` would call that an
   // escape, and the map compares the two case-folded.
   const key = pathKey(root);
-  return pathKey(path).startsWith(`${key}/`) ? path.slice(key.length + 1).split("\\").join("/") : path;
+  return pathKey(path).startsWith(`${key}/`)
+    ? path
+        .slice(key.length + 1)
+        .split("\\")
+        .join("/")
+    : path;
 }
 
 function namesUnder(paths: readonly string[]): string[] {
@@ -117,15 +122,24 @@ function namesUnder(paths: readonly string[]): string[] {
 /** One `subsumed` entry as reported: a config path, or the project that path names. */
 function configOfSubsumed(entry: unknown): string {
   if (typeof entry === "string") return entry;
-  const config = typeof entry === "object" && entry !== null ? (entry as { config?: unknown }).config : undefined;
-  if (typeof config !== "string") throw new Error(`a subsumed entry names no config: ${JSON.stringify(entry)}`);
+  const config =
+    typeof entry === "object" && entry !== null
+      ? (entry as { config?: unknown }).config
+      : undefined;
+  if (typeof config !== "string")
+    throw new Error(`a subsumed entry names no config: ${JSON.stringify(entry)}`);
   return config;
 }
 
 /** The files one `subsumed` entry reads, for a map that spells the entry as the project rather than its path. */
 function membersOfSubsumed(entry: unknown): readonly string[] {
-  const members = typeof entry === "object" && entry !== null ? (entry as { members?: unknown }).members : undefined;
-  return Array.isArray(members) ? members.filter((member): member is string => typeof member === "string") : [];
+  const members =
+    typeof entry === "object" && entry !== null
+      ? (entry as { members?: unknown }).members
+      : undefined;
+  return Array.isArray(members)
+    ? members.filter((member): member is string => typeof member === "string")
+    : [];
 }
 
 /**
@@ -140,7 +154,8 @@ function subsumedEntries(container: unknown, where: string): readonly unknown[] 
         `it holds ${JSON.stringify(container)}`,
     );
   }
-  if (!Array.isArray(field)) throw new Error(`${where}'s "subsumed" is not a list: ${JSON.stringify(field)}`);
+  if (!Array.isArray(field))
+    throw new Error(`${where}'s "subsumed" is not a list: ${JSON.stringify(field)}`);
   return field;
 }
 
@@ -161,7 +176,8 @@ const managers: LspSessionManager[] = [];
 
 /** One manager per case, kept so `afterEach` disposes what a throwing assertion never reached. */
 function freshManager(log?: TsgoProcessLog): LspSessionManager {
-  const manager = log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
+  const manager =
+    log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
   managers.push(manager);
   return manager;
 }
@@ -171,10 +187,13 @@ afterEach(() => {
 });
 
 function ask(manager: LspSessionManager, file: string, symbol: string): Promise<Result> {
-  return runTsFindReferences(
-    manager,
-    { sourceRoots: [root], file, symbol, includeDeclaration: false, timeBudgetMs: CALL_BUDGET_MS },
-  );
+  return runTsFindReferences(manager, {
+    sourceRoots: [root],
+    file,
+    symbol,
+    includeDeclaration: false,
+    timeBudgetMs: CALL_BUDGET_MS,
+  });
 }
 
 function payload(result: Result): TsFindReferencesPayload {
@@ -224,18 +243,22 @@ function projectFor(map: ProjectMap, config: string): TsProject {
 /** The walk's entries, or a failure quoting what the walk said it could not finish. */
 function requireWalked(): { entries: Map<string, string>; unresolved: readonly string[] } {
   const walked = walkWorkspace(root);
-  if (walked === undefined) throw new Error(`the walk of "${root}" did not complete: ${workspaceSnapshotReason(root)}`);
+  if (walked === undefined)
+    throw new Error(`the walk of "${root}" did not complete: ${workspaceSnapshotReason(root)}`);
   return walked;
 }
 
 function requireProjects(scope: TsNavigationScope): TsProjectsBlock {
-  if (!("projects" in scope)) throw new Error(`no project map was reported: ${scope.projectsUnavailable}`);
+  if (!("projects" in scope))
+    throw new Error(`no project map was reported: ${scope.projectsUnavailable}`);
   return scope.projects;
 }
 
-function requireUncovered(
-  scope: TsNavigationScope,
-): { count: number; files: readonly string[]; namedFileUncovered: boolean } {
+function requireUncovered(scope: TsNavigationScope): {
+  count: number;
+  files: readonly string[];
+  namedFileUncovered: boolean;
+} {
   if (!("uncoveredSources" in scope)) {
     throw new Error(`no uncovered set was computed: ${scope.uncoveredSourcesUnavailable}`);
   }
@@ -256,9 +279,15 @@ function evidence(answer: TsFindReferencesPayload, opened: readonly string[]): s
 }
 
 /** What the map did with the two configs, for the report that has to say which rule was applied. */
-function describeMap(map: Extract<ProjectMap, { kind: "mapped" }>, entries: readonly unknown[]): string {
+function describeMap(
+  map: Extract<ProjectMap, { kind: "mapped" }>,
+  entries: readonly unknown[],
+): string {
   return JSON.stringify({
-    anchored: map.projects.map((project) => ({ config: under(project.config), anchor: under(project.anchor) })),
+    anchored: map.projects.map((project) => ({
+      config: under(project.config),
+      anchor: under(project.anchor),
+    })),
     subsumed: subsumedConfigs(entries),
     failed: map.failed.map((failure) => `${under(failure.config)}: ${failure.reason}`),
     uncovered: namesUnder(map.uncovered),
@@ -292,9 +321,10 @@ describe("a config whose every listed file a nested config owns", () => {
       // this project" put it, and out of the anchored list, where it would have to be for this server to load it
       // by opening one of its files. It is named once, by its own config path.
       expect(map.failed, describeMap(map, entries)).toEqual([]);
-      expect(namesUnder(map.projects.map((project) => project.config)), describeMap(map, entries)).toEqual([
-        NESTED_CONFIG,
-      ]);
+      expect(
+        namesUnder(map.projects.map((project) => project.config)),
+        describeMap(map, entries),
+      ).toEqual([NESTED_CONFIG]);
       expect(subsumedConfigs(entries), describeMap(map, entries)).toEqual([ROOT_CONFIG]);
 
       // The nested project owns what its anchor says it owns: an anchor is by definition a member the project
@@ -368,7 +398,9 @@ describe("a config whose every listed file a nested config owns", () => {
         // files it reads put anything beside it.
         expect(answer.scope.limits, evidence(answer, opened)).toContain("one-workspace");
         expect(answer.scope.limits, evidence(answer, opened)).not.toContain("projects-not-loaded");
-        expect(answer.scope.limits, evidence(answer, opened)).not.toContain("uncovered-sources-present");
+        expect(answer.scope.limits, evidence(answer, opened)).not.toContain(
+          "uncovered-sources-present",
+        );
 
         // No file of the fixture is a blind spot, and the named file is not one either.
         const uncovered = requireUncovered(answer.scope);
@@ -392,18 +424,23 @@ describe("a config whose every listed file a nested config owns", () => {
         // the payoff, asserted rather than argued: `pkg/src/uses.ts` is listed by the project that was never
         // loaded and owned by the one that was, so its use of the subject is in this answer.
         const group = groupOf(answer, usesFile);
-        expect(group === undefined ? "<no group for pkg/src/uses.ts>" : under(group.file), evidence(answer, opened)).toBe(
-          "pkg/src/uses.ts",
-        );
+        expect(
+          group === undefined ? "<no group for pkg/src/uses.ts>" : under(group.file),
+          evidence(answer, opened),
+        ).toBe("pkg/src/uses.ts");
         expect(group?.external, evidence(answer, opened)).toBe(false);
         const useLine = lineOf(usesFile, "return SUBSUMED_SUBJECT;");
         const site = (group?.sites ?? []).find((candidate) => candidate.line === useLine);
-        expect(site === undefined ? "<no site at the use line>" : site.in, evidence(answer, opened)).toBe(USE_ROW);
+        expect(
+          site === undefined ? "<no site at the use line>" : site.in,
+          evidence(answer, opened),
+        ).toBe(USE_ROW);
 
         // The exactness, and nothing external in the listing.
-        expect(answer.files.reduce((sum, one) => sum + one.count, 0), evidence(answer, opened)).toBe(
-          answer.totalReferences,
-        );
+        expect(
+          answer.files.reduce((sum, one) => sum + one.count, 0),
+          evidence(answer, opened),
+        ).toBe(answer.totalReferences);
         expect(answer.filesTruncated, evidence(answer, opened)).toBe(0);
         for (const one of answer.files) {
           expect(one.external, evidence(answer, opened)).toBe(false);

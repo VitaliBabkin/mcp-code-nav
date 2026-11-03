@@ -89,7 +89,7 @@ interface CappedCaller extends Located {
 function refusedKind(declaration: CppDeclaration): string {
   return (
     `${TOOL} failed: "${declaration.name}" is ${withArticle(declaration.kind)} declared at ` +
-    `"${declaration.file}:${declaration.line}", and ${withArticle(declaration.kind)} is not called, so no ` +
+    `"${declaration.file}:${String(declaration.line)}", and ${withArticle(declaration.kind)} is not called, so no ` +
     "one calls it. Ask `cpp_find_references` for where it is used instead."
   );
 }
@@ -132,7 +132,8 @@ function readItem(
   const item = recordOf(raw);
   const file = pathOfUri(item.uri);
   const start = rangeStart(item.range);
-  if (file === undefined || start === undefined) return { ok: false, error: unexpected(symbol, raw, part) };
+  if (file === undefined || start === undefined)
+    return { ok: false, error: unexpected(symbol, raw, part) };
   return { ok: true, value: reportedLocation(file, start, outside, keyOf(file)) };
 }
 
@@ -141,7 +142,11 @@ function readItem(
  * an error the caller cannot branch on, and several are listed rather than picked — picking one would be a
  * guess about which overload or redeclaration the answer is about.
  */
-function preparedItem(result: unknown, symbol: string, outside: (file: string) => boolean): Step<unknown> {
+function preparedItem(
+  result: unknown,
+  symbol: string,
+  outside: (file: string) => boolean,
+): Step<unknown> {
   const items = asItems(result, symbol);
   if (!items.ok) return items;
   const keyOf = locationKeyFactory();
@@ -152,7 +157,7 @@ function preparedItem(result: unknown, symbol: string, outside: (file: string) =
     return {
       ok: false,
       error:
-        `${TOOL} failed: clangd offered ${items.value.length} call-hierarchy items for "${symbol}", and ` +
+        `${TOOL} failed: clangd offered ${String(items.value.length)} call-hierarchy items for "${symbol}", and ` +
         `picking one would be a guess, so they are listed:\n${lines}`,
     };
   }
@@ -175,8 +180,15 @@ function callSitesOf(value: unknown, symbol: string): Step<CallerSite[]> {
   const sites: CallerSite[] = [];
   for (const [index, range] of value.entries()) {
     const start = rangeStart(range);
-    if (start === undefined) return { ok: false, error: unexpected(symbol, value[index], `call site ${index + 1}`) };
-    sites.push({ line: start.line + 1, column: start.character === undefined ? null : start.character + 1 });
+    if (start === undefined)
+      return {
+        ok: false,
+        error: unexpected(symbol, value[index], `call site ${String(index + 1)}`),
+      };
+    sites.push({
+      line: start.line + 1,
+      column: start.character === undefined ? null : start.character + 1,
+    });
   }
   return { ok: true, value: sites };
 }
@@ -193,16 +205,19 @@ function callerEntries(
   const byKey = new Map<string, CallerGroup>();
   for (const [index, entry] of entries.value.entries()) {
     const raw = recordOf(entry);
-    const position = readItem(symbol, outside, keyOf, raw.from, `entry ${index + 1}`);
+    const position = readItem(symbol, outside, keyOf, raw.from, `entry ${String(index + 1)}`);
     if (!position.ok) return position;
     const sites = callSitesOf(raw.fromRanges, symbol);
     if (!sites.ok) return sites;
-    const groupKey = `${position.value.key}:${position.value.line}:${position.value.character ?? -1}`;
+    const groupKey = `${position.value.key}:${String(position.value.line)}:${String(position.value.character ?? -1)}`;
     const seen = byKey.get(groupKey);
     if (seen === undefined) byKey.set(groupKey, { location: position.value, sites: sites.value });
     else seen.sites.push(...sites.value);
   }
-  return { ok: true, value: inModuleFirst([...byKey.values()], (group) => group.location.external) };
+  return {
+    ok: true,
+    value: inModuleFirst([...byKey.values()], (group) => group.location.external),
+  };
 }
 
 function capCallers(groups: readonly CallerGroup[]): {
@@ -246,7 +261,11 @@ async function buildCallers(
     // Rows name the calling declaration, which for C++ is a member: the deepest enclosing one, qualified.
     true,
   );
-  return named.map((entry) => ({ ...namedRow(entry), callSites: entry.sites, callSitesTruncated: entry.truncated }));
+  return named.map((entry) => ({
+    ...namedRow(entry),
+    callSites: entry.sites,
+    callSitesTruncated: entry.truncated,
+  }));
 }
 
 /**
@@ -262,8 +281,9 @@ type AskedCallers = {
 
 function callerText(row: CallerRow): string {
   const where = row.external ? "outside every declared source root" : row.file;
-  const sites = row.callSitesTruncated > 0 ? `, ${row.callSitesTruncated} call site(s) not listed` : "";
-  return `  ${row.name ?? "<unnamed>"} (${row.kind ?? "?"}) at ${where}:${row.line}${sites}${row.reason ? ` - ${row.reason}` : ""}`;
+  const sites =
+    row.callSitesTruncated > 0 ? `, ${String(row.callSitesTruncated)} call site(s) not listed` : "";
+  return `  ${row.name ?? "<unnamed>"} (${row.kind ?? "?"}) at ${where}:${String(row.line)}${sites}${row.reason ? ` - ${row.reason}` : ""}`;
 }
 
 function humanSummary(payload: CppFindCallersPayload): string {
@@ -271,12 +291,16 @@ function humanSummary(payload: CppFindCallersPayload): string {
   const sites = callers.reduce((total, row) => total + row.callSitesTruncated, 0);
   const listing = callers.map(callerText).join("\n");
   const tail = capsText([
-    callersTruncated > 0 ? `${callersTruncated} caller row(s) dropped by the ${CALLERS_LIMIT}-row cap` : undefined,
-    sites > 0 ? `${sites} call site(s) dropped by the ${REFERENCE_SITES_PER_FILE_LIMIT}-sites-per-caller cap` : undefined,
+    callersTruncated > 0
+      ? `${String(callersTruncated)} caller row(s) dropped by the ${String(CALLERS_LIMIT)}-row cap`
+      : undefined,
+    sites > 0
+      ? `${String(sites)} call site(s) dropped by the ${String(REFERENCE_SITES_PER_FILE_LIMIT)}-sites-per-caller cap`
+      : undefined,
   ]);
   const head =
-    `Callers of ${resolved.kind} "${resolved.name}" (${resolved.file}:${resolved.line}) in project ` +
-    `"${scope.projectRoot}" - ${totalCallers} caller(s) across ${callers.length + callersTruncated} ` +
+    `Callers of ${resolved.kind} "${resolved.name}" (${resolved.file}:${String(resolved.line)}) in project ` +
+    `"${scope.projectRoot}" - ${String(totalCallers)} caller(s) across ${String(callers.length + callersTruncated)} ` +
     `declaration(s), index: ${scope.index.state}${tail}.`;
   return `${head}\nlimits: ${scope.limits.join(", ")}${listing === "" ? "" : `\n${listing}`}`;
 }
@@ -301,13 +325,27 @@ async function callersAnswer(
   budget: Budget,
 ): Promise<CppFindCallersPayload> {
   const { capped, callersTruncated, sitesTruncated } = capCallers(entries);
-  const callers = await buildCallers(session, capped, declaration.file, await outlineOf(session, declaration.file), budget);
+  const callers = await buildCallers(
+    session,
+    capped,
+    declaration.file,
+    await outlineOf(session, declaration.file),
+    budget,
+  );
   return {
-    resolved: { name: declaration.name, kind: declaration.kind, file: declaration.file, line: declaration.line },
+    resolved: {
+      name: declaration.name,
+      kind: declaration.kind,
+      file: declaration.file,
+      line: declaration.line,
+    },
     totalCallers: entries.length,
     callers,
     callersTruncated,
-    scope: cppAnswerScope(context, { capped: callersTruncated > 0 || sitesTruncated > 0, indirectDispatch: true }),
+    scope: cppAnswerScope(context, {
+      capped: callersTruncated > 0 || sitesTruncated > 0,
+      indirectDispatch: true,
+    }),
   };
 }
 
@@ -330,42 +368,55 @@ export async function runCppFindCallers(sessions: LspSessionManager, raw: CppFin
     // first produced, and the state is about the span the answer was computed across — which is also
     // the span of the symbol query that had to come first when the declaration itself came from the index. A
     // refusal inside the window is carried out as the step it is, not as an empty caller list.
-    const { value: asked, index } = await session.withIndexWindow(async (): Promise<Step<AskedCallers>> => {
-      const target = await cppQuestionDeclaration(TOOL, input, resolved.value, (query) =>
-        session.request<unknown>("workspace/symbol", { query }),
-      );
-      if (!target.ok) return target;
-      const declaration = target.value.declaration;
-      if (declaration === undefined) return { ok: true, value: { target: target.value } };
-      if (!CALLABLE_KINDS.has(declaration.kind)) return { ok: false, error: refusedKind(declaration) };
-      if (declaration.namePosition === undefined) return { ok: false, error: noPositionText(declaration) };
-      // As in `cpp_find_references`: the hierarchy is answered from the AST of the declaring document, which the
-      // index branch may have just named from a file beyond the boundary. `callHierarchy/incomingCalls` needs
-      // no document and is asked against the item, so it stays outside the hold.
-      if (outside(declaration.file)) return { ok: false, error: outsideSubjectText(TOOL, input.name, declaration) };
-      const position = declaration.namePosition;
-      const prepared = await session.withTransientDocument(declaration.file, (holding) =>
-        holding.send<unknown>("textDocument/prepareCallHierarchy", {
-          textDocument: textDocumentId(holding.openedAs),
-          position,
-        }),
-      );
-      const item = preparedItem(prepared, input.name, outside);
-      if (!item.ok) return item;
-      return {
-        ok: true,
-        value: {
-          target: target.value,
-          declaration,
-          incoming: await session.request<unknown>("callHierarchy/incomingCalls", { item: item.value }),
-        },
-      };
-    });
+    const { value: asked, index } = await session.withIndexWindow(
+      async (): Promise<Step<AskedCallers>> => {
+        const target = await cppQuestionDeclaration(TOOL, input, resolved.value, (query) =>
+          session.request<unknown>("workspace/symbol", { query }),
+        );
+        if (!target.ok) return target;
+        const declaration = target.value.declaration;
+        if (declaration === undefined) return { ok: true, value: { target: target.value } };
+        if (!CALLABLE_KINDS.has(declaration.kind))
+          return { ok: false, error: refusedKind(declaration) };
+        if (declaration.namePosition === undefined)
+          return { ok: false, error: noPositionText(declaration) };
+        // As in `cpp_find_references`: the hierarchy is answered from the AST of the declaring document, which the
+        // index branch may have just named from a file beyond the boundary. `callHierarchy/incomingCalls` needs
+        // no document and is asked against the item, so it stays outside the hold.
+        if (outside(declaration.file))
+          return { ok: false, error: outsideSubjectText(TOOL, input.name, declaration) };
+        const position = declaration.namePosition;
+        const prepared = await session.withTransientDocument(declaration.file, (holding) =>
+          holding.send<unknown>("textDocument/prepareCallHierarchy", {
+            textDocument: textDocumentId(holding.openedAs),
+            position,
+          }),
+        );
+        const item = preparedItem(prepared, input.name, outside);
+        if (!item.ok) return item;
+        return {
+          ok: true,
+          value: {
+            target: target.value,
+            declaration,
+            incoming: await session.request<unknown>("callHierarchy/incomingCalls", {
+              item: item.value,
+            }),
+          },
+        };
+      },
+    );
     if (!asked.ok) return errorResult(asked.error);
     const declaration = asked.value.declaration;
     if (declaration === undefined) {
       return errorResult(
-        noIndexDeclarationText(TOOL, input.name, input.projectRoot, index, asked.value.target.capped),
+        noIndexDeclarationText(
+          TOOL,
+          input.name,
+          input.projectRoot,
+          index,
+          asked.value.target.capped,
+        ),
       );
     }
 
@@ -375,7 +426,13 @@ export async function runCppFindCallers(sessions: LspSessionManager, raw: CppFin
       return errorResult(emptyWhileNotQuiescent(input.name, index));
     }
 
-    const payload = await callersAnswer(session, { projectRoot: input.projectRoot, roots, index, reading }, declaration, entries.value, budget);
+    const payload = await callersAnswer(
+      session,
+      { projectRoot: input.projectRoot, roots, index, reading },
+      declaration,
+      entries.value,
+      budget,
+    );
     return successResult(payload, humanSummary(payload));
   } catch (e) {
     return errorResult(`${TOOL} failed: ${messageOf(e)}`);
@@ -397,7 +454,8 @@ const TOOL_DESCRIPTION =
   "run-time target (`indirect-dispatch-not-resolved`): a virtual call is listed under the base and under " +
   "every override, and a call through a function pointer or `std::function` is absent, with the place it " +
   "was bound listed instead. Counts are exact even when the listing is capped, and an empty listing comes " +
-  "only from a settled index. " + CLANGD_DISK_CLAUSE;
+  "only from a settled index. " +
+  CLANGD_DISK_CLAUSE;
 
 export function registerCppFindCallers(server: McpServer, sessions: LspSessionManager) {
   server.registerTool(

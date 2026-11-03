@@ -6,7 +6,13 @@ import { textDocumentId } from "../../src/lsp/document-uri.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { tsgoConfig } from "../../src/lsp/server-config.js";
 import { readSymbolDescription } from "../../src/tools/navigation-limits.js";
-import { CALL_BUDGET_MS, itIfTsgoAvailable, recordEvidence, requireTsgo, tsFixtureRoot } from "../helpers/tsgo-live.js";
+import {
+  CALL_BUDGET_MS,
+  itIfTsgoAvailable,
+  recordEvidence,
+  requireTsgo,
+  tsFixtureRoot,
+} from "../helpers/tsgo-live.js";
 
 /**
  * The pin, read before the binding rule is written: tsgo's hover classifies a
@@ -55,13 +61,18 @@ interface HoverRow {
  * One file's raw outline and the hover answer for every top-level `variable` entry in it, asked on the process
  * that answered the outline — the document is already open there, which is what `didOpen` already makes true.
  */
-async function readBindingsFile(): Promise<{ symbols: LspDocumentSymbol[]; rows: HoverRow[]; version: string }> {
+async function readBindingsFile(): Promise<{
+  symbols: LspDocumentSymbol[];
+  rows: HoverRow[];
+  version: string;
+}> {
   const binary = requireTsgo();
   const manager = new LspSessionManager();
   try {
     const session = manager.get(tsFixtureRoot, tsgoConfig(binary));
     const outline = await session.documentSymbol(bindingsFile);
-    if (outline.state !== "ok") throw new Error(`tsgo answered "${outline.state}" for ${bindingsFile}`);
+    if (outline.state !== "ok")
+      throw new Error(`tsgo answered "${outline.state}" for ${bindingsFile}`);
     const rows: HoverRow[] = [];
     for (const entry of outline.symbols) {
       const start = entry.selectionRange?.start;
@@ -119,15 +130,22 @@ describe("the hover answer that classifies a TypeScript binding", () => {
       // The discriminator, in both directions, for every entry that answered at all. The local `export { counted }`
       // list is a second outline entry under the declaration's own name, told apart from it by its line.
       for (const row of rows.filter((row) => row.signature !== null)) {
-        expect(row.alias, `hover for ${row.name} (line ${row.line}) read ${JSON.stringify(row.firstLine)}`).toBe(
-          BINDINGS.includes(row.name) || (row.name === EXPORT_LIST_ENTRY.name && row.line === EXPORT_LIST_ENTRY.line),
+        expect(
+          row.alias,
+          `hover for ${row.name} (line ${row.line}) read ${JSON.stringify(row.firstLine)}`,
+        ).toBe(
+          BINDINGS.includes(row.name) ||
+            (row.name === EXPORT_LIST_ENTRY.name && row.line === EXPORT_LIST_ENTRY.line),
         );
       }
 
       // A declaration that answers no signature would silently become a binding; an unresolved import may
       // legitimately answer nothing, so only the declarations are demanded here.
       for (const name of DECLARATIONS) {
-        expect(byName.get(name)?.signature, `${name} answered no readable signature`).not.toBeNull();
+        expect(
+          byName.get(name)?.signature,
+          `${name} answered no readable signature`,
+        ).not.toBeNull();
       }
       // Every named form but the unresolved one must answer, and answer as a binding: that is the set the rule
       // moves out of `symbols`, and a form missing from it is a new fork.

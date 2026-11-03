@@ -41,7 +41,12 @@ describe("sendWithControl", () => {
 
   it("answers with the server's result and leaves no timer behind", async () => {
     const { connection, settle, tokens } = manualConnection();
-    const pending = sendWithControl<string>(connection, "textDocument/references", {}, { serverId: "gopls", timeoutMs: 1000 });
+    const pending = sendWithControl<string>(
+      connection,
+      "textDocument/references",
+      {},
+      { serverId: "gopls", timeoutMs: 1000 },
+    );
     settle[0]?.resolve("answer");
     await expect(pending).resolves.toBe("answer");
     expect(vi.getTimerCount()).toBe(0);
@@ -50,7 +55,12 @@ describe("sendWithControl", () => {
 
   it("passes the server's own rejection through unchanged", async () => {
     const { connection, settle } = manualConnection();
-    const pending = sendWithControl(connection, "textDocument/hover", {}, { serverId: "gopls", timeoutMs: 1000 });
+    const pending = sendWithControl(
+      connection,
+      "textDocument/hover",
+      {},
+      { serverId: "gopls", timeoutMs: 1000 },
+    );
     const failure = new Error("server said no");
     settle[0]?.reject(failure);
     await expect(pending).rejects.toBe(failure);
@@ -58,7 +68,12 @@ describe("sendWithControl", () => {
 
   it("rejects with RequestTimeoutError at the deadline and cancels the request on the server", async () => {
     const { connection, tokens } = manualConnection();
-    const pending = sendWithControl(connection, "textDocument/references", {}, { serverId: "gopls", timeoutMs: 500 });
+    const pending = sendWithControl(
+      connection,
+      "textDocument/references",
+      {},
+      { serverId: "gopls", timeoutMs: 500 },
+    );
     const assertion = expect(pending).rejects.toMatchObject({
       name: "RequestTimeoutError",
       serverId: "gopls",
@@ -73,7 +88,12 @@ describe("sendWithControl", () => {
   it("rejects with RequestAbortedError when the signal fires, and cancels the request on the server", async () => {
     const { connection, tokens } = manualConnection();
     const controller = new AbortController();
-    const pending = sendWithControl(connection, "textDocument/hover", {}, { serverId: "clangd", timeoutMs: 60_000, signal: controller.signal });
+    const pending = sendWithControl(
+      connection,
+      "textDocument/hover",
+      {},
+      { serverId: "clangd", timeoutMs: 60_000, signal: controller.signal },
+    );
     const assertion = expect(pending).rejects.toBeInstanceOf(RequestAbortedError);
     controller.abort();
     await assertion;
@@ -92,7 +112,12 @@ describe("sendWithControl", () => {
     const controller = new AbortController();
     controller.abort();
     await expect(
-      sendWithControl(connection, "textDocument/hover", {}, { serverId: "clangd", timeoutMs: 1000, signal: controller.signal }),
+      sendWithControl(
+        connection,
+        "textDocument/hover",
+        {},
+        { serverId: "clangd", timeoutMs: 1000, signal: controller.signal },
+      ),
     ).rejects.toBeInstanceOf(RequestAbortedError);
     expect(sendRequest).not.toHaveBeenCalled();
   });
@@ -106,9 +131,9 @@ describe("sendWithControl", () => {
       onRequest: () => ({ dispose: () => {} }),
       onProgress: () => ({ dispose: () => {} }),
     };
-    await expect(sendWithControl(connection, "initialize", {}, { serverId: "gopls", timeoutMs: 1000 })).rejects.toThrow(
-      "connection is closed",
-    );
+    await expect(
+      sendWithControl(connection, "initialize", {}, { serverId: "gopls", timeoutMs: 1000 }),
+    ).rejects.toThrow("connection is closed");
     expect(vi.getTimerCount()).toBe(0);
   });
 });
@@ -117,20 +142,29 @@ describe("resolveRequestTimeoutMs", () => {
   it("uses the default when the variable is unset or empty", () => {
     const warn = vi.fn();
     expect(resolveRequestTimeoutMs({}, warn)).toBe(DEFAULT_REQUEST_TIMEOUT_MS);
-    expect(resolveRequestTimeoutMs({ MCP_CODE_NAV_REQUEST_TIMEOUT_MS: "" }, warn)).toBe(DEFAULT_REQUEST_TIMEOUT_MS);
+    expect(resolveRequestTimeoutMs({ MCP_CODE_NAV_REQUEST_TIMEOUT_MS: "" }, warn)).toBe(
+      DEFAULT_REQUEST_TIMEOUT_MS,
+    );
     expect(warn).not.toHaveBeenCalled();
   });
 
   it("reads a positive integer", () => {
-    expect(resolveRequestTimeoutMs({ MCP_CODE_NAV_REQUEST_TIMEOUT_MS: "45000" }, vi.fn())).toBe(45_000);
+    expect(resolveRequestTimeoutMs({ MCP_CODE_NAV_REQUEST_TIMEOUT_MS: "45000" }, vi.fn())).toBe(
+      45_000,
+    );
   });
 
-  it.each(["0", "-5", "1.5", "soon", "99999999"])("reports %s and falls back to the default", (value) => {
-    const warn = vi.fn();
-    expect(resolveRequestTimeoutMs({ MCP_CODE_NAV_REQUEST_TIMEOUT_MS: value }, warn)).toBe(DEFAULT_REQUEST_TIMEOUT_MS);
-    expect(warn).toHaveBeenCalledOnce();
-    expect(warn.mock.calls[0]?.[0]).toContain("MCP_CODE_NAV_REQUEST_TIMEOUT_MS");
-  });
+  it.each(["0", "-5", "1.5", "soon", "99999999"])(
+    "reports %s and falls back to the default",
+    (value) => {
+      const warn = vi.fn();
+      expect(resolveRequestTimeoutMs({ MCP_CODE_NAV_REQUEST_TIMEOUT_MS: value }, warn)).toBe(
+        DEFAULT_REQUEST_TIMEOUT_MS,
+      );
+      expect(warn).toHaveBeenCalledOnce();
+      expect(warn.mock.calls[0]?.[0]).toContain("MCP_CODE_NAV_REQUEST_TIMEOUT_MS");
+    },
+  );
 });
 
 /** A server that completes the handshake and then never answers anything else. */
@@ -140,7 +174,10 @@ function silentServer() {
   });
 }
 
-function sessionOver(server: ReturnType<typeof silentServer>, requestTimeoutMs: number): LspSession {
+function sessionOver(
+  server: ReturnType<typeof silentServer>,
+  requestTimeoutMs: number,
+): LspSession {
   return new LspSession({
     root: "/mod",
     config: goplsConfig,
@@ -170,7 +207,9 @@ describe("LspSession requests against a server that stops answering", () => {
     const session = sessionOver(server, 600_000);
     const controller = new AbortController();
 
-    const pending = withRequestSignal(controller.signal, () => session.request("textDocument/references", {}));
+    const pending = withRequestSignal(controller.signal, () =>
+      session.request("textDocument/references", {}),
+    );
     const failure = pending.catch((e: unknown) => e);
     await vi.waitFor(() => expect(server.methods).toContain("textDocument/references"));
     controller.abort();
@@ -185,9 +224,9 @@ describe("LspSession requests against a server that stops answering", () => {
     const controller = new AbortController();
     controller.abort();
 
-    const failure = await withRequestSignal(controller.signal, () => session.request("textDocument/references", {})).catch(
-      (e: unknown) => e,
-    );
+    const failure = await withRequestSignal(controller.signal, () =>
+      session.request("textDocument/references", {}),
+    ).catch((e: unknown) => e);
 
     expect(failure).toBeInstanceOf(RequestAbortedError);
     expect(server.methods).not.toContain("textDocument/references");
@@ -200,7 +239,10 @@ describe("LspSession requests against a server that stops answering", () => {
       respond: (method) => (method === "initialize" ? { capabilities: {} } : new Promise(() => {})),
       kill: vi.fn(),
     });
-    const second = fakeServer({ respond: (method) => (method === "initialize" ? { capabilities: {} } : ["ok"]), kill: vi.fn() });
+    const second = fakeServer({
+      respond: (method) => (method === "initialize" ? { capabilities: {} } : ["ok"]),
+      kill: vi.fn(),
+    });
     const servers = [first, second];
     const spawn = vi.fn(() => {
       const next = servers[spawn.mock.calls.length - 1];
@@ -238,11 +280,17 @@ describe("LspSession requests against a server that stops answering", () => {
       respond: (method) => (method === "initialize" ? { capabilities: {} } : new Promise(() => {})),
       kill: vi.fn(),
     });
-    const healthy = fakeServer({ respond: (method) => (method === "initialize" ? { capabilities: {} } : ["ok"]) });
+    const healthy = fakeServer({
+      respond: (method) => (method === "initialize" ? { capabilities: {} } : ["ok"]),
+    });
     const servers = [hung, healthy];
     const spawn = vi.fn(() => (servers[spawn.mock.calls.length - 1] ?? hung).process);
     // The stderr wait and the settle sleep never finish: the failure stays pending while the test looks.
-    const stuckStderr = { ...hung.process, stderrSettled: () => new Promise<void>(() => {}), stderrTail: () => "" };
+    const stuckStderr = {
+      ...hung.process,
+      stderrSettled: () => new Promise<void>(() => {}),
+      stderrTail: () => "",
+    };
     servers[0] = { ...hung, process: stuckStderr } as typeof hung;
     const session = new LspSession({
       root: "/mod",
@@ -279,7 +327,9 @@ describe("LspSession requests against a server that stops answering", () => {
     const { first, spawn, session } = hangThenHealthy(600_000);
     const controller = new AbortController();
 
-    const pending = withRequestSignal(controller.signal, () => session.request("textDocument/references", {}));
+    const pending = withRequestSignal(controller.signal, () =>
+      session.request("textDocument/references", {}),
+    );
     const failure = pending.catch((e: unknown) => e);
     await vi.waitFor(() => expect(first.methods).toContain("textDocument/references"));
     controller.abort();
@@ -295,7 +345,9 @@ describe("LspSession requests against a server that stops answering", () => {
     const session = sessionOver(server, 600_000);
     const controller = new AbortController();
 
-    const outcome = withRequestSignal(controller.signal, () => session.awaitWorkspaceReady(600_000));
+    const outcome = withRequestSignal(controller.signal, () =>
+      session.awaitWorkspaceReady(600_000),
+    );
     controller.abort();
 
     await expect(outcome).resolves.toBe("timed-out");

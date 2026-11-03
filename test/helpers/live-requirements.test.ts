@@ -14,13 +14,19 @@ describe("parseRequired", () => {
   });
 
   it("reads a comma-separated list and reports names it does not know", () => {
-    expect(parseRequired("gopls, tsgo,rustc")).toEqual({ required: ["gopls", "tsgo"], invalid: ["rustc"] });
+    expect(parseRequired("gopls, tsgo,rustc")).toEqual({
+      required: ["gopls", "tsgo"],
+      invalid: ["rustc"],
+    });
   });
 });
 
 describe("missingRequired", () => {
   it("lists the required tools that were not found", () => {
-    expect(missingRequired(["clangd", "clang-query", "tsgo"], found)).toEqual(["clang-query", "tsgo"]);
+    expect(missingRequired(["clangd", "clang-query", "tsgo"], found)).toEqual([
+      "clang-query",
+      "tsgo",
+    ]);
     expect(missingRequired([], found)).toEqual([]);
   });
 });

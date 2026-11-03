@@ -35,7 +35,11 @@ interface Result {
 
 interface Scope {
   projectRoot: string;
-  index: { state: string; staleFiles?: { count: number; files: readonly string[] }; driftUnknown?: string };
+  index: {
+    state: string;
+    staleFiles?: { count: number; files: readonly string[] };
+    driftUnknown?: string;
+  };
   uncoveredSources?: { count: number; files: readonly string[] };
   uncoveredSourcesUnavailable?: string;
   limits: string[];
@@ -91,7 +95,10 @@ describe("cpp_find_references against a faked clangd", () => {
       {
         name: "Widget",
         kind: 5,
-        location: { uri: fileUri(widget), range: { start: { line: 3, character: 6 }, end: { line: 3, character: 12 } } },
+        location: {
+          uri: fileUri(widget),
+          range: { start: { line: 3, character: 6 }, end: { line: 3, character: 12 } },
+        },
       },
     ];
     duringQuery = [];
@@ -122,7 +129,13 @@ describe("cpp_find_references against a faked clangd", () => {
           // widget.cpp declares `class Widget` on 0-based line 3 with `value` inside it on line 5, so the
           // use at line 5 sits in a member and must be named as one.
           if (file === widget) {
-            return [{ ...symAt("Widget", 5, 3, 6), range: { start: { line: 3 }, end: { line: 6 } }, children: [symAt("value", 6, 5, 6)] }];
+            return [
+              {
+                ...symAt("Widget", 5, 3, 6),
+                range: { start: { line: 3 }, end: { line: 6 } },
+                children: [symAt("value", 6, 5, 6)],
+              },
+            ];
           }
           if (file === helper) return [symAt("helper", 12, 0, 4)];
           return [symAt("elsewhere", 12, 0, 4)];
@@ -242,7 +255,9 @@ describe("cpp_find_references against a faked clangd", () => {
   it("keeps every count exact while both caps bite, and says so", async () => {
     locations = () => [
       ...Array.from({ length: 25 }, (_, index) => site(helper, index, 2)),
-      ...Array.from({ length: 45 }, (_, index) => site(join(outsideDir, `extra${index}.cpp`), 1, 1)),
+      ...Array.from({ length: 45 }, (_, index) =>
+        site(join(outsideDir, `extra${index}.cpp`), 1, 1),
+      ),
     ];
 
     const result = await run();
@@ -271,13 +286,20 @@ describe("cpp_find_references against a faked clangd", () => {
     expect(first.index.state).toBe("unknown");
     expect(first.index.staleFiles).toBeUndefined();
     expect(first.index.driftUnknown).toMatch(/first index-backed answer over/);
-    expect(first.limits).toEqual(["compile-database-only", "index-state-unknown", "index-drift-unknown"]);
+    expect(first.limits).toEqual([
+      "compile-database-only",
+      "index-state-unknown",
+      "index-drift-unknown",
+    ]);
     expect(first.freshness).toBeUndefined();
   });
 
   it("reports a source a rebuild moved as stale, and codes the answer as possibly behind it", async () => {
     await run();
-    writeFileSync(widget, "class Widget {\npublic:\n  int value();\n};\n\n// edited after the baseline\n");
+    writeFileSync(
+      widget,
+      "class Widget {\npublic:\n  int value();\n};\n\n// edited after the baseline\n",
+    );
 
     const second = scope(await run());
 
@@ -295,7 +317,9 @@ describe("cpp_find_references against a faked clangd", () => {
     const journal = server.journal;
     const pushed = journal.indexOf("note:workspace/didChangeWatchedFiles");
     expect(pushed).toBeGreaterThanOrEqual(0);
-    expect(journal.filter((entry) => entry === "note:workspace/didChangeWatchedFiles")).toHaveLength(1);
+    expect(
+      journal.filter((entry) => entry === "note:workspace/didChangeWatchedFiles"),
+    ).toHaveLength(1);
     expect(journal.lastIndexOf("req:textDocument/references")).toBeGreaterThan(pushed);
     // It is a notification: the drift push asks nothing the method allow-list has to admit.
     expect(journal).not.toContain("req:workspace/didChangeWatchedFiles");
@@ -365,7 +389,10 @@ describe("cpp_find_references against a faked clangd", () => {
 
     const withBlindSpot = scope(await run());
 
-    expect(withBlindSpot.uncoveredSources).toEqual({ count: 1, files: [join(sourceDir, "orphan.cpp")] });
+    expect(withBlindSpot.uncoveredSources).toEqual({
+      count: 1,
+      files: [join(sourceDir, "orphan.cpp")],
+    });
     expect(withBlindSpot.uncoveredSourcesUnavailable).toBeUndefined();
     expect(withBlindSpot.limits).toContain("uncovered-sources-present");
   });
@@ -373,7 +400,13 @@ describe("cpp_find_references against a faked clangd", () => {
   it("states the scope exactly", async () => {
     const built = scope(await run());
 
-    expect(Object.keys(built).sort()).toEqual(["index", "limits", "projectRoot", "sourceRoots", "uncoveredSources"]);
+    expect(Object.keys(built).sort()).toEqual([
+      "index",
+      "limits",
+      "projectRoot",
+      "sourceRoots",
+      "uncoveredSources",
+    ]);
     expect(built.projectRoot).toBe(buildDir);
   });
 
@@ -383,7 +416,9 @@ describe("cpp_find_references against a faked clangd", () => {
     const failed = await run();
 
     expect(failed.isError).toBe(true);
-    expect(textOf(failed)).toMatch(/cpp_find_references failed: clangd answered the query for "Widget" with entry 1/);
+    expect(textOf(failed)).toMatch(
+      /cpp_find_references failed: clangd answered the query for "Widget" with entry 1/,
+    );
     expect(textOf(failed)).toMatch(/possibly dropping a match/);
   });
 
@@ -417,7 +452,9 @@ describe("cpp_find_references against a faked clangd", () => {
   it("keeps the shared resolver's refusals, with this tool's name at the front", async () => {
     server = fakeServer({
       respond: (method) =>
-        method === "textDocument/documentSymbol" ? [symAt("Widget", 5, 3, 6), symAt("Widget", 5, 8, 6)] : locations(),
+        method === "textDocument/documentSymbol"
+          ? [symAt("Widget", 5, 3, 6), symAt("Widget", 5, 8, 6)]
+          : locations(),
     });
     sessions = sessionsFor(server.process);
 
@@ -429,7 +466,11 @@ describe("cpp_find_references against a faked clangd", () => {
 
   it("resolves a subject named without a `file` through clangd's index, in the answer's own window", async () => {
     const unscoped = () =>
-      runCppFindReferences(sessions, { projectRoot: buildDir, name: "Widget", sourceRoots: [sourceDir] } as never);
+      runCppFindReferences(sessions, {
+        projectRoot: buildDir,
+        name: "Widget",
+        sourceRoots: [sourceDir],
+      } as never);
 
     // A call that fails at its own resolution still leaves its file open, so the session now holds
     // `helper.cpp` — an outline that says nothing about `Widget`. The name can only come from the index.
@@ -450,11 +491,18 @@ describe("cpp_find_references against a faked clangd", () => {
 
     const built = await unscoped();
 
-    expect(payload(built).resolved).toEqual({ name: "Widget", kind: "class", file: widget, line: 4 });
+    expect(payload(built).resolved).toEqual({
+      name: "Widget",
+      kind: "class",
+      file: widget,
+      line: 4,
+    });
     // The symbol query went first and the reference query was asked at the position its row named: one
     // answer, read from two requests.
     const journal = server.journal;
-    expect(journal.indexOf("req:workspace/symbol")).toBeLessThan(journal.indexOf("req:textDocument/references"));
+    expect(journal.indexOf("req:workspace/symbol")).toBeLessThan(
+      journal.indexOf("req:textDocument/references"),
+    );
     expect(scope(built).index.state).toBe("building");
   });
 
@@ -483,13 +531,19 @@ describe("cpp_find_references against a faked clangd", () => {
     // Neither the question nor its document: the file was never opened and nothing was asked about it.
     expect(server.requests.some(([method]) => method === "textDocument/references")).toBe(false);
     expect(
-      server.notifications.filter(([method]) => method === "textDocument/didOpen").map(([, params]) => pathOfDocumentId(params)),
+      server.notifications
+        .filter(([method]) => method === "textDocument/didOpen")
+        .map(([, params]) => pathOfDocumentId(params)),
     ).not.toContain(elsewhere);
   });
 
   it("leaves nothing it resolved through the index in the session's opened set", async () => {
     const unscoped = () =>
-      runCppFindReferences(sessions, { projectRoot: buildDir, name: "Widget", sourceRoots: [sourceDir] } as never);
+      runCppFindReferences(sessions, {
+        projectRoot: buildDir,
+        name: "Widget",
+        sourceRoots: [sourceDir],
+      } as never);
 
     const built = await unscoped();
     expect(payload(built).resolved.name).toBe("Widget");
@@ -506,7 +560,9 @@ describe("cpp_find_references against a faked clangd", () => {
     } as never);
     expect((symbol.structuredContent as { scope?: unknown }).scope).toBeDefined();
     // …and the rows in that file are still named, from the transient read rather than a held one.
-    const inWidget = (payload(built).files.find((group) => group.file === widget) ?? { sites: [] }) as {
+    const inWidget = (payload(built).files.find((group) => group.file === widget) ?? {
+      sites: [],
+    }) as {
       sites: { in: string | null }[];
     };
     expect(inWidget.sites[0]?.in).toBe("Widget::value");

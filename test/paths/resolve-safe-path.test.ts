@@ -64,7 +64,8 @@ describe("resolveWithinAnyRoot", () => {
   });
 
   it("rejects a path outside every declared root, naming all of them", () => {
-    const outside = process.platform === "win32" ? "C:\\elsewhere\\file.cpp" : "/elsewhere/file.cpp";
+    const outside =
+      process.platform === "win32" ? "C:\\elsewhere\\file.cpp" : "/elsewhere/file.cpp";
     try {
       resolveWithinAnyRoot([projectRoot, sourceRoot], outside);
       expect.unreachable("expected PathEscapeError");
@@ -130,7 +131,11 @@ describe("resolveWithinAnyRoot", () => {
   it.skipIf(process.platform !== "win32")(
     "does not treat one file that two roots spell with different case as an ambiguity",
     () => {
-      const result = resolveWithinAnyRoot([sourceRoot, sourceRoot.toUpperCase()], "a.h", () => true);
+      const result = resolveWithinAnyRoot(
+        [sourceRoot, sourceRoot.toUpperCase()],
+        "a.h",
+        () => true,
+      );
       expect(result.absolutePath).toBe(join(sourceRoot, "a.h"));
       expect(result.matchedRoot).toBe(sourceRoot);
       expect(result.triedPaths).toHaveLength(2);
@@ -179,9 +184,9 @@ describe("resolveWithinAnyRoot", () => {
 
   it("raises PathEscapeError, and stats nothing, for a .. candidate contained in no root", () => {
     const stat = statSpy([]);
-    expect(() => resolveWithinAnyRoot([projectRoot, sourceRoot], "../../../outside.h", stat.exists)).toThrow(
-      PathEscapeError,
-    );
+    expect(() =>
+      resolveWithinAnyRoot([projectRoot, sourceRoot], "../../../outside.h", stat.exists),
+    ).toThrow(PathEscapeError);
     expect(stat.calls).toEqual([]);
   });
 
@@ -219,7 +224,10 @@ describe("resolveWithinAnyRoot with the real stat", () => {
     const file = join(sourceDir, "connector_core", "include", "adapter.h");
     mkdirSync(join(sourceDir, "connector_core", "include"), { recursive: true });
     writeFileSync(file, "#pragma once\n");
-    const result = resolveWithinAnyRoot([buildDir, sourceDir], join("connector_core", "include", "adapter.h"));
+    const result = resolveWithinAnyRoot(
+      [buildDir, sourceDir],
+      join("connector_core", "include", "adapter.h"),
+    );
     expect(result.absolutePath).toBe(file);
     expect(result.matchedRoot).toBe(sourceDir);
   });
@@ -236,7 +244,9 @@ describe("resolveWithinAnyRoot with the real stat", () => {
   it("reports an ambiguity when two roots both hold the file", () => {
     writeFileSync(join(buildDir, "widget.h"), "#pragma once\n");
     writeFileSync(join(sourceDir, "widget.h"), "#pragma once\n");
-    expect(() => resolveWithinAnyRoot([buildDir, sourceDir], "widget.h")).toThrow(AmbiguousRelativePathError);
+    expect(() => resolveWithinAnyRoot([buildDir, sourceDir], "widget.h")).toThrow(
+      AmbiguousRelativePathError,
+    );
   });
 });
 
@@ -283,7 +293,9 @@ describe("resolveWithinAnyRoot and links", () => {
 
   it("accepts a link whose target is another directory inside the root", (ctx) => {
     if (!tryLinkDirectory(join(root, "real"), join(root, "alias"))) ctx.skip();
-    expect(resolveWithinAnyRoot([root], "alias/ok.cpp").absolutePath).toBe(join(root, "alias", "ok.cpp"));
+    expect(resolveWithinAnyRoot([root], "alias/ok.cpp").absolutePath).toBe(
+      join(root, "alias", "ok.cpp"),
+    );
   });
 
   it("accepts a link whose target is declared as a second root", (ctx) => {

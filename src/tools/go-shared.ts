@@ -27,12 +27,10 @@ const MAX_TIME_BUDGET_MS = 600_000;
  * `mcp-code-nav.config.json`'s `ignoredPaths` is not honoured here: it is loaded from a `projectRoot`
  * these tools do not have.
  */
-export const GoSourceRootsSchema = PathList
-  .min(1)
-  .describe(
-    "Absolute directories bounding this call, at least one; the path you pass and its Go module must lie " +
-      "inside one of them.",
-  );
+export const GoSourceRootsSchema = PathList.min(1).describe(
+  "Absolute directories bounding this call, at least one; the path you pass and its Go module must lie " +
+    "inside one of them.",
+);
 
 /**
  * The declaring file the three type-aware Go questions are addressed by. Stated once: the module a call
@@ -52,7 +50,7 @@ export function timeBudgetSchema(defaultMs: number) {
     .max(MAX_TIME_BUDGET_MS)
     .default(defaultMs)
     .describe(
-      `Ceiling in ms, default ${defaultMs}; the first call on a module also waits for gopls's package load.`,
+      `Ceiling in ms, default ${String(defaultMs)}; the first call on a module also waits for gopls's package load.`,
     );
 }
 
@@ -82,7 +80,7 @@ export function goModuleRootErrorText(
 
 export function budgetText(tool: string, budget: Budget, what: string, moduleRoot: string): string {
   return (
-    `${tool} failed: gopls did not ${what} within this call's ${budget.ceilingMs} ms budget. The module at ` +
+    `${tool} failed: gopls did not ${what} within this call's ${String(budget.ceilingMs)} ms budget. The module at ` +
     `"${moduleRoot}" may still be loading its packages; raise timeBudgetMs or call again, and do not read ` +
     "this as an empty answer."
   );
@@ -175,7 +173,11 @@ export function resolveGoAnchor(
   sessions: LspSessionManager,
   input: { sourceRoots: string[]; anchor: string; timeBudgetMs: number },
 ): Step<GoAnchor> {
-  const resolution = resolveWithinAnyRoot(input.sourceRoots, input.anchor, isExistingFileOrDirectory);
+  const resolution = resolveWithinAnyRoot(
+    input.sourceRoots,
+    input.anchor,
+    isExistingFileOrDirectory,
+  );
   const kind = anchorKind(tool, resolution.absolutePath);
   if (!kind.ok) return kind;
   const target = targetAt(tool, input, sessions, resolution, kind.value);
@@ -199,7 +201,11 @@ export function anchorKind(tool: string, absolutePath: string): Step<ModuleRootP
     };
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
-    const why = code === "ENOENT" ? "does not exist" : `could not be read${code ? ` (${code})` : ""}`;
-    return { ok: false, error: `${tool} failed: the anchor "${absolutePath}" ${why}, so nothing was searched.` };
+    const why =
+      code === "ENOENT" ? "does not exist" : `could not be read${code ? ` (${code})` : ""}`;
+    return {
+      ok: false,
+      error: `${tool} failed: the anchor "${absolutePath}" ${why}, so nothing was searched.`,
+    };
   }
 }

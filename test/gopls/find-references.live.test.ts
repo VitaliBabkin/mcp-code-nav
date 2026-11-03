@@ -35,10 +35,13 @@ function ask(
   symbol: string,
   includeDeclaration = false,
 ): Promise<Result> {
-  return runGoFindReferences(
-    manager,
-    { sourceRoots: roots, file, symbol, includeDeclaration, timeBudgetMs: CALL_BUDGET_MS },
-  );
+  return runGoFindReferences(manager, {
+    sourceRoots: roots,
+    file,
+    symbol,
+    includeDeclaration,
+    timeBudgetMs: CALL_BUDGET_MS,
+  });
 }
 
 function payloadOf(result: Result): Payload {
@@ -81,7 +84,9 @@ describe("go_find_references against a real gopls binary", () => {
       expect(groupNamed(payload, usesFile)).toMatchObject({ external: false, count: 2 });
       // Naming happened for every site, so nothing in the answer is an unnamed placeholder.
       expect(namedSites(payload).filter((site) => site.endsWith(":<unnamed>"))).toEqual([]);
-      expect(namedSites(payload).some((site) => /storage\.go:.*Memory.*Read/.test(site))).toBe(true);
+      expect(namedSites(payload).some((site) => /storage\.go:.*Memory.*Read/.test(site))).toBe(
+        true,
+      );
       expect(namedSites(payload).some((site) => /uses\.go:.*Trim/.test(site))).toBe(true);
 
       // The promise: for a package-private identifier there is no invisible importer.
@@ -92,17 +97,23 @@ describe("go_find_references against a real gopls binary", () => {
     600_000,
   );
 
-  itIfGoplsAvailable("marks an exported subject with the code for the importers it cannot see", async () => {
-    const payload = payloadOf(await ask(freshManager(), [navRoot], storageFile, "Reader"));
+  itIfGoplsAvailable(
+    "marks an exported subject with the code for the importers it cannot see",
+    async () => {
+      const payload = payloadOf(await ask(freshManager(), [navRoot], storageFile, "Reader"));
 
-    expect(payload.resolved.kind).toBe("interface");
-    expect(payload.scope.visibility).toBe("exported");
-    expect(payload.scope.limits).toContain("exported-symbol-importers-invisible");
-    expect(payload.totalReferences).toBeGreaterThanOrEqual(1);
-    // `Serve`'s parameter is the only in-module use, so the listing is nowhere near a cap.
-    expect(payload.filesTruncated).toBe(0);
-    expect(payload.files.flatMap((group) => group.sites).every((site) => site.in !== null)).toBe(true);
-  }, 600_000);
+      expect(payload.resolved.kind).toBe("interface");
+      expect(payload.scope.visibility).toBe("exported");
+      expect(payload.scope.limits).toContain("exported-symbol-importers-invisible");
+      expect(payload.totalReferences).toBeGreaterThanOrEqual(1);
+      // `Serve`'s parameter is the only in-module use, so the listing is nowhere near a cap.
+      expect(payload.filesTruncated).toBe(0);
+      expect(payload.files.flatMap((group) => group.sites).every((site) => site.in !== null)).toBe(
+        true,
+      );
+    },
+    600_000,
+  );
 
   itIfGoplsAvailable(
     "answers a helper nobody uses with a scoped empty, which is what proves readiness was observed",
@@ -139,7 +150,9 @@ describe("go_find_references against a real gopls binary", () => {
       expect(declared?.count).toBe(2);
       // The declaration row is the one whose site is the helper's own name.
       expect(declared?.sites.some((site) => site.in === "normaliseKey")).toBe(true);
-      expect(uses.files.flatMap((group) => group.sites).some((site) => site.in === "normaliseKey")).toBe(false);
+      expect(
+        uses.files.flatMap((group) => group.sites).some((site) => site.in === "normaliseKey"),
+      ).toBe(false);
     },
     600_000,
   );
@@ -190,7 +203,9 @@ describe("go_find_references against a real gopls binary", () => {
     async () => {
       // `Serve`'s use at `uses.go:8` goes through a `Reader` value, and gopls's reference relation still
       // links it to `(*Memory).Read` — the same relation the call hierarchy answers from.
-      const payload = payloadOf(await ask(freshManager(), [navRoot], storageFile, "(*Memory).Read"));
+      const payload = payloadOf(
+        await ask(freshManager(), [navRoot], storageFile, "(*Memory).Read"),
+      );
 
       expect(payload.resolved).toMatchObject({ name: "(*Memory).Read", kind: "method" });
       expect(groupNamed(payload, usesFile)?.sites.some((site) => site.line === 8)).toBe(true);
@@ -267,7 +282,9 @@ describe("go_find_references against a real gopls binary", () => {
     async () => {
       // `sub.Wrapped` satisfies `gonav.sealed` through this method and never names it, so the sealed
       // pattern adds no occurrence of the identifier: the mirror case, decided by the answer.
-      const payload = payloadOf(await ask(freshManager(), [navRoot], hiddenFile, "(*Gauge).sample"));
+      const payload = payloadOf(
+        await ask(freshManager(), [navRoot], hiddenFile, "(*Gauge).sample"),
+      );
 
       expect(payload.scope.visibility).toBe("package-private");
       expect(payload.scope.limits).not.toContain("exported-symbol-importers-invisible");

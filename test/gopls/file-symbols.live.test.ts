@@ -74,15 +74,23 @@ describe("go_file_symbols against a real gopls binary", () => {
       const symbols = symbolsOf(await outline(1, 180_000));
 
       const storage = findByName(symbols, "Storage");
-      expect(storage, `expected a "Storage" interface in: ${JSON.stringify(symbols)}`).toMatchObject({
+      expect(
+        storage,
+        `expected a "Storage" interface in: ${JSON.stringify(symbols)}`,
+      ).toMatchObject({
         kind: "interface",
         range: { startLine: lineOf("type Storage interface") },
       });
       expect(storage?.children?.some((child) => child.name === "Get")).toBe(true);
 
       expect(findByName(symbols, "MemoryStorage")?.kind).toBe("struct");
-      const getter = symbols.find((symbol) => symbol.kind === "method" && symbol.name.endsWith("Get"));
-      expect(getter, `expected a top-level method for Get in: ${JSON.stringify(symbols)}`).toBeDefined();
+      const getter = symbols.find(
+        (symbol) => symbol.kind === "method" && symbol.name.endsWith("Get"),
+      );
+      expect(
+        getter,
+        `expected a top-level method for Get in: ${JSON.stringify(symbols)}`,
+      ).toBeDefined();
       expect(getter?.range.startLine).toBe(lineOf("func (m *MemoryStorage) Get"));
       expect(findByName(symbols, "Default")?.kind).toBe("function");
     },
@@ -96,7 +104,9 @@ describe("go_file_symbols against a real gopls binary", () => {
       const storage = findByName(symbols, "Storage");
       expect(storage).toBeDefined();
       expect(storage?.children).toBeUndefined();
-      expect(symbols.some((symbol) => symbol.kind === "method" && symbol.name.endsWith("Get"))).toBe(true);
+      expect(
+        symbols.some((symbol) => symbol.kind === "method" && symbol.name.endsWith("Get")),
+      ).toBe(true);
     },
     300_000,
   );

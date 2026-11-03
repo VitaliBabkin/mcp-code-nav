@@ -83,7 +83,8 @@ const managers: LspSessionManager[] = [];
 
 /** One manager per case, kept so `afterEach` disposes what a throwing assertion never reached. */
 function freshManager(log?: TsgoProcessLog): LspSessionManager {
-  const manager = log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
+  const manager =
+    log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
   managers.push(manager);
   return manager;
 }
@@ -93,10 +94,13 @@ afterEach(() => {
 });
 
 function ask(manager: LspSessionManager, file: string, symbol: string): Promise<Result> {
-  return runTsFindReferences(
-    manager,
-    { sourceRoots: [root], file, symbol, includeDeclaration: false, timeBudgetMs: CALL_BUDGET_MS },
-  );
+  return runTsFindReferences(manager, {
+    sourceRoots: [root],
+    file,
+    symbol,
+    includeDeclaration: false,
+    timeBudgetMs: CALL_BUDGET_MS,
+  });
 }
 
 function payload(result: Result): TsFindReferencesPayload {
@@ -118,7 +122,12 @@ function under(path: string | null | undefined): string {
   // The same directory spelled with another drive-letter case is still under it: `relative` would call that an
   // escape, and the map compares the two case-folded.
   const key = pathKey(root);
-  return pathKey(path).startsWith(`${key}/`) ? path.slice(key.length + 1).split("\\").join("/") : path;
+  return pathKey(path).startsWith(`${key}/`)
+    ? path
+        .slice(key.length + 1)
+        .split("\\")
+        .join("/")
+    : path;
 }
 
 function namesUnder(paths: readonly string[]): string[] {
@@ -167,18 +176,22 @@ function projectFor(map: ProjectMap, config: string): TsProject {
 /** The walk's entries, or a failure quoting what the walk said it could not finish. */
 function requireWalked(): { entries: Map<string, string>; unresolved: readonly string[] } {
   const walked = walkWorkspace(root);
-  if (walked === undefined) throw new Error(`the walk of "${root}" did not complete: ${workspaceSnapshotReason(root)}`);
+  if (walked === undefined)
+    throw new Error(`the walk of "${root}" did not complete: ${workspaceSnapshotReason(root)}`);
   return walked;
 }
 
 function requireProjects(scope: TsNavigationScope): TsProjectsBlock {
-  if (!("projects" in scope)) throw new Error(`no project map was reported: ${scope.projectsUnavailable}`);
+  if (!("projects" in scope))
+    throw new Error(`no project map was reported: ${scope.projectsUnavailable}`);
   return scope.projects;
 }
 
-function requireUncovered(
-  scope: TsNavigationScope,
-): { count: number; files: readonly string[]; namedFileUncovered: boolean } {
+function requireUncovered(scope: TsNavigationScope): {
+  count: number;
+  files: readonly string[];
+  namedFileUncovered: boolean;
+} {
   if (!("uncoveredSources" in scope)) {
     throw new Error(`no uncovered set was computed: ${scope.uncoveredSourcesUnavailable}`);
   }
@@ -272,7 +285,10 @@ describe("a nested config that leaves a file out, against the real tsgo", () => 
         expect(namesUnder(projects.configs)).toEqual(CONFIGS);
         expect(answer.scope.limits).not.toContain("projects-not-loaded");
         for (const one of [usesFile, ownedFile, sharedFile]) {
-          expect(opened, `documents opened on the answering process: ${JSON.stringify(opened)}`).toContain(under(one));
+          expect(
+            opened,
+            `documents opened on the answering process: ${JSON.stringify(opened)}`,
+          ).toContain(under(one));
         }
         // The disputed file is read and now owned by the ancestor, so it is not "a source no project includes".
         const uncovered = requireUncovered(answer.scope);
@@ -294,17 +310,22 @@ describe("a nested config that leaves a file out, against the real tsgo", () => 
         // The use in `src/uses.ts` is in the answer: under the climb the ancestor owns the disputed file, is
         // anchored on it, and its program holds the consumer, so this call has no other answer to give.
         const group = groupOf(answer, usesFile);
-        expect(group === undefined ? "<no group for src/uses.ts>" : under(group.file), evidence(answer, opened)).toBe(
-          under(usesFile),
-        );
+        expect(
+          group === undefined ? "<no group for src/uses.ts>" : under(group.file),
+          evidence(answer, opened),
+        ).toBe(under(usesFile));
         expect(group?.external, evidence(answer, opened)).toBe(false);
         const site = (group?.sites ?? []).find((candidate) => candidate.line === useLine);
-        expect(site === undefined ? "<no site at the use line>" : site.in, evidence(answer, opened)).toBe(CONSUMER);
+        expect(
+          site === undefined ? "<no site at the use line>" : site.in,
+          evidence(answer, opened),
+        ).toBe(CONSUMER);
 
         // The exactness, whatever the answer turned out to be.
-        expect(answer.files.reduce((sum, one) => sum + one.count, 0), evidence(answer, opened)).toBe(
-          answer.totalReferences,
-        );
+        expect(
+          answer.files.reduce((sum, one) => sum + one.count, 0),
+          evidence(answer, opened),
+        ).toBe(answer.totalReferences);
         expect(answer.filesTruncated).toBe(0);
       } finally {
         manager.disposeAll();

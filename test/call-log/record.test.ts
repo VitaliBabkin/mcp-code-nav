@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { CallLogLine, LOGGED_ARG_KEYS, RESULT_COUNT_SELECTORS, RunRecord } from "../../src/call-log/record.js";
+import {
+  CallLogLine,
+  LOGGED_ARG_KEYS,
+  RESULT_COUNT_SELECTORS,
+  RunRecord,
+} from "../../src/call-log/record.js";
 
 const REGISTERED_TOOLS = [
   "cpp_file_symbols",
@@ -79,7 +84,15 @@ describe("RESULT_COUNT_SELECTORS", () => {
     it(`answers null rather than throwing for ${tool} without a payload`, () => {
       const select = RESULT_COUNT_SELECTORS[tool];
       expect(select).toBeDefined();
-      for (const payload of [undefined, null, "text", 7, [], {}, { symbols: null, totalReferences: -1 }]) {
+      for (const payload of [
+        undefined,
+        null,
+        "text",
+        7,
+        [],
+        {},
+        { symbols: null, totalReferences: -1 },
+      ]) {
         expect(select?.(payload)).toBeNull();
       }
     });
@@ -136,7 +149,13 @@ describe("CallLogLine", () => {
   });
 
   it("accepts the run's closing line, which is what says how much the queue refused", () => {
-    const closing = { v: 1, type: "close", run: "run-1", ts: "2026-09-30T10:00:00.000Z", dropped: 3 };
+    const closing = {
+      v: 1,
+      type: "close",
+      run: "run-1",
+      ts: "2026-09-30T10:00:00.000Z",
+      dropped: 3,
+    };
 
     expect(CallLogLine.safeParse(closing).success).toBe(true);
     expect(CallLogLine.safeParse({ ...closing, dropped: -1 }).success).toBe(false);

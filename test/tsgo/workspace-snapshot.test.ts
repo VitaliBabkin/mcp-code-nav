@@ -40,7 +40,10 @@ describe("walkWorkspace", () => {
   const manifest = (body: unknown): string => JSON.stringify(body);
 
   /** The walk's result, or a failure that says the walk gave up rather than answering. */
-  function walked(root: string): { readonly entries: Map<string, string>; readonly unresolved: readonly string[] } {
+  function walked(root: string): {
+    readonly entries: Map<string, string>;
+    readonly unresolved: readonly string[];
+  } {
     const result = walkWorkspace(root);
     if (result === undefined) throw new Error("expected the workspace walk to complete");
     return result;
@@ -49,7 +52,9 @@ describe("walkWorkspace", () => {
   /** The walk's keys under `root`, spelled relative to it and sorted, so a case reads as a list of names. */
   function names(root: string, entries: Map<string, string>): string[] {
     const prefix = `${resolve(root)}${sep}`;
-    return [...entries.keys()].map((path) => (path.startsWith(prefix) ? path.slice(prefix.length) : path)).sort();
+    return [...entries.keys()]
+      .map((path) => (path.startsWith(prefix) ? path.slice(prefix.length) : path))
+      .sort();
   }
 
   it("tracks every TS-family and JS-family source, a declaration file, and the three manifest names", () => {
@@ -57,7 +62,17 @@ describe("walkWorkspace", () => {
     write(join(root, "tsconfig.json"), manifest({}));
     write(join(root, "jsconfig.json"), manifest({}));
     write(join(root, "package.json"), manifest({ name: "ws" }));
-    for (const name of ["a.ts", "a.tsx", "a.mts", "a.cts", "a.js", "a.jsx", "a.mjs", "a.cjs", "types.d.ts"]) {
+    for (const name of [
+      "a.ts",
+      "a.tsx",
+      "a.mts",
+      "a.cts",
+      "a.js",
+      "a.jsx",
+      "a.mjs",
+      "a.cjs",
+      "types.d.ts",
+    ]) {
       write(join(root, name), SOURCE);
     }
     write(join(root, "src", "deep.ts"), SOURCE);
@@ -117,7 +132,10 @@ describe("walkWorkspace", () => {
   it("tracks a config reached only through extends, although no config filename rule would look at it", () => {
     const root = tmp;
     write(join(root, "tsconfig.json"), manifest({ extends: "./compiler-options.json" }));
-    const options = write(join(root, "compiler-options.json"), manifest({ compilerOptions: { strict: true } }));
+    const options = write(
+      join(root, "compiler-options.json"),
+      manifest({ compilerOptions: { strict: true } }),
+    );
 
     expect(walked(root).entries.has(options)).toBe(true);
     expect(takeWorkspaceSnapshot(root)?.has(options)).toBe(true);
@@ -127,8 +145,14 @@ describe("walkWorkspace", () => {
     const root = tmp;
     write(join(root, "tsconfig.json"), manifest({ references: [{ path: "./configs/app.json" }] }));
     const member = write(join(root, "configs", "app.json"), manifest({ extends: "./base.json" }));
-    const base = write(join(root, "configs", "base.json"), manifest({ compilerOptions: { target: "es2022" } }));
-    write(join(root, "configs", "skipped.json"), manifest({ compilerOptions: { target: "es2022" } }));
+    const base = write(
+      join(root, "configs", "base.json"),
+      manifest({ compilerOptions: { target: "es2022" } }),
+    );
+    write(
+      join(root, "configs", "skipped.json"),
+      manifest({ compilerOptions: { target: "es2022" } }),
+    );
 
     const entries = walked(root).entries;
     expect(entries.has(member)).toBe(true);
@@ -145,7 +169,9 @@ describe("walkWorkspace", () => {
     const source = write(join(root, "a.ts"), SOURCE);
 
     const result = walked(root);
-    expect(result.unresolved).toEqual([`extends resolves to nothing: "./gone.json" in "${config}"`]);
+    expect(result.unresolved).toEqual([
+      `extends resolves to nothing: "./gone.json" in "${config}"`,
+    ]);
     expect(result.entries.has(config)).toBe(true);
     expect(result.entries.has(source)).toBe(true);
     expect(takeWorkspaceSnapshot(root)).toBeUndefined();
@@ -196,7 +222,10 @@ describe("walkWorkspace", () => {
     );
 
     const two = join(tmp, "two");
-    write(join(two, "tsconfig.json"), manifest({ extends: ["./gone-a.json", "./gone-b.json", "./gone-c.json"] }));
+    write(
+      join(two, "tsconfig.json"),
+      manifest({ extends: ["./gone-a.json", "./gone-b.json", "./gone-c.json"] }),
+    );
 
     expect(walked(two).unresolved).toHaveLength(3);
     expect(workspaceSnapshotReason(two)).toBe(
@@ -284,7 +313,8 @@ describe("the workspace walk's entry bound", () => {
     // from; an incomplete one must not, or a partial view of the tree becomes a project map claiming the root.
     expect(walkWorkspace(root)).toBeDefined();
     expect(workspaceWalkedPaths(root)).toBeDefined();
-    for (let index = 0; index < 20_005; index++) writeFileSync(join(root, `filler${index}.txt`), "");
+    for (let index = 0; index < 20_005; index++)
+      writeFileSync(join(root, `filler${index}.txt`), "");
 
     expect(walkWorkspace(root)).toBeUndefined();
     expect(workspaceWalkedPaths(root)).toBeUndefined();

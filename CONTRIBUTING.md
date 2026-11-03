@@ -5,7 +5,8 @@ Thanks for helping. The short version:
 1. Fork, branch, `npm ci` (development needs Node.js 20.19 or newer).
 2. Make the change with tests. Bug fixes come with a regression test that fails before the fix.
 3. Run the gates and make them pass; the list, and when to also run the live suite, is in
-   [WORKFLOW.md](docs/WORKFLOW.md).
+   [WORKFLOW.md](docs/WORKFLOW.md). Biome formats (`npm run format`), ESLint lints; a new lint violation fails even
+   where old debt is suppressed.
 4. Open a pull request describing what changed and why.
 
 The details are in two documents:

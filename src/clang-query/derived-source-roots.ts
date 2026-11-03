@@ -39,7 +39,10 @@ export function boundedAncestors(projectRoot: string): string[] {
  * within `SOURCE_ROOT_MAX_ASCENT` levels, never a filesystem root and never a directory the fingerprint walk
  * skips by name. `tus` undefined means the database could not be listed.
  */
-export function deriveSourceRoot(projectRoot: string, tus: readonly string[] | undefined): SourceRootDerivation {
+export function deriveSourceRoot(
+  projectRoot: string,
+  tus: readonly string[] | undefined,
+): SourceRootDerivation {
   if (tus === undefined) return { kind: "none", reason: "compile-db-unlistable" };
   const outside = tus.filter((tu) => escapesRoot(pathKey(projectRoot), pathKey(tu)));
   if (outside.length === 0) return { kind: "none", reason: "sources-under-project-root" };
@@ -47,7 +50,8 @@ export function deriveSourceRoot(projectRoot: string, tus: readonly string[] | u
   for (const ancestor of boundedAncestors(projectRoot)) {
     if (isSkippedDirName(basename(ancestor))) continue;
     const held = outside.filter((tu) => !escapesRoot(pathKey(ancestor), pathKey(tu)));
-    if (held.length > 0) return { kind: "derived", root: ancestor, tusOutsideRoots: outside.length - held.length };
+    if (held.length > 0)
+      return { kind: "derived", root: ancestor, tusOutsideRoots: outside.length - held.length };
   }
   return { kind: "none", reason: "no-ancestor-holds-sources" };
 }
@@ -55,15 +59,30 @@ export function deriveSourceRoot(projectRoot: string, tus: readonly string[] | u
 /** The block every C++ `scope` / `sweep` carries. `roots` is exactly what containment used beside projectRoot. */
 export type CppSourceRootsBlock =
   | { readonly origin: "declared"; readonly roots: readonly string[] }
-  | { readonly origin: "derived"; readonly roots: readonly [string]; readonly tusOutsideRoots: number }
-  | { readonly origin: "project-root-only"; readonly roots: readonly []; readonly reason: SourceRootDerivationReason };
+  | {
+      readonly origin: "derived";
+      readonly roots: readonly [string];
+      readonly tusOutsideRoots: number;
+    }
+  | {
+      readonly origin: "project-root-only";
+      readonly roots: readonly [];
+      readonly reason: SourceRootDerivationReason;
+    };
 
 /** Declared non-empty wins and derives nothing; otherwise the derivation decides. */
-export function cppSourceRoots(declared: readonly string[], derive: () => SourceRootDerivation): CppSourceRootsBlock {
+export function cppSourceRoots(
+  declared: readonly string[],
+  derive: () => SourceRootDerivation,
+): CppSourceRootsBlock {
   if (declared.length > 0) return { origin: "declared", roots: declared };
   const derivation = derive();
   if (derivation.kind === "derived") {
-    return { origin: "derived", roots: [derivation.root], tusOutsideRoots: derivation.tusOutsideRoots };
+    return {
+      origin: "derived",
+      roots: [derivation.root],
+      tusOutsideRoots: derivation.tusOutsideRoots,
+    };
   }
   return { origin: "project-root-only", roots: [], reason: derivation.reason };
 }

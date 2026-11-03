@@ -41,7 +41,13 @@ import {
   type TsRequestQuery,
   type TsScopeSource,
 } from "./ts-navigation-shared.js";
-import { type HumanSummary, resolveTsAnchor, TsSourceRootsSchema, timeBudgetSchema, withSummary } from "./ts-shared.js";
+import {
+  type HumanSummary,
+  resolveTsAnchor,
+  TsSourceRootsSchema,
+  timeBudgetSchema,
+  withSummary,
+} from "./ts-shared.js";
 import { messageOf } from "../error-message.js";
 
 const TOOL = "ts_find_symbol";
@@ -94,16 +100,14 @@ export type TsFindSymbolPayload = {
 
 export const TsFindSymbolInput = z.object({
   sourceRoots: TsSourceRootsSchema,
-  symbol: NameInput
-    .describe(
-      "Exact name: top-level, or a dotted path through classes, interfaces, enums and namespaces " +
-        "(`Driver.run`); a bare name never matches a member.",
-    ),
-  anchor: PathInput
-    .describe(
-      "Absolute, or relative to exactly one sourceRoots entry. A FILE searches that file's own declarations; " +
-        "a DIRECTORY searches the whole npm workspace.",
-    ),
+  symbol: NameInput.describe(
+    "Exact name: top-level, or a dotted path through classes, interfaces, enums and namespaces " +
+      "(`Driver.run`); a bare name never matches a member.",
+  ),
+  anchor: PathInput.describe(
+    "Absolute, or relative to exactly one sourceRoots entry. A FILE searches that file's own declarations; " +
+      "a DIRECTORY searches the whole npm workspace.",
+  ),
   timeBudgetMs: timeBudgetSchema(60_000),
 });
 
@@ -113,13 +117,22 @@ export type TsFindSymbolInputType = z.infer<typeof TsFindSymbolInput>;
 interface TsSearch extends TsScopeSource, Pick<TsRequestQuery, "anchorsProvenOn"> {}
 
 /** Which lookup answered, phrased for the two texts that have to name it. */
-function searchedWhere(lookup: TsSymbolLookup, file: string | undefined, workspaceRoot: string): string {
-  return lookup === "document-symbol"
+function searchedWhere(
+  lookup: TsSymbolLookup,
+  file: string | undefined,
+  workspaceRoot: string,
+): string {
+  return lookup === "document-symbol" && file !== undefined
     ? `the outline of "${file}"`
     : `the whole workspace "${workspaceRoot}" through tsgo's symbol index`;
 }
 
-function noMatchText(symbol: string, lookup: TsSymbolLookup, file: string | undefined, workspaceRoot: string): string {
+function noMatchText(
+  symbol: string,
+  lookup: TsSymbolLookup,
+  file: string | undefined,
+  workspaceRoot: string,
+): string {
   return (
     `${TOOL} failed: no declaration named "${symbol}" was found in ${searchedWhere(lookup, file, workspaceRoot)}. ` +
     "The match is exact, not fuzzy: a bare name names a top-level declaration of that word and never a member, " +
@@ -190,14 +203,23 @@ function symbolCandidate(
   const entry = recordOf(raw);
   const location = recordOf(entry.location);
   const file = pathOfUri(location.uri) ?? pathOfUri(location.targetUri);
-  const named = rangeStart(location.range) ?? rangeStart(location.targetSelectionRange) ?? rangeStart(location.targetRange);
+  const named =
+    rangeStart(location.range) ??
+    rangeStart(location.targetSelectionRange) ??
+    rangeStart(location.targetRange);
   const name = typeof entry.name === "string" && entry.name !== "" ? entry.name : undefined;
   if (name === undefined || file === undefined || named === undefined) {
     return { ok: false, error: unreadableEntryText(raw, symbol, part) };
   }
-  const containerName = typeof entry.containerName === "string" && entry.containerName !== "" ? entry.containerName : null;
+  const containerName =
+    typeof entry.containerName === "string" && entry.containerName !== ""
+      ? entry.containerName
+      : null;
   const tail = symbol.split(".").slice(-2).join(".");
-  const reads = containerName === null ? name === symbol : symbol.includes(".") && `${containerName}.${name}` === tail;
+  const reads =
+    containerName === null
+      ? name === symbol
+      : symbol.includes(".") && `${containerName}.${name}` === tail;
   if (!reads) return { ok: true, value: undefined };
   const external = tsFileExternal(workspaceRoot)(file);
   return {
@@ -210,7 +232,8 @@ function symbolCandidate(
         file,
         line: named.line + 1,
         container: external ? null : containerOf(file, workspaceRoot),
-        position: named.character === undefined ? null : { line: named.line, character: named.character },
+        position:
+          named.character === undefined ? null : { line: named.line, character: named.character },
         external,
       },
     },
@@ -246,11 +269,14 @@ function workspaceCandidates(
   const entries = Array.isArray(result) ? result : [];
   const candidates: SymbolCandidate[] = [];
   for (const [index, raw] of entries.entries()) {
-    const read = symbolCandidate(raw, workspaceRoot, symbol, `entry ${index + 1}`);
+    const read = symbolCandidate(raw, workspaceRoot, symbol, `entry ${String(index + 1)}`);
     if (!read.ok) return read;
     if (read.value !== undefined) candidates.push(read.value);
   }
-  return { ok: true, value: { candidates, capped: entries.length >= TS_WORKSPACE_SYMBOL_CAP_WATERMARK } };
+  return {
+    ok: true,
+    value: { candidates, capped: entries.length >= TS_WORKSPACE_SYMBOL_CAP_WATERMARK },
+  };
 }
 
 /** Whether two positions name the same identifier start. */
@@ -292,18 +318,28 @@ function check(
   search: TsSearch,
 ): { readonly stands: boolean; readonly unverified?: string } {
   if (read === undefined) {
-    return { stands: true, unverified: `this call's ${search.budget.ceilingMs} ms budget ran out before the outline of its file was read` };
+    return {
+      stands: true,
+      unverified: `this call's ${String(search.budget.ceilingMs)} ms budget ran out before the outline of its file was read`,
+    };
   }
   if (read === null) return { stands: true, unverified: "tsgo answered no outline for its file" };
-  if ("failure" in read) return { stands: true, unverified: `its outline could not be read: ${read.failure}` };
+  if ("failure" in read)
+    return { stands: true, unverified: `its outline could not be read: ${read.failure}` };
   const position = source.position;
-  if (position === null) return { stands: true, unverified: "the symbol index named no position for its identifier" };
+  if (position === null)
+    return { stands: true, unverified: "the symbol index named no position for its identifier" };
   const reach = matchingEntries(symbol, read.outline, read.lines);
   if (reach.kind === "unreadable") {
-    return { stands: true, unverified: `its outline entry "${reach.entry.name}" is a dotted namespace run this server cannot read` };
+    return {
+      stands: true,
+      unverified: `its outline entry "${reach.entry.name}" is a dotted namespace run this server cannot read`,
+    };
   }
   const reached = reach.kind === "reached" ? reach.entries : [];
-  return { stands: reached.some(({ position: at }) => at !== undefined && samePlace(at, position)) };
+  return {
+    stands: reached.some(({ position: at }) => at !== undefined && samePlace(at, position)),
+  };
 }
 
 /**
@@ -346,7 +382,10 @@ async function confirmed(
  * `ownedBy`: the config that owns the row's file, `null` when no mapped
  * project does, and absent on an external row and when no map could be proved.
  */
-function ownerField(search: TsSearch, declaration: DeclarationSource): { readonly ownedBy?: string | null } {
+function ownerField(
+  search: TsSearch,
+  declaration: DeclarationSource,
+): { readonly ownedBy?: string | null } {
   if (declaration.external || search.owners === undefined) return {};
   return { ownedBy: search.owners.get(pathKey(declaration.file)) ?? null };
 }
@@ -404,11 +443,14 @@ async function answered(
       budget: search.budget,
       server: "tsgo",
       externalReason: EXTERNAL_DESCRIPTION_REASON,
-      stillProven: () => search.session.spawnSerial() === search.anchorsProvenOn && search.session.isWorkspaceLoaded(),
+      stillProven: () =>
+        search.session.spawnSerial() === search.anchorsProvenOn &&
+        search.session.isWorkspaceLoaded(),
     },
     declarations,
   );
-  if (described === undefined) return { ok: false, error: tsRestartedText(TOOL, symbol, search.workspaceRoot) };
+  if (described === undefined)
+    return { ok: false, error: tsRestartedText(TOOL, symbol, search.workspaceRoot) };
   const scope = await tsNavigationScope(
     search,
     { capped, correspondingMethods: false, oneFile: lookup === "document-symbol" },
@@ -421,7 +463,9 @@ async function answered(
         toRow(
           search,
           declaration,
-          described[index] ?? { descriptionUnavailable: "this server read no hover answer for this row" },
+          described[index] ?? {
+            descriptionUnavailable: "this server read no hover answer for this row",
+          },
           unverified.get(declaration),
         ),
       ),
@@ -435,7 +479,10 @@ function readLines(file: string): Step<readonly string[]> {
   try {
     return { ok: true, value: readFileSync(file, "utf-8").split(/\r?\n/) };
   } catch (e) {
-    return { ok: false, error: `${TOOL} failed: "${file}" could not be read (${messageOf(e)}), so the names it declares cannot be located.` };
+    return {
+      ok: false,
+      error: `${TOOL} failed: "${file}" could not be read (${messageOf(e)}), so the names it declares cannot be located.`,
+    };
   }
 }
 
@@ -468,7 +515,9 @@ async function fromOneFile(
   if (!outline.ok) return outline;
   const lines = readLines(opened.file);
   if (!lines.ok) return lines;
-  const reach = isWellFormed(symbol) ? matchingEntries(symbol, outline.value, lines.value) : undefined;
+  const reach = isWellFormed(symbol)
+    ? matchingEntries(symbol, outline.value, lines.value)
+    : undefined;
   if (reach?.kind === "unreadable") {
     return { ok: false, error: unreadableSpanText(TOOL, opened.file, reach.entry) };
   }
@@ -484,9 +533,15 @@ async function fromOneFile(
   }
   const anchored = await anchorProjects(TOOL, opened, deps.exec, symbol, [opened.file]);
   if (!anchored.ok) return anchored;
-  const search: TsSearch = { ...opened, ...anchored.value.mapped, anchorsProvenOn: anchored.value.anchorsProvenOn };
+  const search: TsSearch = {
+    ...opened,
+    ...anchored.value.mapped,
+    anchorsProvenOn: anchored.value.anchorsProvenOn,
+  };
   const container = containerOf(opened.file, opened.workspaceRoot);
-  const declarations = entries.map((reached) => declarationAt(reached, symbol, opened.file, container));
+  const declarations = entries.map((reached) =>
+    declarationAt(reached, symbol, opened.file, container),
+  );
   return answered(search, symbol, declarations, "document-symbol", false);
 }
 
@@ -497,12 +552,20 @@ async function fromWholeWorkspace(
   deps: TsQueryDeps,
 ): Promise<Step<TsFindSymbolPayload>> {
   if (!isWellFormed(symbol)) {
-    return { ok: false, error: noMatchText(symbol, "workspace-symbol", undefined, opened.workspaceRoot) };
+    return {
+      ok: false,
+      error: noMatchText(symbol, "workspace-symbol", undefined, opened.workspaceRoot),
+    };
   }
   const anchored = await anchorProjects(TOOL, opened, deps.exec, symbol, []);
   if (!anchored.ok) return anchored;
   // A directory names no file, so none can be "the named file" of this answer.
-  const search: TsSearch = { ...opened, file: undefined, ...anchored.value.mapped, anchorsProvenOn: anchored.value.anchorsProvenOn };
+  const search: TsSearch = {
+    ...opened,
+    file: undefined,
+    ...anchored.value.mapped,
+    anchorsProvenOn: anchored.value.anchorsProvenOn,
+  };
   const searched = await tsTypeAwareRequest(
     TOOL,
     search,
@@ -527,24 +590,32 @@ async function fromWholeWorkspace(
 }
 
 function declarationText(row: TsDeclarationRow): string {
-  const inside = row.external ? " outside the workspace" : ` in ${row.container}`;
+  const inside =
+    row.external || row.container === null ? " outside the workspace" : ` in ${row.container}`;
   const unowned = row.ownedBy === null ? " (no owning project)" : "";
-  const unverified = row.pathUnverified === undefined ? "" : ` - path unverified: ${row.pathUnverified}`;
-  const unavailable = row.descriptionUnavailable ? ` - no description: ${row.descriptionUnavailable}` : "";
-  const shortened = row.signatureTruncated
-    ? ` - signature shortened by TypeScript; read ${row.file}:${row.line} for the full type`
+  const unverified =
+    row.pathUnverified === undefined ? "" : ` - path unverified: ${row.pathUnverified}`;
+  const unavailable = row.descriptionUnavailable
+    ? ` - no description: ${row.descriptionUnavailable}`
     : "";
-  return `  ${row.name} (${row.kind})${inside}${unowned} at ${row.file}:${row.line}${unverified}${unavailable}${shortened}`;
+  const shortened = row.signatureTruncated
+    ? ` - signature shortened by TypeScript; read ${row.file}:${String(row.line)} for the full type`
+    : "";
+  return `  ${row.name} (${row.kind})${inside}${unowned} at ${row.file}:${String(row.line)}${unverified}${unavailable}${shortened}`;
 }
 
 /** The same JSON, phrased once for a reader who will not parse it. */
-function humanSummary(payload: TsFindSymbolPayload, symbol: string, anchorPath: string): HumanSummary {
+function humanSummary(
+  payload: TsFindSymbolPayload,
+  symbol: string,
+  anchorPath: string,
+): HumanSummary {
   const { declarations, scope } = payload;
   const searched = searchedWhere(scope.lookup, anchorPath, scope.workspaceRoot);
   const capped = scope.limits.includes("listing-capped") ? `; ${capText()}` : "";
   const head =
     `Declarations named "${symbol}" (exact match) in ${searched}${tsScopeText(scope)} - ` +
-    `${declarations.length} declaration(s)${capped}.`;
+    `${String(declarations.length)} declaration(s)${capped}.`;
   const rows = declarations.map(declarationText).join("\n");
   return summarised(head, scope, `limits: ${scope.limits.join(", ")}\n${rows}`);
 }
@@ -569,7 +640,9 @@ export async function runTsFindSymbol(
     const { summary, text } = humanSummary(search.value, symbol, target.value.file);
     return successResult(withSummary(summary, search.value), text);
   } catch (e) {
-    return errorResult(`${TOOL} failed: ${messageOf(e)}${resolutionNote(input.anchor, resolution)}`);
+    return errorResult(
+      `${TOOL} failed: ${messageOf(e)}${resolutionNote(input.anchor, resolution)}`,
+    );
   }
 }
 
@@ -582,7 +655,11 @@ const TOOL_DESCRIPTION =
   "Files no tsconfig includes are not searched: if `scope.uncoveredSources.mentioning` lists any, the answer " +
   "is incomplete until you grep them.";
 
-export function registerTsFindSymbol(server: McpServer, sessions: LspSessionManager, deps: TsQueryDeps = {}) {
+export function registerTsFindSymbol(
+  server: McpServer,
+  sessions: LspSessionManager,
+  deps: TsQueryDeps = {},
+) {
   server.registerTool(
     TOOL,
     {

@@ -10,7 +10,12 @@ import {
   type ResolvedPath,
 } from "../paths/resolve-safe-path.js";
 import { TS_SOURCE_EXTENSIONS, isTsOrJsSourceFile } from "../tsgo/language.js";
-import { resolveTsgoBinary, type TsgoBinary, type TsgoBinaryDeps, type TsgoBinaryResult } from "../tsgo/binary.js";
+import {
+  resolveTsgoBinary,
+  type TsgoBinary,
+  type TsgoBinaryDeps,
+  type TsgoBinaryResult,
+} from "../tsgo/binary.js";
 import type { MentionScanner } from "../tsgo/uncovered-mentions.js";
 import { findWorkspaceRoot, type WorkspaceRootOutcome } from "../tsgo/workspace-root.js";
 import { budgetOf, withinBudget, type Budget } from "./budget.js";
@@ -28,12 +33,10 @@ import type { Step } from "./navigation-text.js";
 /** No TS answer is wider than the workspace holding the file, so the first call pays for one project load. */
 const MAX_TIME_BUDGET_MS = 600_000;
 
-export const TsSourceRootsSchema = PathList
-  .min(1)
-  .describe(
-    "Absolute directories bounding this call, at least one; the path you pass and its npm workspace must lie " +
-      "inside one of them.",
-  );
+export const TsSourceRootsSchema = PathList.min(1).describe(
+  "Absolute directories bounding this call, at least one; the path you pass and its npm workspace must lie " +
+    "inside one of them.",
+);
 
 export function timeBudgetSchema(defaultMs: number) {
   return z
@@ -43,7 +46,7 @@ export function timeBudgetSchema(defaultMs: number) {
     .max(MAX_TIME_BUDGET_MS)
     .default(defaultMs)
     .describe(
-      `Ceiling in ms, default ${defaultMs}; a workspace's first call also waits for its projects to load.`,
+      `Ceiling in ms, default ${String(defaultMs)}; a workspace's first call also waits for its projects to load.`,
     );
 }
 
@@ -66,7 +69,10 @@ export function cachedTsgoBinary(deps: Partial<TsgoBinaryDeps> = {}): Promise<Ts
 }
 
 /** A search that found no executable is the same failure class as a server that would not start. */
-function tsgoUnavailable(miss: { unavailable: string; attempted: string }): LanguageServerUnavailableError {
+function tsgoUnavailable(miss: {
+  unavailable: string;
+  attempted: string;
+}): LanguageServerUnavailableError {
   return new LanguageServerUnavailableError(
     { config: TSGO_IDENTITY, attempted: miss.attempted, fromOverride: false },
     { message: miss.unavailable },
@@ -112,7 +118,7 @@ function unsupportedFileError(tool: string, file: string): string {
 function discoveryBudgetText(tool: string, budget: Budget, workspaceRoot: string): string {
   return (
     `${tool} failed: this server was still looking for the TypeScript 7 native server when this call's ` +
-    `${budget.ceilingMs} ms budget ran out. The first TS call of a process asks \`npm root -g\` where the ` +
+    `${String(budget.ceilingMs)} ms budget ran out. The first TS call of a process asks \`npm root -g\` where the ` +
     `global packages are, and nothing was sent to any server for the workspace at "${workspaceRoot}". Raise ` +
     `timeBudgetMs, or set ${TSGO_IDENTITY.commandEnvOverride} to the native executable's absolute path.`
   );
@@ -190,7 +196,11 @@ export async function resolveTsAnchor(
   deps: TsTargetDeps = {},
 ): Promise<Step<TsAnchorTarget>> {
   const budget = budgetOf(input.timeBudgetMs);
-  const resolution = resolveWithinAnyRoot(input.sourceRoots, input.anchor, isExistingFileOrDirectory);
+  const resolution = resolveWithinAnyRoot(
+    input.sourceRoots,
+    input.anchor,
+    isExistingFileOrDirectory,
+  );
   const kind = anchorKind(tool, resolution.absolutePath);
   if (!kind.ok) return kind;
   const target = await targetAt(tool, sessions, input, budget, resolution, kind.value, deps);
@@ -218,8 +228,12 @@ async function targetAt(
   if (workspace.kind !== "found") {
     return { ok: false, error: tsWorkspaceRootErrorText(tool, workspace, resolution.absolutePath) };
   }
-  const located = await withinBudget((deps.resolveBinary ?? cachedTsgoBinary)(deps.binaryDeps), budget);
-  if (located === undefined) return { ok: false, error: discoveryBudgetText(tool, budget, workspace.workspaceRoot) };
+  const located = await withinBudget(
+    (deps.resolveBinary ?? cachedTsgoBinary)(deps.binaryDeps),
+    budget,
+  );
+  if (located === undefined)
+    return { ok: false, error: discoveryBudgetText(tool, budget, workspace.workspaceRoot) };
   if ("unavailable" in located) throw tsgoUnavailable(located);
   return {
     ok: true,

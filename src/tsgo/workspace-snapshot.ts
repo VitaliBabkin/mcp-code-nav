@@ -138,7 +138,7 @@ export function walkWorkspace(
       pathKey(start),
       state.unreadable
         ? `the workspace walk under "${start}" could not list a directory it was told to walk`
-        : `the workspace walk under "${start}" did not complete within its ${MAX_WALK_ENTRIES}-entry bound`,
+        : `the workspace walk under "${start}" did not complete within its ${String(MAX_WALK_ENTRIES)}-entry bound`,
     );
     return undefined;
   }
@@ -148,8 +148,14 @@ export function walkWorkspace(
     // The reload says which spec could not be followed and in which config, and how
     // many others joined it — a list of one is the common case and reading it should not cost a sentence.
     const [first = "", ...others] = graph.unresolved;
-    const tail = others.length === 0 ? "" : `, and ${others.length} other unresolved ${others.length === 1 ? "member" : "members"}`;
-    unprovable.set(pathKey(start), `the config closure under "${start}" is not provable: ${first}${tail}`);
+    const tail =
+      others.length === 0
+        ? ""
+        : `, and ${String(others.length)} other unresolved ${others.length === 1 ? "member" : "members"}`;
+    unprovable.set(
+      pathKey(start),
+      `the config closure under "${start}" is not provable: ${first}${tail}`,
+    );
     walkedPaths.set(pathKey(start), [...state.entries.keys()]);
   } else {
     unprovable.delete(pathKey(start));

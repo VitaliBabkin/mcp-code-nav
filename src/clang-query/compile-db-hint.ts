@@ -32,7 +32,15 @@ const COMPILE_DB = "compile_commands.json";
  * and `cmake-build*` because they hold no sources, and this one is looking for a build directory — skipping
  * those names would hide exactly the answer the caller needs.
  */
-const SKIPPED_DIR_NAMES = new Set([".git", "node_modules", ".cache", ".vs", ".idea", "vcpkg_installed", ".claude"]);
+const SKIPPED_DIR_NAMES = new Set([
+  ".git",
+  "node_modules",
+  ".cache",
+  ".vs",
+  ".idea",
+  "vcpkg_installed",
+  ".claude",
+]);
 
 /** One entry of a directory listing, as `node:fs/promises` reports it. */
 export type DirEntry = { readonly name: string; isFile(): boolean; isDirectory(): boolean };
@@ -98,7 +106,8 @@ export async function describeMissingCompileDb(
   if (!existsSync(projectRoot)) {
     return `${head}. That directory does not exist.${await siblingSentences(projectRoot, io)}`;
   }
-  if (existsSync(join(projectRoot, COMPILE_DB))) return `${head}. The file is present but could not be read.`;
+  if (existsSync(join(projectRoot, COMPILE_DB)))
+    return `${head}. The file is present but could not be read.`;
 
   const search = await searchBelowRoot(projectRoot, io);
   const generator = await generatorSentence(projectRoot, io.readFile);
@@ -111,7 +120,7 @@ export async function describeMissingCompileDb(
   }
   const body =
     search.candidates.length === 0
-      ? `. No directory under it holds one (searched ${search.listings} directories to depth ${HINT_MAX_DEPTH}). ` +
+      ? `. No directory under it holds one (searched ${String(search.listings)} directories to depth ${String(HINT_MAX_DEPTH)}). ` +
         "projectRoot must be the directory that holds compile_commands.json, from a native build on this host."
       : `. Directories under it that hold a compile_commands.json, nearest first: ` +
         `${quoteAll(search.candidates)}. Pass one of them as projectRoot.`;
@@ -216,7 +225,9 @@ async function withinBudget<T>(read: () => Promise<T>, budgetMs: number): Promis
   );
   let timer: ReturnType<typeof setTimeout> | undefined;
   const bound = new Promise<Raced<T>>((settle) => {
-    timer = setTimeout(() => settle({ kind: "bound" }), budgetMs);
+    timer = setTimeout(() => {
+      settle({ kind: "bound" });
+    }, budgetMs);
   });
   try {
     return await Promise.race([reading, bound]);
@@ -227,19 +238,25 @@ async function withinBudget<T>(read: () => Promise<T>, budgetMs: number): Promis
 
 /** The errno code alone: the head already names `projectRoot`, so a path repeated here is noise to branch on. */
 function errorCode(error: unknown): string {
-  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
+  return typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string"
     ? error.code
     : "no error code";
 }
 
 function boundSentence(stoppedBy: StoppedBy | undefined): string {
   if (stoppedBy === undefined) return "";
-  const bound = stoppedBy === "directories" ? `${HINT_MAX_DIRS} directories` : `${HINT_MAX_MS} ms`;
+  const bound =
+    stoppedBy === "directories"
+      ? `${String(HINT_MAX_DIRS)} directories`
+      : `${String(HINT_MAX_MS)} ms`;
   return ` The search stopped at its bound (${bound}), so it may have missed candidates.`;
 }
 
 function boundReason(): string {
-  return `the ${HINT_MAX_MS} ms bound`;
+  return `the ${String(HINT_MAX_MS)} ms bound`;
 }
 
 function quoteAll(paths: readonly string[]): string {
@@ -261,7 +278,10 @@ const CMAKE_TRUTH_VALUES = new Set(["ON", "1", "YES", "TRUE", "Y"]);
 async function generatorSentence(projectRoot: string, readFile: ReadFileFn): Promise<string> {
   try {
     const cachePath = join(projectRoot, "CMakeCache.txt");
-    const read = await withinBudget(() => readFile(cachePath, CMAKE_CACHE_MAX_BYTES + 1), HINT_MAX_MS);
+    const read = await withinBudget(
+      () => readFile(cachePath, CMAKE_CACHE_MAX_BYTES + 1),
+      HINT_MAX_MS,
+    );
     const text = read.kind === "done" ? read.value : undefined;
     if (text === undefined || Buffer.byteLength(text) > CMAKE_CACHE_MAX_BYTES) return "";
     const generator = cacheValue(text, "CMAKE_GENERATOR:INTERNAL");
@@ -316,7 +336,7 @@ async function siblingSentences(projectRoot: string, io: HintIo): Promise<string
     const foreign =
       found.foreign === 0
         ? ""
-        : ` Skipped ${found.foreign} sibling compile_commands.json naming paths that do not exist on this host.`;
+        : ` Skipped ${String(found.foreign)} sibling compile_commands.json naming paths that do not exist on this host.`;
     return `${native}${foreign}${siblingBoundSentence(found.stoppedBy)}`;
   } catch {
     return "";
@@ -325,7 +345,10 @@ async function siblingSentences(projectRoot: string, io: HintIo): Promise<string
 
 function siblingBoundSentence(stoppedBy: StoppedBy | undefined): string {
   if (stoppedBy === undefined) return "";
-  const bound = stoppedBy === "directories" ? `${SIBLING_MAX_LISTINGS} directories` : `${HINT_MAX_MS} ms`;
+  const bound =
+    stoppedBy === "directories"
+      ? `${String(SIBLING_MAX_LISTINGS)} directories`
+      : `${String(HINT_MAX_MS)} ms`;
   return ` The sibling search stopped at its bound (${bound}), so it may have missed candidates.`;
 }
 
@@ -334,7 +357,11 @@ function siblingBoundSentence(stoppedBy: StoppedBy | undefined): string {
  * — a build-named parent or a build-named sibling — so a repository-root `projectRoot` never reaches a
  * neighbouring project. The parent's own listing is not one of the `SIBLING_MAX_LISTINGS`.
  */
-async function searchSiblings(projectRoot: string, parent: string, io: HintIo): Promise<SiblingSearch> {
+async function searchSiblings(
+  projectRoot: string,
+  parent: string,
+  io: HintIo,
+): Promise<SiblingSearch> {
   const remaining = (): number => HINT_MAX_MS - (io.now() - io.startedAt);
   let budget = remaining();
   if (budget <= 0) return { natives: [], foreign: 0, stoppedBy: "ms" };
@@ -381,7 +408,10 @@ async function classifySibling(
   if (read.kind === "failed" || !holdsCompileDb(read.entries)) return "none";
   const remaining = HINT_MAX_MS - (io.now() - io.startedAt);
   if (remaining <= 0) return "bound";
-  const head = await withinBudget(() => io.readFile(join(dir, COMPILE_DB), DB_HEAD_BYTES), remaining);
+  const head = await withinBudget(
+    () => io.readFile(join(dir, COMPILE_DB), DB_HEAD_BYTES),
+    remaining,
+  );
   if (head.kind === "bound") return "bound";
   if (head.kind !== "done" || head.value === undefined) return "foreign";
   const named = await namesHostDirectory(head.value, remaining);

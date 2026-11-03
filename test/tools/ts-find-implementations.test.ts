@@ -34,7 +34,8 @@ type Row = Record<string, unknown>;
 
 /** What the located package states for itself; the fake process says something else in `initialize`. */
 const BINARY: TsgoBinary = {
-  executable: "C:/fake/npm-global/typescript/node_modules/@typescript/typescript-win32-x64/lib/tsc.exe",
+  executable:
+    "C:/fake/npm-global/typescript/node_modules/@typescript/typescript-win32-x64/lib/tsc.exe",
   version: "7.0.2",
   source: "global",
 };
@@ -60,7 +61,7 @@ const MAIN_TEXT = [
   "  count = 1;",
   "  run(): void {}",
   "}",
-  "export const label = \"x\";",
+  'export const label = "x";',
   "export type Named = { label: string };",
   "export enum Level { Low }",
   "export function build() {}",
@@ -114,18 +115,38 @@ function sym(
 
 /** tsgo's kind numbers: 11 interface, 5 class, 6 method, 7 property, 10 enum, 12 function, 13 variable. */
 const MAIN_OUTLINE: LspDocumentSymbol[] = [
-  sym(MAIN_TEXT, "Storage", 11, [0, "Storage"], [2, "}"], [0, "Storage"], [
-    sym(MAIN_TEXT, "get", 6, [1, "get"], [1, ";"], [1, "get"]),
-  ]),
-  sym(MAIN_TEXT, "Driver", 5, [3, "Driver"], [7, "}"], [3, "Driver"], [
-    sym(MAIN_TEXT, "get", 6, [4, "get"], [6, "}"], [4, "get"]),
-  ]),
+  sym(
+    MAIN_TEXT,
+    "Storage",
+    11,
+    [0, "Storage"],
+    [2, "}"],
+    [0, "Storage"],
+    [sym(MAIN_TEXT, "get", 6, [1, "get"], [1, ";"], [1, "get"])],
+  ),
+  sym(
+    MAIN_TEXT,
+    "Driver",
+    5,
+    [3, "Driver"],
+    [7, "}"],
+    [3, "Driver"],
+    [sym(MAIN_TEXT, "get", 6, [4, "get"], [6, "}"], [4, "get"])],
+  ),
   sym(MAIN_TEXT, "Widget", 5, [8, "class Widget"], [8, "}"], [8, "Widget"]),
   sym(MAIN_TEXT, "Widget", 11, [9, "Widget"], [9, "}"], [9, "Widget"]),
-  sym(MAIN_TEXT, "Base", 5, [10, "Base"], [13, "}"], [10, "Base"], [
-    sym(MAIN_TEXT, "count", 7, [11, "count"], [11, ";"], [11, "count"]),
-    sym(MAIN_TEXT, "run", 6, [12, "run"], [12, "}"], [12, "run"]),
-  ]),
+  sym(
+    MAIN_TEXT,
+    "Base",
+    5,
+    [10, "Base"],
+    [13, "}"],
+    [10, "Base"],
+    [
+      sym(MAIN_TEXT, "count", 7, [11, "count"], [11, ";"], [11, "count"]),
+      sym(MAIN_TEXT, "run", 6, [12, "run"], [12, "}"], [12, "run"]),
+    ],
+  ),
   sym(MAIN_TEXT, "label", 13, [14, "label"], [14, ";"], [14, "label"]),
   sym(MAIN_TEXT, "Named", 5, [15, "Named"], [15, "}"], [15, "Named"]),
   sym(MAIN_TEXT, "Level", 10, [16, "Level"], [16, "}"], [16, "Level"]),
@@ -137,18 +158,34 @@ const MAIN_OUTLINE: LspDocumentSymbol[] = [
 ];
 
 const IMPL_OUTLINE: LspDocumentSymbol[] = [
-  sym(IMPL_TEXT, "ExecDriver", 5, [0, "ExecDriver"], [4, "}"], [0, "ExecDriver"], [
-    sym(IMPL_TEXT, "get", 6, [1, "get"], [3, "}"], [1, "get"]),
-  ]),
+  sym(
+    IMPL_TEXT,
+    "ExecDriver",
+    5,
+    [0, "ExecDriver"],
+    [4, "}"],
+    [0, "ExecDriver"],
+    [sym(IMPL_TEXT, "get", 6, [1, "get"], [3, "}"], [1, "get"])],
+  ),
 ];
 
 const STRUCT_OUTLINE: LspDocumentSymbol[] = [
-  sym(STRUCT_TEXT, "StructuralDriver", 5, [0, "StructuralDriver"], [4, "}"], [0, "StructuralDriver"]),
+  sym(
+    STRUCT_TEXT,
+    "StructuralDriver",
+    5,
+    [0, "StructuralDriver"],
+    [4, "}"],
+    [0, "StructuralDriver"],
+  ),
 ];
 
 /** One `Location` as tsgo spells it: 0-based line and character. */
 function location(path: string, line: number, character = 13): unknown {
-  return { uri: uriOf(path), range: { start: { line, character }, end: { line, character: character + 5 } } };
+  return {
+    uri: uriOf(path),
+    range: { start: { line, character }, end: { line, character: character + 5 } },
+  };
 }
 
 /** One `LocationLink`, the other shape `textDocument/implementation` may answer with. */
@@ -193,7 +230,10 @@ function harness(): Harness {
   built.push({ tmp, ws });
   const src = join(ws, "packages", "ui", "src");
   mkdirSync(src, { recursive: true });
-  writeFileSync(join(ws, "package.json"), JSON.stringify({ name: "mono", workspaces: ["packages/*"] }));
+  writeFileSync(
+    join(ws, "package.json"),
+    JSON.stringify({ name: "mono", workspaces: ["packages/*"] }),
+  );
   writeFileSync(join(ws, "packages", "ui", "package.json"), JSON.stringify({ name: "@mono/ui" }));
   const config = join(ws, "tsconfig.json");
   writeFileSync(config, JSON.stringify({ compilerOptions: {} }));
@@ -229,8 +269,10 @@ function harness(): Harness {
       const server = fakeServer({
         alive: () => alive,
         respond: (method, params) => {
-          if (method === "initialize") return { serverInfo: { name: "tsgo", version: SERVER_VERSION } };
-          if (method === "textDocument/documentSymbol") return outlines.get(pathOfDocumentId(params) ?? "") ?? [];
+          if (method === "initialize")
+            return { serverInfo: { name: "tsgo", version: SERVER_VERSION } };
+          if (method === "textDocument/documentSymbol")
+            return outlines.get(pathOfDocumentId(params) ?? "") ?? [];
           if (method === "textDocument/implementation") {
             if (hanging) return new Promise<unknown>(() => {});
             if (crashing) {
@@ -320,11 +362,15 @@ function requestFor(server: FakeServer, method: string): Record<string, unknown>
 }
 
 function openedPaths(server: FakeServer): (string | undefined)[] {
-  return server.notifications.filter(([method]) => method === "textDocument/didOpen").map(([, p]) => pathOfDocumentId(p));
+  return server.notifications
+    .filter(([method]) => method === "textDocument/didOpen")
+    .map(([, p]) => pathOfDocumentId(p));
 }
 
 function closedPaths(server: FakeServer): (string | undefined)[] {
-  return server.notifications.filter(([method]) => method === "textDocument/didClose").map(([, p]) => pathOfDocumentId(p));
+  return server.notifications
+    .filter(([method]) => method === "textDocument/didClose")
+    .map(([, p]) => pathOfDocumentId(p));
 }
 
 /** The `scope` of a clean, fully mapped answer over this temp workspace, for an interface subject. */
@@ -341,7 +387,13 @@ function cleanScope(h: Harness): Record<string, unknown> {
       grepRequired: false,
       directories: [],
       directoriesTruncated: 0,
-      mentioning: { name: expect.any(String), count: 0, files: [], filesTruncated: 0, unchecked: 0 },
+      mentioning: {
+        name: expect.any(String),
+        count: 0,
+        files: [],
+        filesTruncated: 0,
+        unchecked: 0,
+      },
       namedFileUncovered: false,
     },
     limits: ["one-workspace", "structural-implementers-not-reported"],
@@ -354,10 +406,21 @@ const SCOPE_SENTENCE =
 
 describe("TsFindImplementationsInput", () => {
   it("needs a root to bound the call and defaults the budget to 60000 ms", () => {
-    const parsed = TsFindImplementationsInput.parse({ sourceRoots: ["C:/ws"], file: "src/main.ts", symbol: "Storage" });
+    const parsed = TsFindImplementationsInput.parse({
+      sourceRoots: ["C:/ws"],
+      file: "src/main.ts",
+      symbol: "Storage",
+    });
     expect(parsed.timeBudgetMs).toBe(60_000);
-    expect(Object.keys(TsFindImplementationsInput.shape).sort()).toEqual(["file", "sourceRoots", "symbol", "timeBudgetMs"]);
-    expect(TsFindImplementationsInput.safeParse({ sourceRoots: [], file: "a.ts", symbol: "S" }).success).toBe(false);
+    expect(Object.keys(TsFindImplementationsInput.shape).sort()).toEqual([
+      "file",
+      "sourceRoots",
+      "symbol",
+      "timeBudgetMs",
+    ]);
+    expect(
+      TsFindImplementationsInput.safeParse({ sourceRoots: [], file: "a.ts", symbol: "S" }).success,
+    ).toBe(false);
   });
 });
 
@@ -384,7 +447,13 @@ describe("runTsFindImplementations", () => {
       grepRequired: true,
       directories: [{ directory: "packages/ui/src", count: 1 }],
       directoriesTruncated: 0,
-      mentioning: { name: "Storage", count: 1, files: [{ file: orphan, matchingLines: 1 }], filesTruncated: 0, unchecked: 0 },
+      mentioning: {
+        name: "Storage",
+        count: 1,
+        files: [{ file: orphan, matchingLines: 1 }],
+        filesTruncated: 0,
+        unchecked: 0,
+      },
       namedFileUncovered: false,
     });
     const lines = textOf(out).split("\n");
@@ -433,7 +502,13 @@ describe("runTsFindImplementations", () => {
     h.answer([location(h.impl, 0, 13)]);
 
     const out = await h.run();
-    expect(Object.keys(payload(out))).toEqual(["summary", "resolved", "implementations", "truncated", "scope"]);
+    expect(Object.keys(payload(out))).toEqual([
+      "summary",
+      "resolved",
+      "implementations",
+      "truncated",
+      "scope",
+    ]);
     expect(Object.keys(rowsOf(out)[0] ?? {})).toEqual(["name", "kind", "file", "line", "external"]);
     expect(Object.keys(scopeOf(out))).toEqual([
       "workspaceRoot",
@@ -454,7 +529,9 @@ describe("runTsFindImplementations", () => {
     h.answer([link(h.impl, 0, 13)]);
 
     const out = await h.run();
-    expect(rowsOf(out)).toEqual([{ name: "ExecDriver", kind: "class", file: h.impl, line: 1, external: false }]);
+    expect(rowsOf(out)).toEqual([
+      { name: "ExecDriver", kind: "class", file: h.impl, line: 1, external: false },
+    ]);
   });
 
   it("asks a merged class-and-interface symbol at the interface entry, which is what a type implements", async () => {
@@ -466,7 +543,12 @@ describe("runTsFindImplementations", () => {
     // One key, several entries, one symbol — and an implementations call prefers the interface or
     // class entry among them. The interface is the SECOND here, so the request is not at the position the
     // bare address would have used, and `resolved` says what the answer is about.
-    expect(payload(out).resolved).toEqual({ name: "Widget", kind: "interface", file: h.main, line: 10 });
+    expect(payload(out).resolved).toEqual({
+      name: "Widget",
+      kind: "interface",
+      file: h.main,
+      line: 10,
+    });
     expect(requestFor(h.server, "textDocument/implementation")).toEqual({
       textDocument: { uri: uriOf(h.main) },
       position: at(MAIN_TEXT, 9, "Widget"),
@@ -496,7 +578,9 @@ describe("runTsFindImplementations", () => {
     h.answer([location(h.main, 0, 17), location(h.impl, 0, 13)]);
 
     const out = await h.run();
-    expect(rowsOf(out)).toEqual([{ name: "ExecDriver", kind: "class", file: h.impl, line: 1, external: false }]);
+    expect(rowsOf(out)).toEqual([
+      { name: "ExecDriver", kind: "class", file: h.impl, line: 1, external: false },
+    ]);
     expect(payload(out).truncated).toBe(0);
     expect(textOf(out)).toContain("- 1 row(s)");
   });
@@ -536,19 +620,22 @@ describe("runTsFindImplementations", () => {
     ["a function", "build"],
     ["a variable", "label"],
     ["an enum", "Level"],
-  ])("refuses %s, naming the kind it found, and asks nothing type-aware", async (article: string, symbol: string) => {
-    const h = harness();
-    h.answer([location(h.impl, 0, 13)]);
+  ])(
+    "refuses %s, naming the kind it found, and asks nothing type-aware",
+    async (article: string, symbol: string) => {
+      const h = harness();
+      h.answer([location(h.impl, 0, 13)]);
 
-    const out = await h.run({ symbol });
-    expect(out.isError).toBe(true);
-    expect(textOf(out)).toBe(
-      `ts_find_implementations failed: "${symbol}" is ${article}, and only an interface, class, method or ` +
-        "property has implementations. tsgo answers that question for those four; for any other declaration " +
-        "ask ts_find_references for where it is used.",
-    );
-    expect(h.server.methods).not.toContain("textDocument/implementation");
-  });
+      const out = await h.run({ symbol });
+      expect(out.isError).toBe(true);
+      expect(textOf(out)).toBe(
+        `ts_find_implementations failed: "${symbol}" is ${article}, and only an interface, class, method or ` +
+          "property has implementations. tsgo answers that question for those four; for any other declaration " +
+          "ask ts_find_references for where it is used.",
+      );
+      expect(h.server.methods).not.toContain("textDocument/implementation");
+    },
+  );
 
   it("carries structural-implementers-not-reported on every answer, empty ones included", async () => {
     const h = harness();
@@ -580,7 +667,11 @@ describe("runTsFindImplementations", () => {
     expect(rows[0]).toMatchObject({ file: h.main, external: false });
     expect(rows[1]).toMatchObject({ file: h.impl, external: false });
     expect(rows.slice(2).every((row) => row.external)).toBe(true);
-    expect(limitsOf(out)).toEqual(["one-workspace", "structural-implementers-not-reported", "listing-capped"]);
+    expect(limitsOf(out)).toEqual([
+      "one-workspace",
+      "structural-implementers-not-reported",
+      "listing-capped",
+    ]);
     expect(textOf(out)).toContain(`${IMPLEMENTATIONS_LIMIT}-row cap`);
     // A dropped row was never opened and a kept external one never is: one transient read, for the one other
     // in-workspace file a kept row sits in. The anchor and the named file are the same file here.
@@ -627,7 +718,9 @@ describe("runTsFindImplementations", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
-    expect(textOf(out)).toContain("answered the query for \"Storage\" with an object this server cannot read");
+    expect(textOf(out)).toContain(
+      'answered the query for "Storage" with an object this server cannot read',
+    );
     expect(textOf(out)).toContain("possibly dropping a match");
   });
 

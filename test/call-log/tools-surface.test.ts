@@ -58,7 +58,10 @@ function registerAll(server: McpServer, sessions: LspSessionManager): void {
 
 interface Wire {
   readonly lines: Line[];
-  readonly request: (method: string, params?: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  readonly request: (
+    method: string,
+    params?: Record<string, unknown>,
+  ) => Promise<Record<string, unknown>>;
   readonly initialize: () => Promise<Record<string, unknown>>;
   readonly listTools: () => Record<string, unknown>[];
   readonly close: () => Promise<void>;
@@ -68,8 +71,14 @@ interface Wire {
  * A client that speaks JSON-RPC straight onto the in-memory transport, so what the server put on the wire is
  * compared as bytes rather than as an SDK object the client would have re-shaped first.
  */
-async function connectOverTap(tap: boolean, sessions: LspSessionManager = new LspSessionManager({ sleep: async () => {} })): Promise<Wire> {
-  const server = new McpServer({ name: "mcp-code-nav", version: "test" }, { instructions: SERVER_INSTRUCTIONS });
+async function connectOverTap(
+  tap: boolean,
+  sessions: LspSessionManager = new LspSessionManager({ sleep: async () => {} }),
+): Promise<Wire> {
+  const server = new McpServer(
+    { name: "mcp-code-nav", version: "test" },
+    { instructions: SERVER_INSTRUCTIONS },
+  );
   registerAll(server, sessions);
 
   const lines: Line[] = [];
@@ -106,7 +115,10 @@ async function connectOverTap(tap: boolean, sessions: LspSessionManager = new Ls
         capabilities: {},
         clientInfo: { name: "surface-test", version: "0.0.1" },
       });
-      await clientSide.send({ jsonrpc: "2.0", method: "notifications/initialized" } as JSONRPCMessage);
+      await clientSide.send({
+        jsonrpc: "2.0",
+        method: "notifications/initialized",
+      } as JSONRPCMessage);
       const listed = await request("tools/list", {});
       tools.push(...((listed?.tools as Record<string, unknown>[]) ?? []));
       return result;
@@ -159,7 +171,12 @@ describe("the wire surface that must not have changed", () => {
     const wire = await connectOverTap(true);
     await wire.initialize();
 
-    expect(wire.listTools().map((tool) => tool.name).sort()).toEqual(
+    expect(
+      wire
+        .listTools()
+        .map((tool) => tool.name)
+        .sort(),
+    ).toEqual(
       [
         "cpp_file_symbols",
         "cpp_find_callers",
@@ -202,7 +219,9 @@ describe("the drift guard, read off the schemas the server actually registered",
     const wire = await connectOverTap(true);
     await wire.initialize();
 
-    const missing = wire.listTools().filter((tool) => RESULT_COUNT_SELECTORS[String(tool.name)] === undefined);
+    const missing = wire
+      .listTools()
+      .filter((tool) => RESULT_COUNT_SELECTORS[String(tool.name)] === undefined);
     expect(missing.map((tool) => tool.name)).toEqual([]);
     await wire.close();
   });
@@ -214,7 +233,9 @@ describe("the drift guard, read off the schemas the server actually registered",
     const keyedOnAnIdentifier = wire
       .listTools()
       .filter((tool) => {
-        const properties = (tool.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties ?? {};
+        const properties =
+          (tool.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties ??
+          {};
         return ["name", "symbol", "qualifiedName"].some((key) => properties[key] !== undefined);
       })
       .map((tool) => String(tool.name))
@@ -229,7 +250,9 @@ describe("the drift guard, read off the schemas the server actually registered",
 
   it("keeps this list in step with the registrations src/index.ts performs", () => {
     const source = readFileSync(new URL("../../src/index.ts", import.meta.url), "utf8");
-    const registered = [...source.matchAll(/\bregister[A-Za-z]+(?=\()/g)].map(([name]) => name).sort();
+    const registered = [...source.matchAll(/\bregister[A-Za-z]+(?=\()/g)]
+      .map(([name]) => name)
+      .sort();
     const expected = [
       "registerCppFileSymbols",
       "registerCppFindCallers",
@@ -262,7 +285,9 @@ describe("what only the transport can see", () => {
     })) as Record<string, unknown>;
 
     expect(result.isError).toBe(true);
-    expect(String((result.content as Record<string, unknown>[])[0]?.text)).toContain("Input validation error:");
+    expect(String((result.content as Record<string, unknown>[])[0]?.text)).toContain(
+      "Input validation error:",
+    );
     expect(wire.lines.at(-1)).toMatchObject({
       type: "call",
       tool: "cpp_file_symbols",
@@ -322,7 +347,10 @@ describe("what only the transport can see", () => {
   it("records a degraded outline as ok, with its limit code, so a stats query can count them", async () => {
     const root = projectRoot();
     writeFileSync(join(root, "a.cpp"), "class Foo {};\n");
-    const wire = await connectOverTap(true, sessionsFor(fakeProcessByFile(() => [symAt("Foo", 5, 0, 6)])));
+    const wire = await connectOverTap(
+      true,
+      sessionsFor(fakeProcessByFile(() => [symAt("Foo", 5, 0, 6)])),
+    );
     await wire.initialize();
     const result = (await wire.request("tools/call", {
       name: "cpp_file_symbols",
@@ -364,8 +392,14 @@ describe("what only the transport can see", () => {
   it("records a real handler's success, counting what it answered and what the session did", async () => {
     const root = projectRoot();
     writeFileSync(join(root, "a.cpp"), "class Foo {};\n");
-    writeFileSync(join(root, "compile_commands.json"), JSON.stringify([{ directory: root, file: "a.cpp" }]));
-    const wire = await connectOverTap(true, sessionsFor(fakeProcessByFile(() => [symAt("Foo", 5, 0, 6)])));
+    writeFileSync(
+      join(root, "compile_commands.json"),
+      JSON.stringify([{ directory: root, file: "a.cpp" }]),
+    );
+    const wire = await connectOverTap(
+      true,
+      sessionsFor(fakeProcessByFile(() => [symAt("Foo", 5, 0, 6)])),
+    );
     await wire.initialize();
     const result = (await wire.request("tools/call", {
       name: "cpp_file_symbols",
@@ -374,7 +408,11 @@ describe("what only the transport can see", () => {
 
     expect(result.isError).toBeUndefined();
     const [line] = wire.lines;
-    expect(line).toMatchObject({ type: "run", client: { name: "surface-test", version: "0.0.1" }, protocol: PROTOCOL });
+    expect(line).toMatchObject({
+      type: "run",
+      client: { name: "surface-test", version: "0.0.1" },
+      protocol: PROTOCOL,
+    });
     expect(wire.lines.at(-1)).toMatchObject({
       type: "call",
       outcome: "ok",

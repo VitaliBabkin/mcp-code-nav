@@ -36,7 +36,8 @@ import { fakeServer, pathOfDocumentId } from "../helpers/fake-lsp.js";
 type Answer = { isError?: boolean; content?: { text?: string }[] };
 
 const BINARY: TsgoBinary = {
-  executable: "C:/fake/npm-global/typescript/node_modules/@typescript/typescript-win32-x64/lib/tsc.exe",
+  executable:
+    "C:/fake/npm-global/typescript/node_modules/@typescript/typescript-win32-x64/lib/tsc.exe",
   version: "7.0.2",
   source: "global",
 };
@@ -55,7 +56,12 @@ function pos(line: number, needle: string) {
   return { line, character: TEXT[line]!.indexOf(needle) };
 }
 
-function entry(name: string, kind: number, line: number, children?: LspDocumentSymbol[]): LspDocumentSymbol {
+function entry(
+  name: string,
+  kind: number,
+  line: number,
+  children?: LspDocumentSymbol[],
+): LspDocumentSymbol {
   return {
     name,
     kind,
@@ -108,7 +114,8 @@ function harness(listing: "ok" | "fails" = "ok"): Harness {
       fakeServer({
         respond: (method, params) => {
           if (method === "initialize") return { serverInfo: { name: "tsgo", version: "7.0.2" } };
-          if (method === "textDocument/documentSymbol") return pathOfDocumentId(params) === main ? OUTLINE : [];
+          if (method === "textDocument/documentSymbol")
+            return pathOfDocumentId(params) === main ? OUTLINE : [];
           return answers.get(method) ?? [];
         },
       }).process,
@@ -157,7 +164,11 @@ describe("what the shared TS target resolution refuses with", () => {
     built.push(bare);
     const file = join(bare, "a.ts");
     writeFileSync(file, "export {};\n");
-    const out = await runTsFileSymbols(h.manager, { sourceRoots: [bare], file, timeBudgetMs: 60_000, depth: 1 }, h.deps);
+    const out = await runTsFileSymbols(
+      h.manager,
+      { sourceRoots: [bare], file, timeBudgetMs: 60_000, depth: 1 },
+      h.deps,
+    );
 
     expect(textOf(out)).toContain("is not inside an npm package");
     expect(classOf(textOf(out))).toBe("no-module");
@@ -177,11 +188,17 @@ describe("what the shared TS target resolution refuses with", () => {
 
   it("server-unavailable, for a located binary that is missing and one that could not be located", async () => {
     const h = harness();
-    const missing = unavailableMessage({ config: TSGO_IDENTITY, attempted: "C:/x/tsc.exe", fromOverride: true }, "ENOENT");
+    const missing = unavailableMessage(
+      { config: TSGO_IDENTITY, attempted: "C:/x/tsc.exe", fromOverride: true },
+      "ENOENT",
+    );
     const out = await runTsFileSymbols(
       h.manager,
       { ...h.base(), depth: 1 },
-      { ...h.deps, resolveBinary: async () => ({ unavailable: missing, attempted: "C:/x/tsc.exe" }) },
+      {
+        ...h.deps,
+        resolveBinary: async () => ({ unavailable: missing, attempted: "C:/x/tsc.exe" }),
+      },
     );
 
     expect(textOf(out)).toContain("Cannot start tsgo:");
@@ -193,7 +210,11 @@ describe("what the shared TS target resolution refuses with", () => {
       platform: "win32",
       arch: "x64",
       override: "",
-      exec: async () => ({ stdout: "", stderr: "ENOENT: no such file or directory, open 'C:/npm/x'", exitCode: 1 }),
+      exec: async () => ({
+        stdout: "",
+        stderr: "ENOENT: no such file or directory, open 'C:/npm/x'",
+        exitCode: 1,
+      }),
       readJson: () => undefined,
       exists: () => false,
     });
@@ -207,7 +228,11 @@ describe("what the shared TS target resolution refuses with", () => {
 
   it("file-not-found, for a `file` that does not exist, through a TS tool", async () => {
     const h = harness();
-    const out = await runTsFileSymbols(h.manager, { ...h.base(), file: join(h.ws, "src", "gone.ts"), depth: 1 }, h.deps);
+    const out = await runTsFileSymbols(
+      h.manager,
+      { ...h.base(), file: join(h.ws, "src", "gone.ts"), depth: 1 },
+      h.deps,
+    );
 
     expect(out.isError).toBe(true);
     expect(classOf(textOf(out))).toBe("file-not-found");
@@ -229,7 +254,11 @@ describe("what the shared TS target resolution refuses with", () => {
 describe("what addressing a `symbol` refuses with", () => {
   it("symbol-not-found, for a name the file does not declare", async () => {
     const h = harness();
-    const out = await runTsFindReferences(h.manager, { ...h.base(), symbol: "Nope", includeDeclaration: false }, h.deps);
+    const out = await runTsFindReferences(
+      h.manager,
+      { ...h.base(), symbol: "Nope", includeDeclaration: false },
+      h.deps,
+    );
 
     expect(textOf(out)).toContain('declares nothing named "Nope"');
     expect(classOf(textOf(out))).toBe("symbol-not-found");
@@ -237,7 +266,11 @@ describe("what addressing a `symbol` refuses with", () => {
 
   it("symbol-ambiguous, for one key that two symbols share", async () => {
     const h = harness();
-    const out = await runTsFindReferences(h.manager, { ...h.base(), symbol: "Foo", includeDeclaration: false }, h.deps);
+    const out = await runTsFindReferences(
+      h.manager,
+      { ...h.base(), symbol: "Foo", includeDeclaration: false },
+      h.deps,
+    );
 
     expect(textOf(out)).toContain("will not pick between them");
     expect(classOf(textOf(out))).toBe("symbol-ambiguous");
@@ -256,24 +289,45 @@ describe("what addressing a `symbol` refuses with", () => {
   });
 
   it("symbol-not-found, for a dotted path no entry of the file carries", () => {
-    expect(classOf(notAddressableText("ts_find_references", "x.y", "a.ts", "x", "nothing"))).toBe("symbol-not-found");
+    expect(classOf(notAddressableText("ts_find_references", "x.y", "a.ts", "x", "nothing"))).toBe(
+      "symbol-not-found",
+    );
   });
 
   // There is no class for a server-shape fault or an unreadable file, so these fall to `other`, where
   // `npm run stats` lists their heads as unclassified instead of filing them under a class that misdescribes them.
   it("other, for a dotted namespace entry whose own span is not the run it claims", () => {
-    const span = unreadableSpanText("ts_find_callers", "a.ts", { name: "A.B", kind: 3, range: pos0(), selectionRange: pos0() });
+    const span = unreadableSpanText("ts_find_callers", "a.ts", {
+      name: "A.B",
+      kind: 3,
+      range: pos0(),
+      selectionRange: pos0(),
+    });
 
     expect(classOf(span)).toBe("other");
   });
 
   it("other, for a source unreadable for a reason other than its absence; file-not-found when it is absent", () => {
-    expect(classOf(unreadableSourceText("ts_find_callers", "a.ts", "S", "EACCES: permission denied, open 'a.ts'"))).toBe(
-      "other",
-    );
-    expect(classOf(unreadableSourceText("ts_find_callers", "a.ts", "S", "ENOENT: no such file or directory, open 'a.ts'"))).toBe(
-      "file-not-found",
-    );
+    expect(
+      classOf(
+        unreadableSourceText(
+          "ts_find_callers",
+          "a.ts",
+          "S",
+          "EACCES: permission denied, open 'a.ts'",
+        ),
+      ),
+    ).toBe("other");
+    expect(
+      classOf(
+        unreadableSourceText(
+          "ts_find_callers",
+          "a.ts",
+          "S",
+          "ENOENT: no such file or directory, open 'a.ts'",
+        ),
+      ),
+    ).toBe("file-not-found");
   });
 });
 
@@ -286,7 +340,9 @@ describe("what the per-tool gates refuse with", () => {
     const h = harness();
     const out = await runTsFindImplementations(h.manager, { ...h.base(), symbol: "label" }, h.deps);
 
-    expect(textOf(out)).toContain("only an interface, class, method or property has implementations");
+    expect(textOf(out)).toContain(
+      "only an interface, class, method or property has implementations",
+    );
     expect(classOf(textOf(out))).toBe("symbol-kind-unsupported");
   });
 
@@ -311,7 +367,11 @@ describe("what the per-tool gates refuse with", () => {
   it("other, for an answer this server cannot read and will not shrink", async () => {
     const h = harness();
     h.answers.set("textDocument/references", { not: "a list" });
-    const out = await runTsFindReferences(h.manager, { ...h.base(), symbol: "run", includeDeclaration: false }, h.deps);
+    const out = await runTsFindReferences(
+      h.manager,
+      { ...h.base(), symbol: "run", includeDeclaration: false },
+      h.deps,
+    );
 
     expect(textOf(out)).toContain("this server cannot read");
     expect(classOf(textOf(out))).toBe("other");
@@ -346,17 +406,23 @@ describe("what the budget, readiness and restart texts say", () => {
   const budget = budgetOf(60_000);
 
   it("budget-exceeded, for a request or a listing that outran the ceiling", () => {
-    expect(classOf(tsBudgetText("ts_find_callers", budget, "answer", "D:/ws"))).toBe("budget-exceeded");
+    expect(classOf(tsBudgetText("ts_find_callers", budget, "answer", "D:/ws"))).toBe(
+      "budget-exceeded",
+    );
     expect(classOf(listingBudgetText("ts_find_callers", budget, "D:/ws"))).toBe("budget-exceeded");
   });
 
   it("not-ready, not budget-exceeded, for documents that were never proved open", () => {
-    expect(classOf(tsReadinessText("ts_find_callers", budget, "run", "D:/ws", "timed-out"))).toBe("not-ready");
+    expect(classOf(tsReadinessText("ts_find_callers", budget, "run", "D:/ws", "timed-out"))).toBe(
+      "not-ready",
+    );
   });
 
   it("session-lost, for the process replaced mid-call", () => {
     expect(classOf(tsRestartedText("ts_find_callers", "run", "D:/ws"))).toBe("session-lost");
-    expect(classOf(tsReadinessText("ts_find_callers", budget, "run", "D:/ws", "restarted"))).toBe("session-lost");
+    expect(classOf(tsReadinessText("ts_find_callers", budget, "run", "D:/ws", "restarted"))).toBe(
+      "session-lost",
+    );
   });
 
   it("not-ready, for the no-anchor refusal in both its variants", () => {
@@ -368,15 +434,29 @@ describe("what the budget, readiness and restart texts say", () => {
       projectsUnavailable: undefined,
       anchors: [],
     };
-    expect(classOf(noAnchorText("ts_find_symbol", "run", "D:/ws", { ...empty, projectsUnavailable: "too many" }))).toBe(
-      "not-ready",
-    );
+    expect(
+      classOf(
+        noAnchorText("ts_find_symbol", "run", "D:/ws", {
+          ...empty,
+          projectsUnavailable: "too many",
+        }),
+      ),
+    ).toBe("not-ready");
     expect(classOf(noAnchorText("ts_find_symbol", "run", "D:/ws", empty))).toBe("not-ready");
   });
 
   it("other, for a workspace-symbol answer this server cannot read", () => {
     expect(
-      classOf(unexpectedAnswerText("tsgo", "ts_find_symbol", { x: 1 }, "run", undefined, WORKSPACE_SYMBOL_ANSWER)),
+      classOf(
+        unexpectedAnswerText(
+          "tsgo",
+          "ts_find_symbol",
+          { x: 1 },
+          "run",
+          undefined,
+          WORKSPACE_SYMBOL_ANSWER,
+        ),
+      ),
     ).toBe("other");
   });
 });

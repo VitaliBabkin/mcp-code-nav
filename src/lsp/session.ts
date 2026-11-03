@@ -6,9 +6,18 @@ import { pathKey } from "../paths/path-containment.js";
 import { fileUri, textDocumentId } from "./document-uri.js";
 import { fileStamp } from "./file-stamp.js";
 import { ModuleFreshness, type FreshnessOutcome, type SnapshotDiff } from "./module-freshness.js";
-import { IndexDrift, type IndexDriftReading, type IndexDriftVerdict } from "../paths/index-drift.js";
+import {
+  IndexDrift,
+  type IndexDriftReading,
+  type IndexDriftVerdict,
+} from "../paths/index-drift.js";
 import { defaultSpawnLsp, type LspConnection, type LspProcess, type SpawnLsp } from "./process.js";
-import { RequestAbortedError, RequestTimeoutError, DEFAULT_REQUEST_TIMEOUT_MS, sendWithControl } from "./request-control.js";
+import {
+  RequestAbortedError,
+  RequestTimeoutError,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  sendWithControl,
+} from "./request-control.js";
 import { currentRequestSignal } from "./request-scope.js";
 import { LanguageServerUnavailableError, type LanguageServerConfig } from "./server-config.js";
 import { stderrNote } from "./stderr-tail.js";
@@ -32,6 +41,8 @@ export interface LspSessionOptions {
   retryDelayMs?: number;
   /** Longest one request may stay unanswered; defaults to {@link DEFAULT_REQUEST_TIMEOUT_MS}. */
   requestTimeoutMs?: number;
+  /** Told whenever a call begins or ends, so an owner can bound the child's lifetime by {@link LspSession.inFlight}. */
+  onActivity?: () => void;
 }
 
 /** How a readiness wait ended, so a caller never blames the budget for a server that was replaced. */
@@ -145,8 +156,11 @@ export class LspSession {
   private readonly indexWindows = new Set<IndexWindow>();
   private workspaceLoaded = false;
   private readonly readyWaiters = new Set<ReadinessWaiter>();
+  private readonly onActivity: (() => void) | undefined;
+  private calls = 0;
 
   constructor(options: LspSessionOptions) {
+    this.onActivity = options.onActivity;
     this.root = options.root;
     this.config = options.config;
     this.spawnFn = options.spawn ?? defaultSpawnLsp;
@@ -170,7 +184,9 @@ export class LspSession {
       closeOpen: (path) => this.closeOpenFile(this.liveProcess(), path),
       openedAs: (path) => this.openInProcess.get(pathKey(path)),
       isLive: () => this.process !== undefined && this.process.isAlive(),
-      dispose: () => this.dispose(),
+      dispose: () => {
+        this.dispose();
+      },
     });
   }
 
@@ -184,6 +200,28 @@ export class LspSession {
       closeOpen: (path) => this.closeOpenFile(this.liveProcess(), path),
       openedAs: (path) => this.openInProcess.get(pathKey(path)),
     });
+  }
+
+  /** Public calls currently running; a session with any must not have its child taken away. */
+  inFlight(): number {
+    return this.calls;
+  }
+
+  /** Whether a child is running or being started, i.e. whether this session holds a process's memory. */
+  isLive(): boolean {
+    return this.starting !== undefined || (this.process?.isAlive() ?? false);
+  }
+
+  /** Runs one public call with the activity count raised, so idle shutdown and eviction can see it. */
+  private async tracked<T>(work: () => Promise<T>): Promise<T> {
+    this.calls++;
+    this.onActivity?.();
+    try {
+      return await work();
+    } finally {
+      this.calls--;
+      this.onActivity?.();
+    }
   }
 
   /** Files opened via `cpp_file_symbols` in this session, across any server respawn. */
@@ -211,7 +249,8 @@ export class LspSession {
   /** The child a freshness push is addressing; `ModuleFreshness` asks for the push only while one lives. */
   private liveProcess(): LspProcess {
     const proc = this.process;
-    if (proc === undefined || !proc.isAlive()) throw new Error(`${this.config.id} has no live process to notify`);
+    if (proc === undefined || !proc.isAlive())
+      throw new Error(`${this.config.id} has no live process to notify`);
     return proc;
   }
 
@@ -232,7 +271,11 @@ export class LspSession {
     this.watchWorkDoneProgress(proc.connection);
     this.answerServerRequests(proc.connection);
     try {
-      const initialized = await this.send<unknown>(proc, "initialize", this.config.initializeParams(this.root));
+      const initialized = await this.send<unknown>(
+        proc,
+        "initialize",
+        this.config.initializeParams(this.root),
+      );
       await proc.connection.sendNotification("initialized", {});
       this.initializeAnswer = initialized;
     } catch (e) {
@@ -296,12 +339,17 @@ export class LspSession {
    * where a server says why it stopped. A cancelled call and an unavailable binary already say everything.
    */
   private async withServerStderr(proc: LspProcess, error: unknown): Promise<unknown> {
-    if (!(error instanceof Error) || error instanceof RequestAbortedError || error instanceof LanguageServerUnavailableError) {
+    if (
+      !(error instanceof Error) ||
+      error instanceof RequestAbortedError ||
+      error instanceof LanguageServerUnavailableError
+    ) {
       return error;
     }
     if (proc.isAlive() && !(error instanceof RequestTimeoutError)) return error;
     // The exit that failed the request can be seen before the child's last stderr bytes are read.
-    if (proc.stderrSettled !== undefined) await Promise.race([proc.stderrSettled(), this.sleep(STDERR_SETTLE_MS)]);
+    if (proc.stderrSettled !== undefined)
+      await Promise.race([proc.stderrSettled(), this.sleep(STDERR_SETTLE_MS)]);
     const note = stderrNote(this.config.id, proc.stderrTail?.());
     return note === "" ? error : new Error(error.message + note, { cause: error });
   }
@@ -312,10 +360,13 @@ export class LspSession {
    * `$/progress` at all, so readiness could never be proven.
    */
   private watchWorkDoneProgress(connection: LspConnection): void {
-    connection.onRequest("window/workDoneProgress/create", (params: WorkDoneProgressCreateParams = {}): null => {
-      if (params.token !== undefined) this.trackProgress(connection, params.token);
-      return null;
-    });
+    connection.onRequest(
+      "window/workDoneProgress/create",
+      (params: WorkDoneProgressCreateParams = {}): null => {
+        if (params.token !== undefined) this.trackProgress(connection, params.token);
+        return null;
+      },
+    );
   }
 
   /**
@@ -342,9 +393,9 @@ export class LspSession {
     if (this.initialProgressToken === undefined) this.initialProgressToken = token;
     if (this.watchedProgress.has(token)) return;
     this.watchedProgress.add(token);
-    connection.onProgress(new ProgressType<ProgressValue>(), token, (value: ProgressValue) =>
-      this.countProgress(token, value),
-    );
+    connection.onProgress(new ProgressType<ProgressValue>(), token, (value: ProgressValue) => {
+      this.countProgress(token, value);
+    });
   }
 
   /**
@@ -352,7 +403,8 @@ export class LspSession {
    * nothing about whether work is outstanding. The end of the first token is the load proof; the end of any
    * later one is a re-index that proves nothing about the graph, so it must not stand in for it.
    */
-  private countProgress(token: ProgressToken, value: ProgressValue): void {
+  // A server may send `value: null`, which the declared payload type does not admit.
+  private countProgress(token: ProgressToken, value: ProgressValue | null | undefined): void {
     this.progressObserved = true;
     if (value?.kind === "begin") {
       this.tokensInFlight.add(token);
@@ -372,7 +424,15 @@ export class LspSession {
    * flight when the window opened and one that began and finished inside it, which is the case a sample
    * taken at the reply reads as idle.
    */
-  async withIndexWindow<T>(work: () => Promise<T>): Promise<{ readonly value: T; readonly index: IndexState }> {
+  async withIndexWindow<T>(
+    work: () => Promise<T>,
+  ): Promise<{ readonly value: T; readonly index: IndexState }> {
+    return this.tracked(() => this.withIndexWindowUntracked(work));
+  }
+
+  private async withIndexWindowUntracked<T>(
+    work: () => Promise<T>,
+  ): Promise<{ readonly value: T; readonly index: IndexState }> {
     const window: IndexWindow = { beganDuring: false };
     const inFlightAtStart = this.tokensInFlight.size;
     const measuring = this.processGeneration;
@@ -385,7 +445,9 @@ export class LspSession {
       // window that spans a replacement says nothing — the choice over re-running the request, which the
       // answer already in hand does not need.
       const index =
-        measuring === this.processGeneration ? this.indexState(inFlightAtStart, window.beganDuring) : "unknown";
+        measuring === this.processGeneration
+          ? this.indexState(inFlightAtStart, window.beganDuring)
+          : "unknown";
       return { value, index };
     } finally {
       this.indexWindows.delete(window);
@@ -456,10 +518,12 @@ export class LspSession {
    * partial one.
    */
   async awaitWorkspaceReady(timeoutMs: number): Promise<ReadinessOutcome> {
-    const askedAt = performance.now();
-    const outcome = await this.waitForWorkspaceReady(timeoutMs);
-    noteReadyWait(performance.now() - askedAt);
-    return outcome;
+    return this.tracked(async () => {
+      const askedAt = performance.now();
+      const outcome = await this.waitForWorkspaceReady(timeoutMs);
+      noteReadyWait(performance.now() - askedAt);
+      return outcome;
+    });
   }
 
   private async waitForWorkspaceReady(timeoutMs: number): Promise<ReadinessOutcome> {
@@ -503,7 +567,12 @@ export class LspSession {
     const stamp = fileStamp(file);
     const text = this.readFile(file);
     await proc.connection.sendNotification("textDocument/didOpen", {
-      textDocument: { uri: fileUri(file), languageId: this.config.languageIdFor(file), version: 1, text },
+      textDocument: {
+        uri: fileUri(file),
+        languageId: this.config.languageIdFor(file),
+        version: 1,
+        text,
+      },
     });
     // A process replaced or disposed while the write was in flight took its held set with it; recording this
     // file now would claim the replacement holds a document that only the dead child was given.
@@ -536,15 +605,18 @@ export class LspSession {
     const key = pathKey(file);
     const opened = this.openInProcess.get(key);
     if (opened === undefined) return;
-    await proc.connection.sendNotification("textDocument/didClose", { textDocument: textDocumentId(opened) });
+    await proc.connection.sendNotification("textDocument/didClose", {
+      textDocument: textDocumentId(opened),
+    });
     this.openInProcess.delete(key);
     this.openedStamps.delete(key);
   }
 
   /** Proves the server's package graph current before a type-aware call. */
   async refreshModuleSnapshot(): Promise<FreshnessOutcome> {
-    if (this.freshness === undefined) return { kind: "unchanged" };
-    return this.freshness.refresh();
+    const freshness = this.freshness;
+    if (freshness === undefined) return { kind: "unchanged" };
+    return this.tracked(() => freshness.refresh());
   }
 
   /**
@@ -563,8 +635,9 @@ export class LspSession {
    * has completed and again after a respawn, which is a fact a caller states rather than fills in.
    */
   serverInfo(): { readonly name: string; readonly version: string } | undefined {
-    const info = (this.initializeAnswer as { serverInfo?: { name?: unknown; version?: unknown } } | undefined)
-      ?.serverInfo;
+    const info = (
+      this.initializeAnswer as { serverInfo?: { name?: unknown; version?: unknown } } | undefined
+    )?.serverInfo;
     if (typeof info?.name !== "string" || typeof info.version !== "string") return undefined;
     return { name: info.name, version: info.version };
   }
@@ -590,16 +663,18 @@ export class LspSession {
    * the reply: the answer is only about the anchors when the same process still answers.
    */
   async openAnchorsOn(files: readonly string[]): Promise<number | undefined> {
-    const proc = await this.ensureProcess();
-    const serial = this.spawnSerials.get(proc);
-    for (const file of files) {
-      if (this.process !== proc) return undefined;
-      await this.ensureOpen(proc, file);
-    }
-    if (this.config.readinessProof !== "documents-opened") return undefined;
-    if (files.length === 0 || this.process !== proc) return undefined;
-    this.markWorkspaceLoaded();
-    return serial;
+    return this.tracked(async () => {
+      const proc = await this.ensureProcess();
+      const serial = this.spawnSerials.get(proc);
+      for (const file of files) {
+        if (this.process !== proc) return undefined;
+        await this.ensureOpen(proc, file);
+      }
+      if (this.config.readinessProof !== "documents-opened") return undefined;
+      if (files.length === 0 || this.process !== proc) return undefined;
+      this.markWorkspaceLoaded();
+      return serial;
+    });
   }
 
   /** The spawn serving requests now, or `undefined` while no process is live. */
@@ -647,7 +722,8 @@ export class LspSession {
         },
       };
     }
-    return this.drift.checkWithAccount(sourceRoots);
+    const drift = this.drift;
+    return this.tracked(() => drift.checkWithAccount(sourceRoots));
   }
 
   /**
@@ -658,11 +734,18 @@ export class LspSession {
     return this.openInProcess.get(pathKey(file)) ?? file;
   }
 
-  private async requestDocumentSymbol(proc: LspProcess, file: string): Promise<LspDocumentSymbol[] | null> {
+  private async requestDocumentSymbol(
+    proc: LspProcess,
+    file: string,
+  ): Promise<LspDocumentSymbol[] | null> {
     await this.ensureOpen(proc, file);
-    const result = await this.send<LspDocumentSymbol[] | null>(proc, "textDocument/documentSymbol", {
-      textDocument: textDocumentId(this.openedPath(file)),
-    });
+    const result = await this.send<LspDocumentSymbol[] | null>(
+      proc,
+      "textDocument/documentSymbol",
+      {
+        textDocument: textDocumentId(this.openedPath(file)),
+      },
+    );
     return result ?? null;
   }
 
@@ -675,6 +758,10 @@ export class LspSession {
    * before the caller sees a rejection.
    */
   async documentSymbol(file: string): Promise<DocumentSymbolState> {
+    return this.tracked(() => this.documentSymbolUntracked(file));
+  }
+
+  private async documentSymbolUntracked(file: string): Promise<DocumentSymbolState> {
     let proc = await this.ensureProcess();
     let symbols: LspDocumentSymbol[] | null;
     try {
@@ -682,7 +769,7 @@ export class LspSession {
     } catch (e) {
       if (proc.isAlive() || this.discarded.has(proc)) throw e;
       proc = await this.ensureProcess();
-      symbols =await this.requestDocumentSymbol(proc, file);
+      symbols = await this.requestDocumentSymbol(proc, file);
     }
 
     if (symbols && symbols.length > 0) {
@@ -709,7 +796,17 @@ export class LspSession {
    * already held for good is left held: closing it would be the change of state the caller did not ask for.
    * Every transient read of a document goes through here, so the hold-and-release discipline is stated once.
    */
-  async withTransientDocument<T>(file: string, ask: (asking: TransientAsking) => Promise<T>): Promise<T> {
+  async withTransientDocument<T>(
+    file: string,
+    ask: (asking: TransientAsking) => Promise<T>,
+  ): Promise<T> {
+    return this.tracked(() => this.withTransientDocumentUntracked(file, ask));
+  }
+
+  private async withTransientDocumentUntracked<T>(
+    file: string,
+    ask: (asking: TransientAsking) => Promise<T>,
+  ): Promise<T> {
     const proc = await this.ensureProcess();
     const heldOpen = this.openInProcess.has(pathKey(file));
     if (!heldOpen) await this.openDocument(proc, file, false);
@@ -721,7 +818,8 @@ export class LspSession {
       return await ask(asking);
     } finally {
       // A child that died or was discarded needs no `didClose`; the set it was in is cleared when it is replaced.
-      if (!heldOpen && proc.isAlive() && !this.discarded.has(proc)) await this.closeOpenFile(proc, file);
+      if (!heldOpen && proc.isAlive() && !this.discarded.has(proc))
+        await this.closeOpenFile(proc, file);
     }
   }
 
@@ -745,14 +843,26 @@ export class LspSession {
    */
   async request<T>(method: string, params: unknown): Promise<T> {
     this.assertAllowed(method);
-    let proc = await this.ensureProcess();
-    try {
-      return await this.send<T>(proc, method, params);
-    } catch (e) {
-      if (proc.isAlive() || this.discarded.has(proc)) throw e;
-      proc = await this.ensureProcess();
-      return this.send<T>(proc, method, params);
-    }
+    return this.tracked(async () => {
+      let proc = await this.ensureProcess();
+      try {
+        return await this.send<T>(proc, method, params);
+      } catch (e) {
+        if (proc.isAlive() || this.discarded.has(proc)) throw e;
+        proc = await this.ensureProcess();
+        return this.send<T>(proc, method, params);
+      }
+    });
+  }
+
+  /**
+   * Disposal by the manager's idle or cap policy. Unlike `dispose()`, it advances the generation: the workspace may
+   * change while no child runs, and a map or baseline keyed on the generation must not outlive the child it
+   * describes.
+   */
+  retire(): void {
+    this.processGeneration++;
+    this.dispose();
   }
 
   dispose(): void {

@@ -1,6 +1,10 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { candidateHeaders, isCppSourceFile, resolveHeaderCounterpart } from "../../src/symbols/header-fallback.js";
+import {
+  candidateHeaders,
+  isCppSourceFile,
+  resolveHeaderCounterpart,
+} from "../../src/symbols/header-fallback.js";
 
 describe("isCppSourceFile", () => {
   it("recognizes .cpp/.cc/.cxx/.mm", () => {

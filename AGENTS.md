@@ -14,8 +14,8 @@ Orientation: one file per tool in `src/tools/`, named `<lang>-<question>.ts`; te
 
 ## Checks
 
-Before reporting a code change done, run `npm run lint`, `npm run typecheck` and `npm test`; a docs-only change needs
-none. One test file: `npm test -- test/tools/input-limits.test.ts`. When you change behaviour that depends on clangd,
+Before reporting a code change done, run `npm run format:check`, `npm run lint`, `npm run typecheck` and `npm test`; a
+docs-only change needs none. `npm run format` fixes formatting. One test file: `npm test -- test/tools/input-limits.test.ts`. When you change behaviour that depends on clangd,
 clang-query, gopls or tsgo, also run `npm run test:live`; a file whose tool is not installed skips, so say which files
 skipped instead of reporting them as passed. The other scripts are in `package.json`; the gate list and the live-suite
 setup are in WORKFLOW.md.

@@ -27,7 +27,11 @@ import {
   type UncoveredSourcesBlock,
 } from "../clang-query/uncovered-sources.js";
 import type { IndexState, LspSession } from "../lsp/session.js";
-import type { IndexDriftReading, IndexDriftVerdict, IndexWalkAccount } from "../paths/index-drift.js";
+import type {
+  IndexDriftReading,
+  IndexDriftVerdict,
+  IndexWalkAccount,
+} from "../paths/index-drift.js";
 import { escapesRoot } from "../paths/path-containment.js";
 import { rankPaths, summariseRanked, type CappedList } from "../paths/ranked-paths.js";
 import type { ResolvedPath } from "../paths/resolve-safe-path.js";
@@ -79,13 +83,11 @@ export const CppAddressShape = {
     "Exact name, bare (`paint`) or qualified (`Widget::paint`); a qualified name must match the trailing " +
       "scope segments.",
   ),
-  file: PathInput
-    .optional()
-    .describe(
-      "The declaring file (a .cpp resolves to its header): absolute, or relative - a relative path is " +
-        "resolved against projectRoot and each sourceRoots entry, and must exist under exactly one of them. " +
-        "Omit it to search the files this session opened, then clangd's index.",
-    ),
+  file: PathInput.optional().describe(
+    "The declaring file (a .cpp resolves to its header): absolute, or relative - a relative path is " +
+      "resolved against projectRoot and each sourceRoots entry, and must exist under exactly one of them. " +
+      "Omit it to search the files this session opened, then clangd's index.",
+  ),
   sourceRoots: SourceRootsSchema,
   kind: SymbolKindFilterSchema.optional().describe(
     "Narrows a bare name that matches both a class and its constructors.",
@@ -106,7 +108,7 @@ interface CandidateInFile extends FlatSymbol {
 }
 
 function formatCandidate(c: CandidateInFile): string {
-  return `${c.qualifiedPath.join("::")} (${c.kind}) at ${c.file}:${c.range.startLine}`;
+  return `${c.qualifiedPath.join("::")} (${c.kind}) at ${c.file}:${String(c.range.startLine)}`;
 }
 
 function declarationOf(c: CandidateInFile): CppDeclaration {
@@ -121,7 +123,11 @@ function declarationOf(c: CandidateInFile): CppDeclaration {
 }
 
 /** Runs `matchSymbols` against one file's outline. `undefined` is the cold-index state, not an empty file. */
-async function matchInFile(session: LspSession, file: string, query: FindSymbolQuery): Promise<CandidateInFile[] | undefined> {
+async function matchInFile(
+  session: LspSession,
+  file: string,
+  query: FindSymbolQuery,
+): Promise<CandidateInFile[] | undefined> {
   const result = await session.documentSymbol(file);
   if (result.state === "cold-empty") return undefined;
   const flat = result.state === "ok" ? flattenOutline(result.symbols) : [];
@@ -143,7 +149,9 @@ function uniqueOrAmbiguous(
   if (matches.length > 1) {
     return {
       ok: false,
-      error: `${tool} failed: "${name}" is ambiguous ${scopeText}:\n` + matches.map(formatCandidate).join("\n"),
+      error:
+        `${tool} failed: "${name}" is ambiguous ${scopeText}:\n` +
+        matches.map(formatCandidate).join("\n"),
     };
   }
   return undefined;
@@ -189,7 +197,11 @@ async function searchDeclaringHeaders(
     let absoluteHeader: string;
     try {
       // Already absolute: the header fallback is unaffected by the relative-candidate rule.
-      absoluteHeader = resolveAndCheckIgnored(scope.projectRoot, headerCandidate, scope.sourceRoots).absolutePath;
+      absoluteHeader = resolveAndCheckIgnored(
+        scope.projectRoot,
+        headerCandidate,
+        scope.sourceRoots,
+      ).absolutePath;
     } catch {
       continue;
     }
@@ -269,7 +281,7 @@ async function searchOpenedFiles(
   }
 
   if (allMatches.length === 0) return { ok: true, value: "nothing" };
-  const scopeText = `across ${openedFiles.length} previously-opened file(s)`;
+  const scopeText = `across ${String(openedFiles.length)} previously-opened file(s)`;
   return (
     uniqueOrAmbiguous(tool, allMatches, query.name, scopeText) ?? {
       ok: false,
@@ -302,7 +314,9 @@ export async function resolveCppDeclaration(
 }
 
 /** How the shared resolver answered: a declaration, or that only clangd's index can supply one. */
-export type CppResolution = { readonly declaration: CppDeclaration } | { readonly needsIndex: true };
+export type CppResolution =
+  | { readonly declaration: CppDeclaration }
+  | { readonly needsIndex: true };
 
 /**
  * This server's watermark on clangd's symbol list — a bound this server owns, not a claim about clangd. An
@@ -314,7 +328,12 @@ export type CppResolution = { readonly declaration: CppDeclaration } | { readonl
 export const CLANGD_SYMBOL_CAP_WATERMARK = 100;
 
 /** One row of clangd's `workspace/symbol` answer, read as a candidate the outline branch would have found. */
-function readSymbolRow(tool: string, name: string, raw: unknown, ordinal: number): Step<CandidateInFile | undefined> {
+function readSymbolRow(
+  tool: string,
+  name: string,
+  raw: unknown,
+  ordinal: number,
+): Step<CandidateInFile | undefined> {
   const entry = recordOf(raw);
   const location = recordOf(entry.location);
   const file = pathOfUri(location.uri);
@@ -327,7 +346,14 @@ function readSymbolRow(tool: string, name: string, raw: unknown, ordinal: number
   if (rowName === undefined || file === undefined || named === undefined || kind === undefined) {
     return {
       ok: false,
-      error: unexpectedAnswerText("clangd", tool, raw, name, `entry ${ordinal}`, WORKSPACE_SYMBOL_ANSWER),
+      error: unexpectedAnswerText(
+        "clangd",
+        tool,
+        raw,
+        name,
+        `entry ${String(ordinal)}`,
+        WORKSPACE_SYMBOL_ANSWER,
+      ),
     };
   }
   // `containerName` is the declaration's own scope, spelled as clangd spells it, and the row's `range` IS
@@ -345,7 +371,9 @@ function readSymbolRow(tool: string, name: string, raw: unknown, ordinal: number
       name: rowName,
       kind,
       range: { startLine: named.line + 1, endLine: (end?.line ?? named.line) + 1 },
-      ...(named.character === undefined ? {} : { namePosition: { line: named.line, character: named.character } }),
+      ...(named.character === undefined
+        ? {}
+        : { namePosition: { line: named.line, character: named.character } }),
       file,
     },
   };
@@ -377,7 +405,14 @@ export function cppDeclarationFromSymbolRows(
   if (rows !== null && rows !== undefined && !Array.isArray(rows)) {
     return {
       ok: false,
-      error: unexpectedAnswerText("clangd", tool, rows, query.name, undefined, WORKSPACE_SYMBOL_ANSWER),
+      error: unexpectedAnswerText(
+        "clangd",
+        tool,
+        rows,
+        query.name,
+        undefined,
+        WORKSPACE_SYMBOL_ANSWER,
+      ),
     };
   }
   const raw = rows ?? [];
@@ -440,7 +475,11 @@ export async function cppQuestionDeclaration(
  * boundary is reported and never opened. `cpp_find_symbol` differs on purpose: it reports such a declaration's
  * location and says in `descriptionUnavailable` why it carries no description.
  */
-export function outsideSubjectText(tool: string, name: string, declaration: CppDeclaration): string {
+export function outsideSubjectText(
+  tool: string,
+  name: string,
+  declaration: CppDeclaration,
+): string {
   return (
     `${tool} failed: "${name}" is declared in "${declaration.file}", which is outside every declared source ` +
     "root. clangd answers this question from the document that declares the symbol, so asking it would mean " +
@@ -547,9 +586,14 @@ export function resolveCppSourceRoots(
 export type CppSourceRootsResolution = ReturnType<typeof resolveCppSourceRoots>;
 
 /** One call's input with the roots containment uses in place of the declared ones, and where they came from. */
-export function withEffectiveRoots<T extends { readonly projectRoot: string; readonly sourceRoots?: readonly string[] }>(
+export function withEffectiveRoots<
+  T extends { readonly projectRoot: string; readonly sourceRoots?: readonly string[] },
+>(
   raw: T,
-): { readonly roots: ReturnType<typeof resolveCppSourceRoots>; readonly input: T & { sourceRoots: string[] } } {
+): {
+  readonly roots: ReturnType<typeof resolveCppSourceRoots>;
+  readonly input: T & { sourceRoots: string[] };
+} {
   const roots = resolveCppSourceRoots(raw.projectRoot, raw.sourceRoots);
   return { roots, input: { ...raw, sourceRoots: [...roots.block.roots] } };
 }
@@ -569,7 +613,10 @@ export function declaredRoots(sourceRoots: readonly string[] | undefined): strin
  * which is the only thing a caller of these tools has named. An external location is reported and never
  * opened, exactly as the Go answers treat a file outside the module.
  */
-export function outsideEveryRoot(projectRoot: string, sourceRoots: readonly string[]): BoundaryTest {
+export function outsideEveryRoot(
+  projectRoot: string,
+  sourceRoots: readonly string[],
+): BoundaryTest {
   const roots = sourceRoots.length === 0 ? [projectRoot] : sourceRoots;
   return (file) => roots.every((root) => escapesRoot(root, file));
 }
@@ -648,10 +695,12 @@ export function uncoveredBlock(facts: CppScopeFacts): UncoveredSourcesBlock {
 export function cppNavigationLimits(facts: CppScopeFacts): NavigationLimit[] {
   const limits: NavigationLimit[] = ["compile-database-only"];
   const uncovered = uncoveredBlock(facts);
-  if ("uncoveredSources" in uncovered && uncovered.uncoveredSources.count > 0) limits.push("uncovered-sources-present");
+  if ("uncoveredSources" in uncovered && uncovered.uncoveredSources.count > 0)
+    limits.push("uncovered-sources-present");
   if (facts.index.state === "building") limits.push("index-still-building");
   if (facts.index.state === "unknown") limits.push("index-state-unknown");
-  if ("staleFiles" in facts.index && facts.index.staleFiles.count > 0) limits.push("index-behind-disk");
+  if ("staleFiles" in facts.index && facts.index.staleFiles.count > 0)
+    limits.push("index-behind-disk");
   if ("driftUnknown" in facts.index) limits.push("index-drift-unknown");
   if (facts.indirectDispatch) limits.push("indirect-dispatch-not-resolved");
   if (facts.capped) limits.push("listing-capped");

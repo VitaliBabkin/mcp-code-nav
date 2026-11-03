@@ -19,7 +19,10 @@ export function splitQualifiedName(name: string): string[] {
  * matches on name alone regardless of nesting depth. Generic in the entry type because a caller
  * may carry its own fields on the entry: this selects, it never copies.
  */
-export function matchSymbols<T extends FlatSymbol>(flat: readonly T[], query: FindSymbolQuery): T[] {
+export function matchSymbols<T extends FlatSymbol>(
+  flat: readonly T[],
+  query: FindSymbolQuery,
+): T[] {
   const segments = splitQualifiedName(query.name);
   const matches = flat.filter((s) => {
     const path = s.qualifiedPath;
@@ -38,10 +41,14 @@ export function matchSymbols<T extends FlatSymbol>(flat: readonly T[], query: Fi
  * common intent. An explicit `kind` filter has already disambiguated upstream in `matchSymbols`,
  * so this only fires when `kind` was omitted.
  */
-function disambiguateClassVsConstructor<T extends FlatSymbol>(matches: T[], query: FindSymbolQuery): T[] {
+function disambiguateClassVsConstructor<T extends FlatSymbol>(
+  matches: T[],
+  query: FindSymbolQuery,
+): T[] {
   if (query.kind) return matches;
   const classes = matches.filter((m) => m.kind === "class" || m.kind === "struct");
   const constructors = matches.filter((m) => m.kind === "constructor");
-  const isOnlyClassAndConstructors = classes.length > 0 && classes.length + constructors.length === matches.length;
+  const isOnlyClassAndConstructors =
+    classes.length > 0 && classes.length + constructors.length === matches.length;
   return isOnlyClassAndConstructors ? classes : matches;
 }

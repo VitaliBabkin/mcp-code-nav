@@ -16,9 +16,11 @@ interface FakeProcessOptions {
   crashOnDocumentSymbol?: boolean;
 }
 
-function fakeProcess(
-  options: FakeProcessOptions,
-): { process: LspProcess; notifications: [string, unknown][]; requests: [string, unknown][] } {
+function fakeProcess(options: FakeProcessOptions): {
+  process: LspProcess;
+  notifications: [string, unknown][];
+  requests: [string, unknown][];
+} {
   let callIndex = 0;
   let alive = true;
   const notifications: [string, unknown][] = [];
@@ -40,7 +42,11 @@ function fakeProcess(
     notifications.push([method, params]);
   });
   const process = {
-    connection: { sendRequest, sendNotification, ...noopServerHandlers() } as unknown as LspProcess["connection"],
+    connection: {
+      sendRequest,
+      sendNotification,
+      ...noopServerHandlers(),
+    } as unknown as LspProcess["connection"],
     isAlive: () => alive,
     kill: () => {
       alive = false;
@@ -63,7 +69,9 @@ describe("LspSession initialize", () => {
     await session.documentSymbol("/proj/a.h");
     const initializeCall = requests.find(([method]) => method === "initialize");
     expect(initializeCall?.[1]).toMatchObject({
-      capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
+      capabilities: {
+        textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } },
+      },
     });
   });
 });
@@ -152,7 +160,13 @@ describe("LspSession.documentSymbol", () => {
       spawnCount++;
       return spawnCount === 1 ? crashed.process : healthy.process;
     };
-    const session = new LspSession({ root: "/proj", config: clangdConfig, spawn, sleep: async () => {}, readFile: () => "x" });
+    const session = new LspSession({
+      root: "/proj",
+      config: clangdConfig,
+      spawn,
+      sleep: async () => {},
+      readFile: () => "x",
+    });
     const result = await session.documentSymbol("/proj/a.h");
     expect(result).toEqual({ state: "ok", symbols: [SAMPLE_SYMBOL] });
     expect(spawnCount).toBe(2);
@@ -166,7 +180,13 @@ describe("LspSession.documentSymbol", () => {
       spawnCount++;
       return spawnCount === 1 ? warmThenDies.process : coldReplacement.process;
     };
-    const session = new LspSession({ root: "/proj", config: clangdConfig, spawn, sleep: async () => {}, readFile: () => "x" });
+    const session = new LspSession({
+      root: "/proj",
+      config: clangdConfig,
+      spawn,
+      sleep: async () => {},
+      readFile: () => "x",
+    });
 
     const first = await session.documentSymbol("/proj/a.h");
     expect(first).toEqual({ state: "ok", symbols: [SAMPLE_SYMBOL] });
@@ -188,7 +208,13 @@ describe("LspSession.documentSymbol", () => {
       let n = 0;
       return () => (n++ === 0 ? crashed.process : healthy.process);
     })();
-    const session = new LspSession({ root: "/proj", config: clangdConfig, spawn, sleep: async () => {}, readFile: () => "x" });
+    const session = new LspSession({
+      root: "/proj",
+      config: clangdConfig,
+      spawn,
+      sleep: async () => {},
+      readFile: () => "x",
+    });
     await session.documentSymbol("/proj/a.h");
     const didOpens = healthy.notifications.filter(([method]) => method === "textDocument/didOpen");
     expect(didOpens).toHaveLength(1);

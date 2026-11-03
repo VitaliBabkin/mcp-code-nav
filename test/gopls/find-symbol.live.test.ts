@@ -38,11 +38,25 @@ const ROOT = resolve(navRoot);
  * `roots` is the declared boundary — for a file anchor the directory above it, which is also the module
  * the tool derives either way.
  */
-function ask(manager: LspSessionManager, symbol: string, anchor: string, roots = [ROOT]): Promise<Result> {
-  return runGoFindSymbol(manager, { sourceRoots: roots, symbol, anchor, timeBudgetMs: CALL_BUDGET_MS });
+function ask(
+  manager: LspSessionManager,
+  symbol: string,
+  anchor: string,
+  roots = [ROOT],
+): Promise<Result> {
+  return runGoFindSymbol(manager, {
+    sourceRoots: roots,
+    symbol,
+    anchor,
+    timeBudgetMs: CALL_BUDGET_MS,
+  });
 }
 
-function askModule(manager: LspSessionManager, symbol: string, moduleRoot = navRoot): Promise<Result> {
+function askModule(
+  manager: LspSessionManager,
+  symbol: string,
+  moduleRoot = navRoot,
+): Promise<Result> {
   return ask(manager, symbol, moduleRoot, [resolve(moduleRoot)]);
 }
 
@@ -144,7 +158,12 @@ describe("go_find_symbol against a real gopls binary", () => {
       const inside = inModule(rowsOf(result, "Store"));
       expect(inside).toHaveLength(1);
       const [row] = inside;
-      expect(row).toMatchObject({ name: "Store", container: ".", visibility: "exported", external: false });
+      expect(row).toMatchObject({
+        name: "Store",
+        container: ".",
+        visibility: "exported",
+        external: false,
+      });
       expect(samePath(String(row?.file), usesFile)).toBe(true);
       expect(String(row?.signature)).toMatch(/^type Store struct\b/);
       expect(row?.descriptionUnavailable).toBeUndefined();
@@ -152,25 +171,29 @@ describe("go_find_symbol against a real gopls binary", () => {
     600_000,
   );
 
-  itIfGoplsAvailable("names a package-private helper by its own file's directory", async () => {
-    const result = await askModule(freshManager(), "normaliseKey");
-    expect(result.isError, textOf(result)).toBeFalsy();
-    const rows = rowsOf(result, "normaliseKey");
+  itIfGoplsAvailable(
+    "names a package-private helper by its own file's directory",
+    async () => {
+      const result = await askModule(freshManager(), "normaliseKey");
+      expect(result.isError, textOf(result)).toBeFalsy();
+      const rows = rowsOf(result, "normaliseKey");
 
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      name: "normaliseKey",
-      kind: "function",
-      container: ".",
-      visibility: "package-private",
-      external: false,
-    });
-    expect(samePath(String(rows[0]?.file), storageFile)).toBe(true);
-    // The proof the hover was asked at the position gopls's own range named — the identifier's span, not a
-    // guessed one: an answer with a signature and no `descriptionUnavailable` can only come from there.
-    expect(rows[0]?.descriptionUnavailable).toBeUndefined();
-    expect(String(rows[0]?.signature)).toMatch(/^func normaliseKey\(key string\) string$/);
-  }, 600_000);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        name: "normaliseKey",
+        kind: "function",
+        container: ".",
+        visibility: "package-private",
+        external: false,
+      });
+      expect(samePath(String(rows[0]?.file), storageFile)).toBe(true);
+      // The proof the hover was asked at the position gopls's own range named — the identifier's span, not a
+      // guessed one: an answer with a signature and no `descriptionUnavailable` can only come from there.
+      expect(rows[0]?.descriptionUnavailable).toBeUndefined();
+      expect(String(rows[0]?.signature)).toMatch(/^func normaliseKey\(key string\) string$/);
+    },
+    600_000,
+  );
 
   itIfGoplsAvailable(
     "resolves a method under both receiver spellings to one declaration, in the spelling gopls indexes",
@@ -193,7 +216,9 @@ describe("go_find_symbol against a real gopls binary", () => {
       expect(samePath(String(read?.file), storageFile)).toBe(true);
       // The row carries gopls's own dotted spelling, and its visibility comes from the method part of it;
       // `(*Memory).Read` asked by the caller is the same declaration, which the equality above records.
-      expect(String(read?.signature)).toMatch(/func \(m \*Memory\) Read\(id string\) \(\[\]byte, error\)/);
+      expect(String(read?.signature)).toMatch(
+        /func \(m \*Memory\) Read\(id string\) \(\[\]byte, error\)/,
+      );
       // The method member `Read` is a common name, so gopls's fuzzy list reaches its cap and the answer says so.
       expect(punctuated.scope.limits).toEqual(["one-module", "one-port", "listing-capped"]);
     },
@@ -208,8 +233,18 @@ describe("go_find_symbol against a real gopls binary", () => {
       expect(rows).toHaveLength(2);
       const atRoot = rowAt(rows, genericFile);
       const inSub = rowAt(rows, subFile);
-      expect(atRoot).toMatchObject({ container: ".", external: false, name: "LoadValue", kind: "function" });
-      expect(inSub).toMatchObject({ container: "sub", external: false, name: "LoadValue", kind: "function" });
+      expect(atRoot).toMatchObject({
+        container: ".",
+        external: false,
+        name: "LoadValue",
+        kind: "function",
+      });
+      expect(inSub).toMatchObject({
+        container: "sub",
+        external: false,
+        name: "LoadValue",
+        kind: "function",
+      });
       expect(String(atRoot?.signature)).toMatch(/func LoadValue\(c \*Cache\[string, int\]\) int/);
       expect(String(inSub?.signature)).toMatch(/func LoadValue\(\) int/);
     },
@@ -223,7 +258,11 @@ describe("go_find_symbol against a real gopls binary", () => {
 
       const found = payloadOf(await ask(manager, "Reader", storageFile));
       expect(found.scope.limits).toContain("one-file");
-      expect(found.declarations[0]).toMatchObject({ name: "Reader", kind: "interface", container: "." });
+      expect(found.declarations[0]).toMatchObject({
+        name: "Reader",
+        kind: "interface",
+        container: ".",
+      });
 
       const absent = await ask(manager, "Trim", storageFile);
       expect(absent.isError).toBe(true);
@@ -258,17 +297,26 @@ describe("go_find_symbol against a real gopls binary", () => {
     600_000,
   );
 
-  itIfGoplsAvailable("finds an exported method of an unexported type by either spelling", async () => {
-    const manager = freshManager();
+  itIfGoplsAvailable(
+    "finds an exported method of an unexported type by either spelling",
+    async () => {
+      const manager = freshManager();
 
-    const rows = rowsOf(await askModule(manager, "(*hidden).Ping"), "(*hidden).Ping");
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ name: "hidden.Ping", visibility: "exported", container: ".", external: false });
-    expect(samePath(String(rows[0]?.file), hiddenFile)).toBe(true);
+      const rows = rowsOf(await askModule(manager, "(*hidden).Ping"), "(*hidden).Ping");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        name: "hidden.Ping",
+        visibility: "exported",
+        container: ".",
+        external: false,
+      });
+      expect(samePath(String(rows[0]?.file), hiddenFile)).toBe(true);
 
-    const dotted = payloadOf(await askModule(manager, "hidden.Ping"));
-    expect(dotted.declarations).toEqual(rows);
-  }, 600_000);
+      const dotted = payloadOf(await askModule(manager, "hidden.Ping"));
+      expect(dotted.declarations).toEqual(rows);
+    },
+    600_000,
+  );
 
   itIfGoplsAvailable(
     "asks a widened module for one exact name and reports no cap on the answer it found",
@@ -284,7 +332,11 @@ describe("go_find_symbol against a real gopls binary", () => {
         expect(payload.scope.lookup).toBe("workspace-symbol");
         expect(payload.scope.limits).toEqual(["one-module", "one-port"]);
         expect(payload.declarations).toHaveLength(1);
-        expect(payload.declarations[0]).toMatchObject({ name: "Bulk001", container: ".", external: false });
+        expect(payload.declarations[0]).toMatchObject({
+          name: "Bulk001",
+          container: ".",
+          external: false,
+        });
         expect(String(payload.declarations[0]?.signature)).toMatch(/func Bulk001\(\) int/);
       } finally {
         manager.disposeAll();
@@ -316,7 +368,9 @@ describe("go_find_symbol against a real gopls binary", () => {
         const counts: number[] = [];
         for (const query of ["bl", "uk"]) {
           const entries = await session.request<unknown[]>("workspace/symbol", { query });
-          expect(Array.isArray(entries), `gopls answered "${query}" with ${typeof entries}`).toBe(true);
+          expect(Array.isArray(entries), `gopls answered "${query}" with ${typeof entries}`).toBe(
+            true,
+          );
           counts.push(entries.length);
         }
         const [first, second] = counts;

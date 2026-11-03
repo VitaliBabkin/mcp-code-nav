@@ -317,7 +317,9 @@ describe("computeProjectFingerprint — the uncovered-source by-products", () =>
     const extraRoot = mkdtempSync(join(tmpdir(), "mcp-code-nav-fp-by-extra-"));
     writeFileSync(join(extraRoot, "x.cpp"), "class X {};\n");
     try {
-      const bounded = computeProjectFingerprint([buildRoot, sourceRoot, gone, extraRoot], { maxEntries: 2 });
+      const bounded = computeProjectFingerprint([buildRoot, sourceRoot, gone, extraRoot], {
+        maxEntries: 2,
+      });
       expect(bounded.fingerprint).toBeUndefined();
       expect(bounded.reason).toContain("caching disabled");
       expect(bounded.entriesScanned).toBe(3);

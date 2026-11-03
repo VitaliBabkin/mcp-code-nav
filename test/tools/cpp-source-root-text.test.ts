@@ -67,7 +67,9 @@ describe("the sourceRoots parameter", () => {
 
   for (const [name, register] of tools) {
     it(`${name} carries that description`, () => {
-      expect(registeredOf(register).inputSchema.sourceRoots?.description).toBe(SOURCE_ROOTS_DESCRIPTION);
+      expect(registeredOf(register).inputSchema.sourceRoots?.description).toBe(
+        SOURCE_ROOTS_DESCRIPTION,
+      );
     });
   }
 });

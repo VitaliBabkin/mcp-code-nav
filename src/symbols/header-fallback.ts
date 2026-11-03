@@ -29,6 +29,9 @@ export function candidateHeaders(cppFile: string): string[] {
 }
 
 /** First candidate header that exists on disk, or `undefined` if none do. */
-export function resolveHeaderCounterpart(cppFile: string, exists: (p: string) => boolean = existsSync): string | undefined {
+export function resolveHeaderCounterpart(
+  cppFile: string,
+  exists: (p: string) => boolean = existsSync,
+): string | undefined {
   return candidateHeaders(cppFile).find(exists);
 }

@@ -4,7 +4,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SweepCache } from "../../src/clang-query/sweep-cache.js";
 import type { ClangQueryExecFn } from "../../src/clang-query/find-derived-classes.js";
-import { CppFindDerivedClassesInput, runCppFindDerivedClasses } from "../../src/tools/cpp-find-derived-classes.js";
+import {
+  CppFindDerivedClassesInput,
+  runCppFindDerivedClasses,
+} from "../../src/tools/cpp-find-derived-classes.js";
 import { CppFindSymbolInput, runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import { CppFileSymbolsInput, runCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
 import { fakeProcessByFile, sessionsFor, sym } from "../helpers/fake-clangd.js";
@@ -76,7 +79,11 @@ describe("relative file resolution at the tool layer", () => {
       join(buildRoot, "compile_commands.json"),
       JSON.stringify([{ directory: buildRoot, file: "gen.cpp" }]),
     );
-    const out = await runCppFileSymbols(sessions, { projectRoot: buildRoot, file: "gone.h", depth: 1 } as never);
+    const out = await runCppFileSymbols(sessions, {
+      projectRoot: buildRoot,
+      file: "gone.h",
+      depth: 1,
+    } as never);
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).not.toContain("Resolved");
   });
@@ -103,8 +110,15 @@ describe("relative file resolution at the tool layer", () => {
     const widgetFile = join(sourceRoot, "widget.h");
     writeFileSync(warmFile, "class Warm {};\n");
     writeFileSync(widgetFile, "class Widget {};\n");
-    const sessions = sessionsFor(fakeProcessByFile((f) => (f === warmFile ? [sym("Warm", 5)] : [])));
-    await runCppFileSymbols(sessions, { projectRoot: buildRoot, file: "warm.h", sourceRoots: [sourceRoot], depth: 1 });
+    const sessions = sessionsFor(
+      fakeProcessByFile((f) => (f === warmFile ? [sym("Warm", 5)] : [])),
+    );
+    await runCppFileSymbols(sessions, {
+      projectRoot: buildRoot,
+      file: "warm.h",
+      sourceRoots: [sourceRoot],
+      depth: 1,
+    });
     const out = await runCppFindSymbol(sessions, {
       projectRoot: buildRoot,
       name: "Gone",
@@ -114,7 +128,9 @@ describe("relative file resolution at the tool layer", () => {
     expect(out.isError).toBe(true);
     const text = out.content[0]?.text ?? "";
     expect(text).toContain(`no symbol "Gone" found in "${widgetFile}".`);
-    expect(text).toContain(resolutionSentence("widget.h", widgetFile, [join(buildRoot, "widget.h"), widgetFile]));
+    expect(text).toContain(
+      resolutionSentence("widget.h", widgetFile, [join(buildRoot, "widget.h"), widgetFile]),
+    );
   });
 
   it("cpp_find_symbol asks for an absolute path when the relative file exists under both roots", async () => {
@@ -141,7 +157,12 @@ describe("relative file resolution at the tool layer", () => {
     };
     const out = await runCppFindDerivedClasses(
       { exec, cache: new SweepCache() },
-      { projectRoot: buildRoot, qualifiedName: "Base", files: ["widget.cpp"], sourceRoots: [sourceRoot] },
+      {
+        projectRoot: buildRoot,
+        qualifiedName: "Base",
+        files: ["widget.cpp"],
+        sourceRoots: [sourceRoot],
+      },
     );
     expect(out.isError).toBeFalsy();
     expect(seenTus).toEqual([file]);
@@ -152,7 +173,12 @@ describe("relative file resolution at the tool layer", () => {
     writeFileSync(join(sourceRoot, "widget.cpp"), "class InSource : public Base {};\n");
     const out = await runCppFindDerivedClasses(
       { exec: cleanExec, cache: new SweepCache() },
-      { projectRoot: buildRoot, qualifiedName: "Base", files: ["widget.cpp"], sourceRoots: [sourceRoot] },
+      {
+        projectRoot: buildRoot,
+        qualifiedName: "Base",
+        files: ["widget.cpp"],
+        sourceRoots: [sourceRoot],
+      },
     );
     expect(out.isError).toBe(true);
     const text = out.content[0]?.text ?? "";
@@ -179,7 +205,10 @@ describe("relative file resolution at the tool layer", () => {
     // The pattern is written relative to the source root the
     // candidate resolved under. Keyed off projectRoot the same relative path would start with ".." and
     // an ignored subtree of a source root could never be refused.
-    writeFileSync(join(buildRoot, "mcp-code-nav.config.json"), JSON.stringify({ ignoredPaths: ["vendor/*"] }));
+    writeFileSync(
+      join(buildRoot, "mcp-code-nav.config.json"),
+      JSON.stringify({ ignoredPaths: ["vendor/*"] }),
+    );
     mkdirSync(join(sourceRoot, "vendor"));
     const file = join(sourceRoot, "vendor", "widget.h");
     writeFileSync(file, "class Widget {};\n");
@@ -203,16 +232,21 @@ describe("file/files parameter descriptions name every declared root", () => {
     ["cpp_find_derived_classes.files", CppFindDerivedClassesInput.shape.files.description],
   ];
 
-  it.each(fields)("%s states the multi-root rule instead of pointing only at projectRoot", (_name, described) => {
-    expect(described).toContain("resolved against projectRoot and each sourceRoots entry");
-    expect(described).toContain("must exist under exactly one of them");
-    expect(described).not.toContain("relative to projectRoot");
-  });
+  it.each(fields)(
+    "%s states the multi-root rule instead of pointing only at projectRoot",
+    (_name, described) => {
+      expect(described).toContain("resolved against projectRoot and each sourceRoots entry");
+      expect(described).toContain("must exist under exactly one of them");
+      expect(described).not.toContain("relative to projectRoot");
+    },
+  );
 
   it("sourceRoots still says these are absolute directories besides projectRoot, and what omitting it means", () => {
     const described = CppFileSymbolsInput.shape.sourceRoots.description;
     expect(described).toContain("Absolute directories");
     expect(described).toContain("besides projectRoot");
-    expect(described).toContain("Omitted or empty: the source tree derived from compile_commands.json.");
+    expect(described).toContain(
+      "Omitted or empty: the source tree derived from compile_commands.json.",
+    );
   });
 });

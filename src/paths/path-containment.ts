@@ -20,6 +20,9 @@ export function escapesRoot(root: string, path: string): boolean {
 }
 
 /** The first of `absoluteRoots` that contains `absolutePath`, or `undefined` when none does. */
-export function containingRoot(absoluteRoots: readonly string[], absolutePath: string): string | undefined {
+export function containingRoot(
+  absoluteRoots: readonly string[],
+  absolutePath: string,
+): string | undefined {
   return absoluteRoots.find((root) => !escapesRoot(root, absolutePath));
 }

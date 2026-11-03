@@ -42,7 +42,10 @@ function passFor(go: FakeGo, root = nextRoot()): Promise<GoToolchain> {
 /** The reason one mocked pass gave, failing the test if it answered instead. */
 async function reasonOf(go: FakeGo): Promise<string> {
   const { environment } = await passFor(go);
-  expect("unavailable" in environment, `expected no answer, got ${JSON.stringify(environment)}`).toBe(true);
+  expect(
+    "unavailable" in environment,
+    `expected no answer, got ${JSON.stringify(environment)}`,
+  ).toBe(true);
   return "unavailable" in environment ? environment.unavailable : "";
 }
 
@@ -64,7 +67,11 @@ describe("readToolchain", () => {
     });
     expect(go.asked("dist")).toMatchObject({ args: ["tool", "dist", "list"], cwd: root });
     // The workspace question is asked without the override that answers it, or nothing could report one.
-    expect(go.asked("work")).toMatchObject({ args: ["env", "GOWORK"], cwd: root, env: { GOTOOLCHAIN: "local" } });
+    expect(go.asked("work")).toMatchObject({
+      args: ["env", "GOWORK"],
+      cwd: root,
+      env: { GOTOOLCHAIN: "local" },
+    });
     expect("GOWORK" in (go.asked("work")?.env ?? {})).toBe(false);
   });
 
@@ -73,7 +80,10 @@ describe("readToolchain", () => {
     const late = fakeGo();
     const root = nextRoot();
 
-    const [first, second] = await Promise.all([readToolchain(root, go.exec), readToolchain(root, late.exec)]);
+    const [first, second] = await Promise.all([
+      readToolchain(root, go.exec),
+      readToolchain(root, late.exec),
+    ]);
     expect(second).toBe(first); // the later caller was handed the pass already running
     expect(go.calls).toHaveLength(3);
     expect(late.calls).toEqual([]); // whatever `exec` it brought was never run
@@ -123,7 +133,9 @@ describe("readToolchain", () => {
   });
 
   it("reports the tags and cgo setting a real `go env -json` answer carries", async () => {
-    const go = fakeGo({ env: envJson({ GOFLAGS: "-tags=netgo,local -mod=mod", CGO_ENABLED: "0" }) });
+    const go = fakeGo({
+      env: envJson({ GOFLAGS: "-tags=netgo,local -mod=mod", CGO_ENABLED: "0" }),
+    });
 
     await expect(passFor(go).then((pass) => pass.environment)).resolves.toMatchObject({
       cgoEnabled: false,
@@ -173,12 +185,15 @@ describe("the reason a pass could not state the environment", () => {
   it.each([
     ["EPERM", spawnFailed("EPERM")],
     ["the stdout ceiling", maxBufferExceeded()],
-  ])("names a failure around the process (%s) without claiming the binary is missing", async (_name, result) => {
-    const reason = await reasonOf(fakeGo({ env: result }));
+  ])(
+    "names a failure around the process (%s) without claiming the binary is missing",
+    async (_name, result) => {
+      const reason = await reasonOf(fakeGo({ env: result }));
 
-    expect(reason).toMatch(/the go call about .* did not answer/);
-    expect(reason).not.toMatch(/is not on PATH|could not be started|exited with code/);
-  });
+      expect(reason).toMatch(/the go call about .* did not answer/);
+      expect(reason).not.toMatch(/is not on PATH|could not be started|exited with code/);
+    },
+  );
 
   it("names a call that produced no answer and no exit code", async () => {
     expect(await reasonOf(fakeGo({ env: killed("", "signal: killed") }))).toMatch(
@@ -211,7 +226,9 @@ describe("the reason a pass could not state the environment", () => {
     const { environment } = await readToolchain(nextRoot(), throwing);
 
     expect("unavailable" in environment && environment.unavailable).toContain("spawn blew up");
-    expect("unavailable" in environment && environment.unavailable).toMatch(/could not run go to ask about/);
+    expect("unavailable" in environment && environment.unavailable).toMatch(
+      /could not run go to ask about/,
+    );
   });
 });
 
@@ -250,7 +267,8 @@ describe("makeGoExec against real processes", () => {
   });
 
   it("runs where it was told to, with its overlay merged over the parent environment", async () => {
-    const script = 'process.stdout.write(JSON.stringify({ cwd: process.cwd(), tag: process.env.MCP_CODE_NAV_TEST_TAG }))';
+    const script =
+      "process.stdout.write(JSON.stringify({ cwd: process.cwd(), tag: process.env.MCP_CODE_NAV_TEST_TAG }))";
     const result = await makeGoExec(process.execPath)(["-e", script], tmpdir(), {
       MCP_CODE_NAV_TEST_TAG: "local",
     });

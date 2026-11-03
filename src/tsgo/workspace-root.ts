@@ -15,8 +15,16 @@ const PNPM_WORKSPACE_FILE = "pnpm-workspace.yaml";
 
 /** Where the search began, what it rooted the session at, and — when it declined a wider root — why. */
 export type WorkspaceRootOutcome =
-  | { readonly kind: "found"; readonly workspaceRoot: string; readonly enclosingWorkspace: string | null }
-  | { readonly kind: "outside-roots"; readonly workspaceRoot: string; readonly declaredRoots: readonly string[] }
+  | {
+      readonly kind: "found";
+      readonly workspaceRoot: string;
+      readonly enclosingWorkspace: string | null;
+    }
+  | {
+      readonly kind: "outside-roots";
+      readonly workspaceRoot: string;
+      readonly declaredRoots: readonly string[];
+    }
   | { readonly kind: "not-in-package"; readonly searchedFrom: string };
 
 function nearestAncestorFile(startDir: string, name: string): string | undefined {
@@ -39,11 +47,14 @@ function declaresWorkspaces(packageJsonPath: string): boolean {
     return false;
   }
   const workspaces =
-    typeof parsed === "object" && parsed !== null ? (parsed as { workspaces?: unknown }).workspaces : undefined;
+    typeof parsed === "object" && parsed !== null
+      ? (parsed as { workspaces?: unknown }).workspaces
+      : undefined;
   if (Array.isArray(workspaces)) return workspaces.length > 0;
   // npm, pnpm and yarn each spell the field a list, and a map of lists is what a scoped setup writes; either
   // one makes this directory the root that links the others.
-  if (typeof workspaces === "object" && workspaces !== null) return Object.keys(workspaces).length > 0;
+  if (typeof workspaces === "object" && workspaces !== null)
+    return Object.keys(workspaces).length > 0;
   return false;
 }
 

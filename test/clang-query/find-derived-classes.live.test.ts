@@ -44,7 +44,10 @@ describe("findDerivedClasses against a real clang-query binary", () => {
 
   beforeEach(() => {
     projectRoot = mkdtempSync(join(tmpdir(), "mcp-code-nav-cq-live-"));
-    writeFileSync(join(projectRoot, "base.h"), "class Base {\npublic:\n  virtual ~Base() = default;\n};\n");
+    writeFileSync(
+      join(projectRoot, "base.h"),
+      "class Base {\npublic:\n  virtual ~Base() = default;\n};\n",
+    );
   });
 
   afterEach(() => {
@@ -55,11 +58,18 @@ describe("findDerivedClasses against a real clang-query binary", () => {
     // This is the exact reproduction of the requirements: `-c widget.cpp`, not an absolute
     // path, is what makes clang-query echo back a relative note-path ("widget.cpp:3:1: note: ..."),
     // which a pre-fix `readFileSync` resolves against this process's own cwd instead of projectRoot.
-    writeFileSync(join(projectRoot, "widget.cpp"), '#include "base.h"\n\nclass Derived : public Base {};\n');
+    writeFileSync(
+      join(projectRoot, "widget.cpp"),
+      '#include "base.h"\n\nclass Derived : public Base {};\n',
+    );
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
       JSON.stringify([
-        { directory: projectRoot, command: "clang++ -std=c++17 -c widget.cpp -o widget.o", file: "widget.cpp" },
+        {
+          directory: projectRoot,
+          command: "clang++ -std=c++17 -c widget.cpp -o widget.o",
+          file: "widget.cpp",
+        },
       ]),
     );
 
@@ -71,7 +81,13 @@ describe("findDerivedClasses against a real clang-query binary", () => {
 
     expect(outcome.failedFiles).toEqual([]);
     expect(outcome.matches).toEqual([
-      { className: "Derived", file: join(projectRoot, "widget.cpp"), line: 3, column: 1, direct: true },
+      {
+        className: "Derived",
+        file: join(projectRoot, "widget.cpp"),
+        line: 3,
+        column: 1,
+        direct: true,
+      },
     ]);
   });
 
@@ -81,7 +97,11 @@ describe("findDerivedClasses against a real clang-query binary", () => {
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
       JSON.stringify([
-        { directory: projectRoot, command: `clang++ -std=c++17 -c "${cppFile}" -o widget.o`, file: cppFile },
+        {
+          directory: projectRoot,
+          command: `clang++ -std=c++17 -c "${cppFile}" -o widget.o`,
+          file: cppFile,
+        },
       ]),
     );
 
@@ -92,31 +112,42 @@ describe("findDerivedClasses against a real clang-query binary", () => {
     });
 
     expect(outcome.failedFiles).toEqual([]);
-    expect(outcome.matches).toEqual([{ className: "Derived", file: cppFile, line: 3, column: 1, direct: true }]);
+    expect(outcome.matches).toEqual([
+      { className: "Derived", file: cppFile, line: 3, column: 1, direct: true },
+    ]);
   });
 
-  itIfClangClAvailable("finds a real match when compile_commands.json is driven by clang-cl.exe (MSVC-style diagnostics)", async () => {
-    // The requirements's exact reproduction: the driver alone flips clang-query's diagnostic
-    // format from "widget.cpp:3:1: note: ..." to "widget.cpp(3,1): note: ...", independent of path
-    // spelling or anything else on that path.
-    const cppFile = join(projectRoot, "widget.cpp");
-    writeFileSync(cppFile, '#include "base.h"\n\nclass Derived : public Base {};\n');
-    writeFileSync(
-      join(projectRoot, "compile_commands.json"),
-      JSON.stringify([
-        { directory: projectRoot, command: "clang-cl.exe -TP -c widget.cpp -o widget.o", file: "widget.cpp" },
-      ]),
-    );
+  itIfClangClAvailable(
+    "finds a real match when compile_commands.json is driven by clang-cl.exe (MSVC-style diagnostics)",
+    async () => {
+      // The requirements's exact reproduction: the driver alone flips clang-query's diagnostic
+      // format from "widget.cpp:3:1: note: ..." to "widget.cpp(3,1): note: ...", independent of path
+      // spelling or anything else on that path.
+      const cppFile = join(projectRoot, "widget.cpp");
+      writeFileSync(cppFile, '#include "base.h"\n\nclass Derived : public Base {};\n');
+      writeFileSync(
+        join(projectRoot, "compile_commands.json"),
+        JSON.stringify([
+          {
+            directory: projectRoot,
+            command: "clang-cl.exe -TP -c widget.cpp -o widget.o",
+            file: "widget.cpp",
+          },
+        ]),
+      );
 
-    const outcome = await findDerivedClasses({
-      projectRoot,
-      qualifiedName: "Base",
-      exec: defaultClangQueryExec,
-    });
+      const outcome = await findDerivedClasses({
+        projectRoot,
+        qualifiedName: "Base",
+        exec: defaultClangQueryExec,
+      });
 
-    expect(outcome.failedFiles).toEqual([]);
-    expect(outcome.matches).toEqual([{ className: "Derived", file: cppFile, line: 3, column: 1, direct: true }]);
-  });
+      expect(outcome.failedFiles).toEqual([]);
+      expect(outcome.matches).toEqual([
+        { className: "Derived", file: cppFile, line: 3, column: 1, direct: true },
+      ]);
+    },
+  );
 });
 
 /**
@@ -128,33 +159,36 @@ describe("findDerivedClasses through class templates against a real clang-query 
 
   const TEMPLATE_FIXTURE = [
     '#include "base.h"',
-    '',
-    'template <class T> struct Primary : Base {};',
-    'template <class T> struct Primary<T*> : Base {};',
-    'template <> struct Primary<int> : Base {};',
-    '',
-    'template <const int& Ref,',
-    '          class U = Primary<Primary<int>>>',
-    'class Profiled : Base {};',
-    'template <const int& Ref>',
-    'class Profiled<Ref, char> : Base {};',
-    '',
-    'extern const int kRef;',
-    'Primary<char> a;',
-    'Primary<char*> b;',
-    'Primary<int> c;',
-    'Profiled<kRef> d;',
-    'Profiled<kRef, char> e;',
-    'template <class T> concept Any = true;',
-    'template <class T> requires Any<T> && (sizeof(T) > 0) struct Constrained : Base {};',
-    'Constrained<int> f;',
-    '/* café € */ class Cafe : Base {};',
-    '',
+    "",
+    "template <class T> struct Primary : Base {};",
+    "template <class T> struct Primary<T*> : Base {};",
+    "template <> struct Primary<int> : Base {};",
+    "",
+    "template <const int& Ref,",
+    "          class U = Primary<Primary<int>>>",
+    "class Profiled : Base {};",
+    "template <const int& Ref>",
+    "class Profiled<Ref, char> : Base {};",
+    "",
+    "extern const int kRef;",
+    "Primary<char> a;",
+    "Primary<char*> b;",
+    "Primary<int> c;",
+    "Profiled<kRef> d;",
+    "Profiled<kRef, char> e;",
+    "template <class T> concept Any = true;",
+    "template <class T> requires Any<T> && (sizeof(T) > 0) struct Constrained : Base {};",
+    "Constrained<int> f;",
+    "/* café € */ class Cafe : Base {};",
+    "",
   ].join("\n");
 
   beforeEach(() => {
     projectRoot = mkdtempSync(join(tmpdir(), "mcp-code-nav-cq-live-template-"));
-    writeFileSync(join(projectRoot, "base.h"), "class Base {\npublic:\n  virtual ~Base() = default;\n};\n");
+    writeFileSync(
+      join(projectRoot, "base.h"),
+      "class Base {\npublic:\n  virtual ~Base() = default;\n};\n",
+    );
     writeFileSync(join(projectRoot, "widget.cpp"), TEMPLATE_FIXTURE);
   });
 
@@ -174,7 +208,8 @@ describe("findDerivedClasses through class templates against a real clang-query 
     expect(outcome.failedFiles).toEqual([]);
     const names = new Set(outcome.matches.map((m) => m.className));
     expect(names).toEqual(new Set(["Primary", "Profiled", "Constrained", "Cafe"]));
-    const rowAt = (line: number) => outcome.matches.filter((m) => m.line === line).map((m) => m.className);
+    const rowAt = (line: number) =>
+      outcome.matches.filter((m) => m.line === line).map((m) => m.className);
     expect(rowAt(3)).toContain("Primary"); // primary pattern
     expect(rowAt(4)).toEqual(["Primary"]); // partial specialization
     expect(rowAt(5)).toEqual(["Primary"]); // explicit specialization
@@ -191,9 +226,12 @@ describe("findDerivedClasses through class templates against a real clang-query 
     expectRealNames(await sweepWith("clang++ -std=c++20 -c widget.cpp -o widget.o"));
   });
 
-  itIfClangClAvailable("resolves the real name of every template form with clang-cl.exe", async () => {
-    expectRealNames(await sweepWith("clang-cl.exe /std:c++20 -TP -c widget.cpp -o widget.o"));
-  });
+  itIfClangClAvailable(
+    "resolves the real name of every template form with clang-cl.exe",
+    async () => {
+      expectRealNames(await sweepWith("clang-cl.exe /std:c++20 -TP -c widget.cpp -o widget.o"));
+    },
+  );
 });
 
 /**
@@ -206,7 +244,10 @@ describe("findDerivedClasses caching against the real clang-query binary", () =>
 
   beforeEach(() => {
     projectRoot = mkdtempSync(join(tmpdir(), "mcp-code-nav-cq-live-cache-"));
-    writeFileSync(join(projectRoot, "base.h"), "class Base {\npublic:\n  virtual ~Base() = default;\n};\n");
+    writeFileSync(
+      join(projectRoot, "base.h"),
+      "class Base {\npublic:\n  virtual ~Base() = default;\n};\n",
+    );
   });
 
   afterEach(() => {
@@ -214,13 +255,27 @@ describe("findDerivedClasses caching against the real clang-query binary", () =>
   });
 
   function writeTwoTuFixture(): void {
-    writeFileSync(join(projectRoot, "widget.cpp"), '#include "base.h"\n\nclass Derived : public Base {};\n');
-    writeFileSync(join(projectRoot, "other.cpp"), '#include "base.h"\n\nclass DerivedTwo : public Base {};\n');
+    writeFileSync(
+      join(projectRoot, "widget.cpp"),
+      '#include "base.h"\n\nclass Derived : public Base {};\n',
+    );
+    writeFileSync(
+      join(projectRoot, "other.cpp"),
+      '#include "base.h"\n\nclass DerivedTwo : public Base {};\n',
+    );
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
       JSON.stringify([
-        { directory: projectRoot, command: "clang++ -std=c++17 -c widget.cpp -o widget.o", file: "widget.cpp" },
-        { directory: projectRoot, command: "clang++ -std=c++17 -c other.cpp -o other.o", file: "other.cpp" },
+        {
+          directory: projectRoot,
+          command: "clang++ -std=c++17 -c widget.cpp -o widget.o",
+          file: "widget.cpp",
+        },
+        {
+          directory: projectRoot,
+          command: "clang++ -std=c++17 -c other.cpp -o other.o",
+          file: "other.cpp",
+        },
       ]),
     );
   }
@@ -332,14 +387,31 @@ describe("findDerivedClasses completes a fresh unscoped sweep in one call (real 
 
   beforeEach(() => {
     projectRoot = mkdtempSync(join(tmpdir(), "mcp-code-nav-cq-live-single-call-"));
-    writeFileSync(join(projectRoot, "base.h"), "class Base {\npublic:\n  virtual ~Base() = default;\n};\n");
-    writeFileSync(join(projectRoot, "widget.cpp"), '#include "base.h"\n\nclass Derived : public Base {};\n');
-    writeFileSync(join(projectRoot, "other.cpp"), '#include "base.h"\n\nclass DerivedTwo : public Base {};\n');
+    writeFileSync(
+      join(projectRoot, "base.h"),
+      "class Base {\npublic:\n  virtual ~Base() = default;\n};\n",
+    );
+    writeFileSync(
+      join(projectRoot, "widget.cpp"),
+      '#include "base.h"\n\nclass Derived : public Base {};\n',
+    );
+    writeFileSync(
+      join(projectRoot, "other.cpp"),
+      '#include "base.h"\n\nclass DerivedTwo : public Base {};\n',
+    );
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
       JSON.stringify([
-        { directory: projectRoot, command: "clang++ -std=c++17 -c widget.cpp -o widget.o", file: "widget.cpp" },
-        { directory: projectRoot, command: "clang++ -std=c++17 -c other.cpp -o other.o", file: "other.cpp" },
+        {
+          directory: projectRoot,
+          command: "clang++ -std=c++17 -c widget.cpp -o widget.o",
+          file: "widget.cpp",
+        },
+        {
+          directory: projectRoot,
+          command: "clang++ -std=c++17 -c other.cpp -o other.o",
+          file: "other.cpp",
+        },
       ]),
     );
   });
@@ -371,12 +443,22 @@ describe("findDerivedClasses cancellation leaves no orphan clang-query process (
 
   beforeEach(() => {
     projectRoot = mkdtempSync(join(tmpdir(), "mcp-code-nav-cq-live-orphan-"));
-    writeFileSync(join(projectRoot, "base.h"), "class Base {\npublic:\n  virtual ~Base() = default;\n};\n");
-    writeFileSync(join(projectRoot, "widget.cpp"), '#include "base.h"\n\nclass Derived : public Base {};\n');
+    writeFileSync(
+      join(projectRoot, "base.h"),
+      "class Base {\npublic:\n  virtual ~Base() = default;\n};\n",
+    );
+    writeFileSync(
+      join(projectRoot, "widget.cpp"),
+      '#include "base.h"\n\nclass Derived : public Base {};\n',
+    );
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
       JSON.stringify([
-        { directory: projectRoot, command: "clang++ -std=c++17 -c widget.cpp -o widget.o", file: "widget.cpp" },
+        {
+          directory: projectRoot,
+          command: "clang++ -std=c++17 -c widget.cpp -o widget.o",
+          file: "widget.cpp",
+        },
       ]),
     );
   });
@@ -386,29 +468,39 @@ describe("findDerivedClasses cancellation leaves no orphan clang-query process (
   });
 
   function countClangQueryProcesses(): number {
-    const out = execFileSync("tasklist", ["/FI", "IMAGENAME eq clang-query.exe", "/NH"], { encoding: "utf-8" });
-    return /No tasks/i.test(out) ? 0 : out.trim().split(/\r?\n/).filter((l) => l.trim().length > 0).length;
+    const out = execFileSync("tasklist", ["/FI", "IMAGENAME eq clang-query.exe", "/NH"], {
+      encoding: "utf-8",
+    });
+    return /No tasks/i.test(out)
+      ? 0
+      : out
+          .trim()
+          .split(/\r?\n/)
+          .filter((l) => l.trim().length > 0).length;
   }
 
   const itIfWindows = process.platform === "win32" ? it : it.skip;
 
-  itIfWindows("a time-budget abort of a real clang-query child leaves no orphan process behind", async () => {
-    const before = countClangQueryProcesses();
+  itIfWindows(
+    "a time-budget abort of a real clang-query child leaves no orphan process behind",
+    async () => {
+      const before = countClangQueryProcesses();
 
-    // A budget far shorter than clang-query's own process-spawn-plus-parse time (tens of ms at least)
-    // reliably interrupts a real, already-spawned child rather than racing spawn itself.
-    const result = await findDerivedClasses({
-      projectRoot,
-      qualifiedName: "Base",
-      exec: defaultClangQueryExec,
-      timeBudgetMs: 10,
-    });
-    expect(result.incomplete?.reason).toBe("time-budget");
+      // A budget far shorter than clang-query's own process-spawn-plus-parse time (tens of ms at least)
+      // reliably interrupts a real, already-spawned child rather than racing spawn itself.
+      const result = await findDerivedClasses({
+        projectRoot,
+        qualifiedName: "Base",
+        exec: defaultClangQueryExec,
+        timeBudgetMs: 10,
+      });
+      expect(result.incomplete?.reason).toBe("time-budget");
 
-    // execFile's kill on abort is not instantaneous — give the OS a short grace period to reap it.
-    await new Promise((r) => setTimeout(r, 500));
-    expect(countClangQueryProcesses()).toBe(before);
-  });
+      // execFile's kill on abort is not instantaneous — give the OS a short grace period to reap it.
+      await new Promise((r) => setTimeout(r, 500));
+      expect(countClangQueryProcesses()).toBe(before);
+    },
+  );
 });
 
 /**
@@ -465,7 +557,11 @@ describe("findDerivedClasses — direct and transitive views against a real clan
 
   /** Rows sharing one line (a template's primary pattern and its implicit instantiation) collapse here. */
   const flagsAt = (outcome: SweepResult, line: number) =>
-    Array.from(new Set(outcome.matches.filter((m) => m.line === line).map((m) => `${m.className}:${m.direct}`))).sort();
+    Array.from(
+      new Set(
+        outcome.matches.filter((m) => m.line === line).map((m) => `${m.className}:${m.direct}`),
+      ),
+    ).sort();
 
   const classNames = (outcome: SweepResult) =>
     Array.from(new Set(outcome.matches.map((m) => m.className))).sort();
@@ -519,7 +615,12 @@ describe("findDerivedClasses — direct and transitive views against a real clan
       'match cxxRecordDecl(isDirectlyDerivedFrom(hasName("Base"))).bind("direct")',
     ]);
     // Both kinds of row came from that ONE process — one command alone cannot produce both.
-    expect(outcome.matches.filter((m) => m.direct).map((m) => m.className).sort()).toEqual(["Mid", "Other"]);
+    expect(
+      outcome.matches
+        .filter((m) => m.direct)
+        .map((m) => m.className)
+        .sort(),
+    ).toEqual(["Mid", "Other"]);
     expect(outcome.matches.filter((m) => !m.direct).map((m) => m.className)).toEqual(["Leaf"]);
   }
 
@@ -613,7 +714,14 @@ describe("findDerivedClasses — direct and transitive views against a real clan
   async function checkTemplateDirectness(driverCommand: string): Promise<void> {
     const outcome = await sweep(TEMPLATES, "Base", driverCommand);
     expect(outcome.failedFiles).toEqual([]);
-    expect(classNames(outcome)).toEqual(["Direct", "IndPart", "Indirect", "Mid", "Partial", "Spec"]);
+    expect(classNames(outcome)).toEqual([
+      "Direct",
+      "IndPart",
+      "Indirect",
+      "Mid",
+      "Partial",
+      "Spec",
+    ]);
     expect(flagsAt(outcome, 4)).toEqual(["Mid:true"]);
     // Lines 5 and 6 each hold a primary pattern bound at its `struct` keyword and an implicit instantiation
     // bound at its `template` keyword; both rows must carry the declaration's own directness.
@@ -656,7 +764,12 @@ describe("findDerivedClasses — direct and transitive views against a real clan
     const again = await sweep(DEPTH, "Base", driverCommand, { cache, fingerprint });
     expect(again.sweep).toMatchObject({ cache: "hit", cachedTus: 1, totalTus: 1 });
     // The stored entry carries both views, so the narrow answer is a filter over these same cached rows.
-    expect(again.matches.filter((m) => m.direct).map((m) => m.className).sort()).toEqual(["Mid", "Other"]);
+    expect(
+      again.matches
+        .filter((m) => m.direct)
+        .map((m) => m.className)
+        .sort(),
+    ).toEqual(["Mid", "Other"]);
     expect(flags(again)).toEqual(flags(first));
   }
 
@@ -675,80 +788,110 @@ describe("findDerivedClasses — direct and transitive views against a real clan
     expect(outcome.uniformFailure?.error).toContain("Matcher not found");
   }
 
-  it("L1 sweeps the whole tree and flags the rows that name the base themselves (clang++)", async () =>
-    checkBothDepths(CLANGXX), LIVE_TIMEOUT_MS);
+  it(
+    "L1 sweeps the whole tree and flags the rows that name the base themselves (clang++)",
+    async () => checkBothDepths(CLANGXX),
+    LIVE_TIMEOUT_MS,
+  );
   itIfClangClAvailable(
     "L1 sweeps the whole tree and flags the rows that name the base themselves (clang-cl)",
     async () => checkBothDepths(CLANG_CL),
     LIVE_TIMEOUT_MS,
   );
 
-  it("L1 a leaf answers empty from a complete sweep, with no error row (clang++)", async () =>
-    checkALeafHasNothingBelowIt(CLANGXX), LIVE_TIMEOUT_MS);
+  it(
+    "L1 a leaf answers empty from a complete sweep, with no error row (clang++)",
+    async () => checkALeafHasNothingBelowIt(CLANGXX),
+    LIVE_TIMEOUT_MS,
+  );
   itIfClangClAvailable(
     "L1 a leaf answers empty from a complete sweep, with no error row (clang-cl)",
     async () => checkALeafHasNothingBelowIt(CLANG_CL),
     LIVE_TIMEOUT_MS,
   );
 
-  it("L2 names every descendant and marks exactly the three implementers direct (clang++)", async () =>
-    checkTheInterfaceGap(CLANGXX), LIVE_TIMEOUT_MS);
+  it(
+    "L2 names every descendant and marks exactly the three implementers direct (clang++)",
+    async () => checkTheInterfaceGap(CLANGXX),
+    LIVE_TIMEOUT_MS,
+  );
   itIfClangClAvailable(
     "L2 names every descendant and marks exactly the three implementers direct (clang-cl)",
     async () => checkTheInterfaceGap(CLANG_CL),
     LIVE_TIMEOUT_MS,
   );
 
-  it("L3 the queried base is never a row of its own hierarchy (clang++)", async () =>
-    checkNotItsOwnRow(CLANGXX), LIVE_TIMEOUT_MS);
+  it(
+    "L3 the queried base is never a row of its own hierarchy (clang++)",
+    async () => checkNotItsOwnRow(CLANGXX),
+    LIVE_TIMEOUT_MS,
+  );
   itIfClangClAvailable(
     "L3 the queried base is never a row of its own hierarchy (clang-cl)",
     async () => checkNotItsOwnRow(CLANG_CL),
     LIVE_TIMEOUT_MS,
   );
 
-  it("L4 directness survives the join at a template-keyword bind (clang++)", async () =>
-    checkTemplateDirectness(CLANGXX), LIVE_TIMEOUT_MS);
+  it(
+    "L4 directness survives the join at a template-keyword bind (clang++)",
+    async () => checkTemplateDirectness(CLANGXX),
+    LIVE_TIMEOUT_MS,
+  );
   itIfClangClAvailable(
     "L4 directness survives the join at a template-keyword bind (clang-cl)",
     async () => checkTemplateDirectness(CLANG_CL),
     LIVE_TIMEOUT_MS,
   );
 
-  it("L5 one clang-query invocation answers both bind names (clang++)", async () =>
-    checkOneInvocationAnswersBothBindNames(CLANGXX), LIVE_TIMEOUT_MS);
+  it(
+    "L5 one clang-query invocation answers both bind names (clang++)",
+    async () => checkOneInvocationAnswersBothBindNames(CLANGXX),
+    LIVE_TIMEOUT_MS,
+  );
   itIfClangClAvailable(
     "L5 one clang-query invocation answers both bind names (clang-cl)",
     async () => checkOneInvocationAnswersBothBindNames(CLANG_CL),
     LIVE_TIMEOUT_MS,
   );
 
-  it("L6 a private and a virtual base each yield D exactly once, directly (clang++)", async () =>
-    checkAccessAndVirtualDoNotRemoveAnEdge(CLANGXX), LIVE_TIMEOUT_MS);
+  it(
+    "L6 a private and a virtual base each yield D exactly once, directly (clang++)",
+    async () => checkAccessAndVirtualDoNotRemoveAnEdge(CLANGXX),
+    LIVE_TIMEOUT_MS,
+  );
   itIfClangClAvailable(
     "L6 a private and a virtual base each yield D exactly once, directly (clang-cl)",
     async () => checkAccessAndVirtualDoNotRemoveAnEdge(CLANG_CL),
     LIVE_TIMEOUT_MS,
   );
 
-  it("L7 a diamond reaches the base in two hops, so the joiner is not direct (clang++)", async () =>
-    checkDiamond(CLANGXX), LIVE_TIMEOUT_MS);
+  it(
+    "L7 a diamond reaches the base in two hops, so the joiner is not direct (clang++)",
+    async () => checkDiamond(CLANGXX),
+    LIVE_TIMEOUT_MS,
+  );
   itIfClangClAvailable(
     "L7 a diamond reaches the base in two hops, so the joiner is not direct (clang-cl)",
     async () => checkDiamond(CLANG_CL),
     LIVE_TIMEOUT_MS,
   );
 
-  it("L8 one cached entry still carries both views of the same rows (clang++)", async () =>
-    checkBothViewsComeFromOneCachedEntry(CLANGXX), LIVE_TIMEOUT_MS);
+  it(
+    "L8 one cached entry still carries both views of the same rows (clang++)",
+    async () => checkBothViewsComeFromOneCachedEntry(CLANGXX),
+    LIVE_TIMEOUT_MS,
+  );
   itIfClangClAvailable(
     "L8 one cached entry still carries both views of the same rows (clang-cl)",
     async () => checkBothViewsComeFromOneCachedEntry(CLANG_CL),
     LIVE_TIMEOUT_MS,
   );
 
-  it("L9 an unsupported matcher is named from stdout, not the empty-stderr fallback (clang++)", async () =>
-    checkARealUnsupportedMatcherIsNamed(CLANGXX), LIVE_TIMEOUT_MS);
+  it(
+    "L9 an unsupported matcher is named from stdout, not the empty-stderr fallback (clang++)",
+    async () => checkARealUnsupportedMatcherIsNamed(CLANGXX),
+    LIVE_TIMEOUT_MS,
+  );
   itIfClangClAvailable(
     "L9 an unsupported matcher is named from stdout, not the empty-stderr fallback (clang-cl)",
     async () => checkARealUnsupportedMatcherIsNamed(CLANG_CL),
@@ -778,7 +921,8 @@ describe("cpp_find_derived_classes blind-spot signal through the tool handler ag
 
   type CompileCommandFor = (sourceFile: string) => string;
 
-  const gnuCommand: CompileCommandFor = (file) => `clang++ -std=c++17 -c "${file}" -o ${basename(file, ".cpp")}.o`;
+  const gnuCommand: CompileCommandFor = (file) =>
+    `clang++ -std=c++17 -c "${file}" -o ${basename(file, ".cpp")}.o`;
   const msvcCommand: CompileCommandFor = (file) =>
     `clang-cl.exe /std:c++17 -TP -c "${file}" -o ${basename(file, ".cpp")}.obj`;
 
@@ -821,7 +965,9 @@ describe("cpp_find_derived_classes blind-spot signal through the tool handler ag
   function writeDb(commandFor: CompileCommandFor, entries: string[]): void {
     writeFileSync(
       join(buildRoot, "compile_commands.json"),
-      JSON.stringify(entries.map((file) => ({ directory: buildRoot, command: commandFor(file), file }))),
+      JSON.stringify(
+        entries.map((file) => ({ directory: buildRoot, command: commandFor(file), file })),
+      ),
     );
   }
 
@@ -868,7 +1014,9 @@ describe("cpp_find_derived_classes blind-spot signal through the tool handler ag
     expect(payload.sweep.totalTus).toBe(1);
     expect(payload.failedFiles).toBeUndefined();
     expect(payload.incomplete).toBeUndefined();
-    expect(payload.sweep).toMatchObject({ uncoveredSources: { count: 1, files: [uncoveredFile()] } });
+    expect(payload.sweep).toMatchObject({
+      uncoveredSources: { count: 1, files: [uncoveredFile()] },
+    });
     expect(payload.sweep).not.toHaveProperty("uncoveredSourcesUnavailable");
     // The class defined only in that file is not in the answer, and the payload now names the reason.
     expect(classNames(payload.matches)).toEqual(["CoreAdapter"]);
@@ -887,7 +1035,9 @@ describe("cpp_find_derived_classes blind-spot signal through the tool handler ag
     expect(classNames(payload.matches)).toEqual(["CoreAdapter", "FactSetMdAdapter"]);
   }
 
-  async function checkAnOmittedSourceRootsDerivesTheTree(commandFor: CompileCommandFor): Promise<void> {
+  async function checkAnOmittedSourceRootsDerivesTheTree(
+    commandFor: CompileCommandFor,
+  ): Promise<void> {
     const out = await callTool(commandFor, [compiledFile()], { sourceRoots: [] });
     expect(out.isError).toBeFalsy();
     const payload = payloadOf(out);
@@ -902,7 +1052,9 @@ describe("cpp_find_derived_classes blind-spot signal through the tool handler ag
     expect(payload.failedFiles).toBeUndefined();
   }
 
-  async function checkAForcedUncoveredFileIsNeverReportedAsCovered(commandFor: CompileCommandFor): Promise<void> {
+  async function checkAForcedUncoveredFileIsNeverReportedAsCovered(
+    commandFor: CompileCommandFor,
+  ): Promise<void> {
     // Named beside the TU the database lists, so one failing forced TU cannot collapse the sweep into a
     // uniform failure and cost the payload: which way `clang-query`'s inferred flags land is the fixture's
     // business, and both ways have to hold.
@@ -910,7 +1062,9 @@ describe("cpp_find_derived_classes blind-spot signal through the tool handler ag
       await callTool(commandFor, [compiledFile()], { files: [compiledFile(), uncoveredFile()] }),
     );
     // Passing a file does not create an entry for it: the field still names it at this scope.
-    expect(together.sweep).toMatchObject({ uncoveredSources: { count: 1, files: [uncoveredFile()] } });
+    expect(together.sweep).toMatchObject({
+      uncoveredSources: { count: 1, files: [uncoveredFile()] },
+    });
     expect(together.sweep).not.toHaveProperty("uncoveredSourcesUnavailable");
     for (const row of together.failedFiles ?? []) {
       // The TU with an entry is never annotated, and the one without carries the real reason.
@@ -925,7 +1079,9 @@ describe("cpp_find_derived_classes blind-spot signal through the tool handler ag
     if (text === undefined) {
       const payload = payloadOf(alone);
       expect(payload.failedFiles).toBeUndefined();
-      expect(payload.sweep).toMatchObject({ uncoveredSources: { count: 1, files: [uncoveredFile()] } });
+      expect(payload.sweep).toMatchObject({
+        uncoveredSources: { count: 1, files: [uncoveredFile()] },
+      });
       expect(classNames(payload.matches)).toEqual(["FactSetMdAdapter"]);
     } else {
       expect(text).toContain(DB_ENTRY_REASON);
@@ -935,32 +1091,44 @@ describe("cpp_find_derived_classes blind-spot signal through the tool handler ag
     }
   }
 
-  it("B1 names the source no entry compiles, and its class is absent from the answer (clang++)", async () =>
-    checkTheBlindSpotIsNamed(gnuCommand), BLIND_LIVE_TIMEOUT_MS);
+  it(
+    "B1 names the source no entry compiles, and its class is absent from the answer (clang++)",
+    async () => checkTheBlindSpotIsNamed(gnuCommand),
+    BLIND_LIVE_TIMEOUT_MS,
+  );
   itIfClangClAvailable(
     "B1 names the source no entry compiles, and its class is absent from the answer (clang-cl)",
     async () => checkTheBlindSpotIsNamed(msvcCommand),
     BLIND_LIVE_TIMEOUT_MS,
   );
 
-  it("B2 a database listing every source reports count zero and loses no class (clang++)", async () =>
-    checkACompleteDatabaseSaysZero(gnuCommand), BLIND_LIVE_TIMEOUT_MS);
+  it(
+    "B2 a database listing every source reports count zero and loses no class (clang++)",
+    async () => checkACompleteDatabaseSaysZero(gnuCommand),
+    BLIND_LIVE_TIMEOUT_MS,
+  );
   itIfClangClAvailable(
     "B2 a database listing every source reports count zero and loses no class (clang-cl)",
     async () => checkACompleteDatabaseSaysZero(msvcCommand),
     BLIND_LIVE_TIMEOUT_MS,
   );
 
-  it("B3 an omitted sourceRoots derives the source tree and names the same blind spot (clang++)", async () =>
-    checkAnOmittedSourceRootsDerivesTheTree(gnuCommand), BLIND_LIVE_TIMEOUT_MS);
+  it(
+    "B3 an omitted sourceRoots derives the source tree and names the same blind spot (clang++)",
+    async () => checkAnOmittedSourceRootsDerivesTheTree(gnuCommand),
+    BLIND_LIVE_TIMEOUT_MS,
+  );
   itIfClangClAvailable(
     "B3 an omitted sourceRoots derives the source tree and names the same blind spot (clang-cl)",
     async () => checkAnOmittedSourceRootsDerivesTheTree(msvcCommand),
     BLIND_LIVE_TIMEOUT_MS,
   );
 
-  it("B4 a forced uncovered file is never reported as covered, either outcome (clang++)", async () =>
-    checkAForcedUncoveredFileIsNeverReportedAsCovered(gnuCommand), BLIND_LIVE_TIMEOUT_MS);
+  it(
+    "B4 a forced uncovered file is never reported as covered, either outcome (clang++)",
+    async () => checkAForcedUncoveredFileIsNeverReportedAsCovered(gnuCommand),
+    BLIND_LIVE_TIMEOUT_MS,
+  );
   itIfClangClAvailable(
     "B4 a forced uncovered file is never reported as covered, either outcome (clang-cl)",
     async () => checkAForcedUncoveredFileIsNeverReportedAsCovered(msvcCommand),
@@ -988,8 +1156,14 @@ describe("cpp_find_derived_classes names the nearest compile database, against a
     srcRoot = join(repoRoot, "src");
     mkdirSync(buildRoot);
     mkdirSync(srcRoot);
-    writeFileSync(join(srcRoot, "base.h"), "class Base {\npublic:\n  virtual ~Base() = default;\n};\n");
-    writeFileSync(join(srcRoot, "widget.cpp"), '#include "base.h"\n\nclass Widget : public Base {};\n');
+    writeFileSync(
+      join(srcRoot, "base.h"),
+      "class Base {\npublic:\n  virtual ~Base() = default;\n};\n",
+    );
+    writeFileSync(
+      join(srcRoot, "widget.cpp"),
+      '#include "base.h"\n\nclass Widget : public Base {};\n',
+    );
     writeFileSync(
       join(buildRoot, "compile_commands.json"),
       JSON.stringify([
@@ -1007,9 +1181,9 @@ describe("cpp_find_derived_classes names the nearest compile database, against a
   });
 
   const sweptClasses = (out: Awaited<ReturnType<typeof ask>>) =>
-    ((out.structuredContent as { matches?: { className: string }[] } | undefined)?.matches ?? []).map(
-      (row) => row.className,
-    );
+    (
+      (out.structuredContent as { matches?: { className: string }[] } | undefined)?.matches ?? []
+    ).map((row) => row.className);
 
   function ask(projectRoot: string) {
     return runCppFindDerivedClasses(
@@ -1018,25 +1192,33 @@ describe("cpp_find_derived_classes names the nearest compile database, against a
     );
   }
 
-  it("refuses a repository root, naming the build directory that holds its database", async () => {
-    const out = await ask(repoRoot);
+  it(
+    "refuses a repository root, naming the build directory that holds its database",
+    async () => {
+      const out = await ask(repoRoot);
 
-    expect(out.isError).toBe(true);
-    expect(out.content[0]?.text).toBe(
-      `cpp_find_derived_classes failed: compile_commands.json not found or unreadable at "${repoRoot}". ` +
-        `Directories under it that hold a compile_commands.json, nearest first: "${buildRoot}". ` +
-        "Pass one of them as projectRoot.",
-    );
-  }, HINT_LIVE_TIMEOUT_MS);
+      expect(out.isError).toBe(true);
+      expect(out.content[0]?.text).toBe(
+        `cpp_find_derived_classes failed: compile_commands.json not found or unreadable at "${repoRoot}". ` +
+          `Directories under it that hold a compile_commands.json, nearest first: "${buildRoot}". ` +
+          "Pass one of them as projectRoot.",
+      );
+    },
+    HINT_LIVE_TIMEOUT_MS,
+  );
 
-  it("sweeps the directory that refusal named, and finds the class in it", async () => {
-    const refused = await ask(repoRoot);
-    const named = /nearest first: "([^"]+)"/.exec(refused.content[0]?.text ?? "")?.[1];
+  it(
+    "sweeps the directory that refusal named, and finds the class in it",
+    async () => {
+      const refused = await ask(repoRoot);
+      const named = /nearest first: "([^"]+)"/.exec(refused.content[0]?.text ?? "")?.[1];
 
-    expect(named).toBe(buildRoot);
-    const swept = await ask(named ?? buildRoot);
+      expect(named).toBe(buildRoot);
+      const swept = await ask(named ?? buildRoot);
 
-    expect(swept.isError, swept.content[0]?.text).toBeFalsy();
-    expect(sweptClasses(swept)).toEqual(["Widget"]);
-  }, HINT_LIVE_TIMEOUT_MS);
+      expect(swept.isError, swept.content[0]?.text).toBeFalsy();
+      expect(sweptClasses(swept)).toEqual(["Widget"]);
+    },
+    HINT_LIVE_TIMEOUT_MS,
+  );
 });

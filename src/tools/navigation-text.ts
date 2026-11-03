@@ -7,7 +7,9 @@ import { dirname, relative, sep } from "node:path";
 import type { FreshnessOutcome } from "../lsp/session.js";
 
 /** Either the answer, or the text this tool fails with. Never both, and never a silent narrowing. */
-export type Step<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string };
+export type Step<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly error: string };
 
 /** The gate a tool that refuses no kind passes to a prelude that expects one. */
 export function acceptAnyDeclaration(): Step<void> {
@@ -15,8 +17,21 @@ export function acceptAnyDeclaration(): Step<void> {
 }
 
 /** One candidate the caller has to choose between, in the shape both listing refusals print. */
-export function candidateText(name: string, kind: string, file: string, line: number | string): string {
-  return `  - ${name} (${kind}) at ${file}:${line}`;
+export function candidateText(
+  name: string,
+  kind: string,
+  file: string,
+  line: number | string,
+): string {
+  return `  - ${name} (${kind}) at ${file}:${String(line)}`;
+}
+
+/**
+ * The JSON text of a value a server sent, for quoting it in a refusal. `JSON.stringify` returns undefined for
+ * undefined, a function or a symbol, though its lib typing says string, so the return type states that.
+ */
+export function jsonText(value: unknown): string | undefined {
+  return JSON.stringify(value);
 }
 
 /** `a` or `an`, chosen on the kind name a refusal text quotes. */
@@ -31,7 +46,8 @@ export function withArticle(kind: string): string {
  * engine's, not a server's.
  */
 export function freshnessText(freshness: FreshnessOutcome): string {
-  if (freshness.kind === "pushed") return `pushed ${freshness.changedFiles} changed file(s)`;
+  if (freshness.kind === "pushed")
+    return `pushed ${String(freshness.changedFiles)} changed file(s)`;
   if (freshness.kind === "reloaded") return `reloaded - ${freshness.reason}`;
   return "unchanged";
 }

@@ -49,7 +49,10 @@ function realpathLoose(path: string): string | undefined {
  * `real` is the link target, or absent when the real path of `winner` could not be established. A root whose
  * real path cannot be established contains nothing.
  */
-function linkEscape(absoluteRoots: readonly string[], winner: string): { real?: string } | undefined {
+function linkEscape(
+  absoluteRoots: readonly string[],
+  winner: string,
+): { real?: string } | undefined {
   const real = realpathLoose(winner);
   if (real === undefined) return {};
   const realRoots = absoluteRoots.flatMap((root) => realpathLoose(root) ?? []);
@@ -67,7 +70,9 @@ export class AmbiguousRelativePathError extends Error {
     public readonly candidates: readonly string[],
   ) {
     const candidateList = candidates.map((c) => `"${c}"`).join(", ");
-    super(`path "${candidate}" exists under more than one declared root: ${candidateList} - pass an absolute path`);
+    super(
+      `path "${candidate}" exists under more than one declared root: ${candidateList} - pass an absolute path`,
+    );
     this.name = "AmbiguousRelativePathError";
   }
 }
@@ -181,7 +186,8 @@ export function resolveWithinAnyRoot(
   const winner = pickExisting(contained, exists, candidate);
   if (winner === undefined) throw new PathEscapeError(absoluteRoots, candidate);
   const realEscape = linkEscape(absoluteRoots, winner.absolutePath);
-  if (realEscape !== undefined) throw new PathEscapeError(absoluteRoots, candidate, realEscape.real);
+  if (realEscape !== undefined)
+    throw new PathEscapeError(absoluteRoots, candidate, realEscape.real);
   return { ...winner, triedPaths };
 }
 

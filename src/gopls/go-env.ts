@@ -152,7 +152,7 @@ function callFailure(asking: string, moduleRoot: string, result: GoExecResult): 
     return `go gave no answer about ${asking} for the module "${moduleRoot}" and never reported an exit code${tail}`;
   }
   if (result.exitCode !== 0) {
-    return `go exited with code ${result.exitCode} while asked about ${asking} for the module "${moduleRoot}"${tail}`;
+    return `go exited with code ${String(result.exitCode)} while asked about ${asking} for the module "${moduleRoot}"${tail}`;
   }
   return undefined;
 }
@@ -183,7 +183,8 @@ function readEnvFields(stdout: string, moduleRoot: string): EnvFields | GoEnviro
   } catch (e) {
     return unparsable(stdout, moduleRoot, messageOf(e));
   }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return unparsable(stdout, moduleRoot);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+    return unparsable(stdout, moduleRoot);
   const { GOOS, GOARCH, CGO_ENABLED, GOFLAGS } = parsed as Record<string, unknown>;
   if (typeof GOOS !== "string" || GOOS === "" || typeof GOARCH !== "string" || GOARCH === "") {
     return {
@@ -213,7 +214,9 @@ function goWorkValue(stdout: string): string | null {
   return value === "" || value === "off" ? null : value;
 }
 
-type GoCall = { readonly ok: true; readonly result: GoExecResult } | { readonly ok: false; readonly reason: string };
+type GoCall =
+  | { readonly ok: true; readonly result: GoExecResult }
+  | { readonly ok: false; readonly reason: string };
 
 /** One `go` call folded into either its result or the reason this server has to give for it. */
 async function askGo(
@@ -232,11 +235,26 @@ async function askGo(
   }
 }
 
-async function askEnvironment(moduleRoot: string, exec: GoExecFn): Promise<GoEnvironment | GoEnvironmentUnavailable> {
+async function askEnvironment(
+  moduleRoot: string,
+  exec: GoExecFn,
+): Promise<GoEnvironment | GoEnvironmentUnavailable> {
   const [build, workspace] = await Promise.all([
-    askGo(exec, ["env", "-json"], moduleRoot, SINGLE_MODULE_ENV, "the toolchain's GOOS, GOARCH and build tags"),
+    askGo(
+      exec,
+      ["env", "-json"],
+      moduleRoot,
+      SINGLE_MODULE_ENV,
+      "the toolchain's GOOS, GOARCH and build tags",
+    ),
     // Run without the `GOWORK=off` the other calls use, so a workspace the child never sees is still named.
-    askGo(exec, ["env", "GOWORK"], moduleRoot, LOCAL_TOOLCHAIN_ENV, "whether a go.work is in effect"),
+    askGo(
+      exec,
+      ["env", "GOWORK"],
+      moduleRoot,
+      LOCAL_TOOLCHAIN_ENV,
+      "whether a go.work is in effect",
+    ),
   ]);
   if (!build.ok) return { unavailable: build.reason };
   if (!workspace.ok) return { unavailable: workspace.reason };
@@ -296,6 +314,9 @@ function cachedPass(moduleRoot: string, exec: GoExecFn): Promise<GoToolchain> {
 }
 
 /** The toolchain pass behind `scope`: asked once per module root, and never re-asked after it answered. */
-export function readToolchain(moduleRoot: string, exec: GoExecFn = defaultGoExec): Promise<GoToolchain> {
+export function readToolchain(
+  moduleRoot: string,
+  exec: GoExecFn = defaultGoExec,
+): Promise<GoToolchain> {
   return cachedPass(moduleRoot, exec);
 }

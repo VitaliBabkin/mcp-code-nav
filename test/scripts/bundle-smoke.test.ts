@@ -7,7 +7,13 @@ const execFileAsync = promisify(execFile);
 const ROOT = process.cwd();
 const BUNDLE = join(ROOT, "dist-bundle", "index.js");
 const TSX_CLI = join(ROOT, "node_modules", "tsx", "dist", "cli.mjs");
-const TS_TOOLS = ["ts_file_symbols", "ts_find_symbol", "ts_find_references", "ts_find_callers", "ts_find_implementations"];
+const TS_TOOLS = [
+  "ts_file_symbols",
+  "ts_find_symbol",
+  "ts_find_references",
+  "ts_find_callers",
+  "ts_find_implementations",
+];
 const PROBE_TIMEOUT_MS = 15_000;
 
 interface Reply {
@@ -35,7 +41,10 @@ async function probeBundle(): Promise<Probe> {
   const replies = new Promise<Map<number, Reply>>((resolve, reject) => {
     const byId = new Map<number, Reply>();
     let buffered = "";
-    const timer = setTimeout(() => reject(new Error(`no tools/list reply in ${PROBE_TIMEOUT_MS} ms: ${stderr}`)), PROBE_TIMEOUT_MS);
+    const timer = setTimeout(
+      () => reject(new Error(`no tools/list reply in ${PROBE_TIMEOUT_MS} ms: ${stderr}`)),
+      PROBE_TIMEOUT_MS,
+    );
     child.stdout.on("data", (chunk: Buffer) => {
       buffered += chunk.toString();
       const lines = buffered.split("\n");
@@ -60,7 +69,11 @@ async function probeBundle(): Promise<Probe> {
     jsonrpc: "2.0",
     id: 1,
     method: "initialize",
-    params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "bundle-smoke", version: "0" } },
+    params: {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "bundle-smoke", version: "0" },
+    },
   });
   send({ jsonrpc: "2.0", method: "notifications/initialized" });
   send({ jsonrpc: "2.0", id: 2, method: "tools/list" });

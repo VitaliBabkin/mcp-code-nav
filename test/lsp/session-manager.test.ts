@@ -40,13 +40,21 @@ describe("LspSessionManager", () => {
 
   it("keys on the server as well as the root, so one directory can hold one session per language", () => {
     const server = fakeServer();
-    const manager = new LspSessionManager({ spawn: () => server.process, sleep: async () => {}, readFile: () => "x" });
+    const manager = new LspSessionManager({
+      spawn: () => server.process,
+      sleep: async () => {},
+      readFile: () => "x",
+    });
     expect(manager.get(root, goplsConfig)).not.toBe(manager.get(root, clangdConfig));
   });
 
   it("hands the session the resolved root, whatever spelling opened it", async () => {
     const server = fakeServer();
-    const manager = new LspSessionManager({ spawn: () => server.process, sleep: async () => {}, readFile: () => "x" });
+    const manager = new LspSessionManager({
+      spawn: () => server.process,
+      sleep: async () => {},
+      readFile: () => "x",
+    });
     manager.get(join(root, "sub", ".."), clangdConfig);
     await manager.get(root, clangdConfig).documentSymbol(join(root, "a.cpp"));
     const initialize = server.requests.find(([method]) => method === "initialize");
@@ -56,7 +64,11 @@ describe("LspSessionManager", () => {
   it("disposeAll kills every child and forgets every session", async () => {
     const kill = vi.fn();
     const server = fakeServer({ kill });
-    const manager = new LspSessionManager({ spawn: () => server.process, sleep: async () => {}, readFile: () => "x" });
+    const manager = new LspSessionManager({
+      spawn: () => server.process,
+      sleep: async () => {},
+      readFile: () => "x",
+    });
     const cpp = manager.get(root, clangdConfig);
     const go = manager.get(root, goplsConfig);
     await cpp.documentSymbol(join(root, "a.cpp"));

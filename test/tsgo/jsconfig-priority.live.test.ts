@@ -1,7 +1,12 @@
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { readFileSync } from "node:fs";
 import { describe, expect } from "vitest";
-import { defaultTsExec, type TsgoBinary, type TsExecFn, type TsExecResult } from "../../src/tsgo/binary.js";
+import {
+  defaultTsExec,
+  type TsgoBinary,
+  type TsExecFn,
+  type TsExecResult,
+} from "../../src/tsgo/binary.js";
 import { isTsOrJsSourceFile } from "../../src/tsgo/language.js";
 import { buildProjectMap, type ProjectMap, type TsProject } from "../../src/tsgo/project-map.js";
 import { walkWorkspace, workspaceSnapshotReason } from "../../src/tsgo/workspace-snapshot.js";
@@ -98,7 +103,12 @@ function under(path: string | null | undefined): string {
   // The same directory spelled with another drive-letter case is still under it: `relative` would call that an
   // escape, and the map compares the two case-folded.
   const key = pathKey(root);
-  return pathKey(path).startsWith(`${key}/`) ? path.slice(key.length + 1).split("\\").join("/") : path;
+  return pathKey(path).startsWith(`${key}/`)
+    ? path
+        .slice(key.length + 1)
+        .split("\\")
+        .join("/")
+    : path;
 }
 
 function namesUnder(paths: readonly string[]): string[] {
@@ -142,7 +152,8 @@ function failureOf(map: Extract<ProjectMap, { kind: "mapped" }>, config: string)
 /** The walk's entries, or a failure quoting what the walk said it could not finish. */
 function requireWalked(): { entries: Map<string, string>; unresolved: readonly string[] } {
   const walked = walkWorkspace(root);
-  if (walked === undefined) throw new Error(`the walk of "${root}" did not complete: ${workspaceSnapshotReason(root)}`);
+  if (walked === undefined)
+    throw new Error(`the walk of "${root}" did not complete: ${workspaceSnapshotReason(root)}`);
   return walked;
 }
 
@@ -267,16 +278,22 @@ describe("one directory holding both tsconfig.json and jsconfig.json", () => {
       // process that ran to exit 0. Both answers being usable (a refused listing is a failure)
       // is itself part of what is pinned here.
       const listedConfigs = () => namesUnder(calls.map((call) => configOf(call)));
-      expect(listedConfigs(), `the listing processes this run started: ${JSON.stringify(listedConfigs())}`).toEqual(
-        CONFIGS,
-      );
+      expect(
+        listedConfigs(),
+        `the listing processes this run started: ${JSON.stringify(listedConfigs())}`,
+      ).toEqual(CONFIGS);
       for (const call of calls) {
-        expect(call.argv.slice(0, 2), `listing argv ${JSON.stringify(call.argv)}`).toEqual(LISTING_FLAGS);
-        expect(call.executable, `the listing asked ${call.executable}`).toBe(binary.executable);
-        expect(samePath(call.cwd, dirname(configOf(call))), `the listing ran in ${call.cwd}`).toBe(true);
-        expect(call.result.exitCode, `tsc's stderr for ${under(configOf(call))}: ${call.result.stderr.trim()}`).toBe(
-          0,
+        expect(call.argv.slice(0, 2), `listing argv ${JSON.stringify(call.argv)}`).toEqual(
+          LISTING_FLAGS,
         );
+        expect(call.executable, `the listing asked ${call.executable}`).toBe(binary.executable);
+        expect(samePath(call.cwd, dirname(configOf(call))), `the listing ran in ${call.cwd}`).toBe(
+          true,
+        );
+        expect(
+          call.result.exitCode,
+          `tsc's stderr for ${under(configOf(call))}: ${call.result.stderr.trim()}`,
+        ).toBe(0);
       }
 
       // (2) Both configs are projects: each is named by the walk as a config file, the closure is provable, and
@@ -290,7 +307,9 @@ describe("one directory holding both tsconfig.json and jsconfig.json", () => {
         ]),
         report,
       ).toEqual(CONFIGS);
-      expect(namesUnder(map.projects.map((project) => project.config)), report).toEqual(["tsconfig.json"]);
+      expect(namesUnder(map.projects.map((project) => project.config)), report).toEqual([
+        "tsconfig.json",
+      ]);
       expect(namesUnder(map.subsumed), report).toEqual([]);
       expect(
         map.failed.map((failure) => `${under(failure.config)}: ${failure.reason}`),
@@ -321,7 +340,10 @@ describe("one directory holding both tsconfig.json and jsconfig.json", () => {
       // that keeps a project `failed` rather than making it `subsumed`, because no loaded program is proved to
       // hold that file, so its uses could be missing from an answer with this map claiming the project covered.
       expect(failureOf(map, jsConfig), report).toBe(OWNS_NOTHING);
-      expect(map.subsumed.some((config) => samePath(config, jsConfig)), report).toBe(false);
+      expect(
+        map.subsumed.some((config) => samePath(config, jsConfig)),
+        report,
+      ).toBe(false);
 
       // (6) `uncovered` asks a different question — did ANY listing name this source — and both files were: the
       // jsconfig's listing names the one in `extra`. So no source of the fixture is a blind spot even though one
@@ -330,7 +352,9 @@ describe("one directory holding both tsconfig.json and jsconfig.json", () => {
 
       console.info(
         `tsconfig/jsconfig priority pin: ${report}; listings ${JSON.stringify(
-          CONFIGS.map((name) => `${name} → ${JSON.stringify(listedSources(calls, join(root, name)))}`),
+          CONFIGS.map(
+            (name) => `${name} → ${JSON.stringify(listedSources(calls, join(root, name)))}`,
+          ),
         )}; one process per listing pass over ${String(calls.length)} configs; no LSP session asked`,
       );
       expect(under(sharedFile)).toBe(SHARED);

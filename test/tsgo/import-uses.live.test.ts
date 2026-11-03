@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
-import { runTsFindReferences, type TsFindReferencesPayload } from "../../src/tools/ts-find-references.js";
+import {
+  runTsFindReferences,
+  type TsFindReferencesPayload,
+} from "../../src/tools/ts-find-references.js";
 import { runTsFindSymbol } from "../../src/tools/ts-find-symbol.js";
 import {
   CALL_BUDGET_MS,
@@ -59,7 +62,13 @@ function under(root: string, path: string): string {
   return rel.startsWith("..") ? path : rel.split(sep).join("/");
 }
 
-function references(manager: LspSessionManager, root: string, file: string, symbol: string, includeDeclaration: boolean): Promise<LiveResult> {
+function references(
+  manager: LspSessionManager,
+  root: string,
+  file: string,
+  symbol: string,
+  includeDeclaration: boolean,
+): Promise<LiveResult> {
   return runTsFindReferences(manager, {
     sourceRoots: [root],
     file,
@@ -85,9 +94,15 @@ describe("ts_find_references keeps the specifier sites by default", () => {
     "lists the import line, the re-export line and the use, and names no declaration until the caller asks",
     async () => {
       const manager = freshManager();
-      const defaultAnswer = referencesOf(await references(manager, workspaceRoot, storeFile, "Store", false));
+      const defaultAnswer = referencesOf(
+        await references(manager, workspaceRoot, storeFile, "Store", false),
+      );
 
-      expect(defaultAnswer.resolved).toMatchObject({ name: "Store", kind: "class", file: storeFile });
+      expect(defaultAnswer.resolved).toMatchObject({
+        name: "Store",
+        kind: "class",
+        file: storeFile,
+      });
       // The three shapes the default answer must hold: a plain import, an import that is never used, and a
       // barrel re-export — each is a use of the class, and none may be lost.
       expect(lineRows(workspaceRoot, defaultAnswer)).toEqual(
@@ -99,11 +114,18 @@ describe("ts_find_references keeps the specifier sites by default", () => {
         ].sort(),
       );
       expect(defaultAnswer.totalReferences).toBe(4);
-      expect(lineRows(workspaceRoot, defaultAnswer).some((row) => row.startsWith("src/store.ts:"))).toBe(false);
+      expect(
+        lineRows(workspaceRoot, defaultAnswer).some((row) => row.startsWith("src/store.ts:")),
+      ).toBe(false);
 
-      const declared = referencesOf(await references(manager, workspaceRoot, storeFile, "Store", true));
+      const declared = referencesOf(
+        await references(manager, workspaceRoot, storeFile, "Store", true),
+      );
       expect(lineRows(workspaceRoot, declared)).toEqual(
-        [...lineRows(workspaceRoot, defaultAnswer), `${under(workspaceRoot, storeFile)}:${lineOf(storeFile, "export class Store")}`].sort(),
+        [
+          ...lineRows(workspaceRoot, defaultAnswer),
+          `${under(workspaceRoot, storeFile)}:${lineOf(storeFile, "export class Store")}`,
+        ].sort(),
       );
       expect(declared.totalReferences).toBe(defaultAnswer.totalReferences + 1);
     },
@@ -121,8 +143,15 @@ describe("a subject addressed through an import binding", () => {
   const aliasRoot = join(fixtures, "ts-import-alias");
   const aliasStore = join(aliasRoot, "src", "store.ts");
 
-  async function rowsFor(file: string, symbol: string, includeDeclaration: boolean, root = workspaceRoot): Promise<string[]> {
-    const answer = referencesOf(await references(freshManager(), root, file, symbol, includeDeclaration));
+  async function rowsFor(
+    file: string,
+    symbol: string,
+    includeDeclaration: boolean,
+    root = workspaceRoot,
+  ): Promise<string[]> {
+    const answer = referencesOf(
+      await references(freshManager(), root, file, symbol, includeDeclaration),
+    );
     expect(answer.totalReferences).toBe(lineRows(root, answer).length);
     return lineRows(root, answer);
   }
@@ -138,7 +167,9 @@ describe("a subject addressed through an import binding", () => {
       expect(fromImport.some((row) => row.startsWith("src/store.ts:"))).toBe(false);
 
       const withDeclaration = await rowsFor(consumerFile, "Store", true);
-      expect(withDeclaration).toEqual([...fromImport, `src/store.ts:${lineOf(storeFile, "export class Store")}`].sort());
+      expect(withDeclaration).toEqual(
+        [...fromImport, `src/store.ts:${lineOf(storeFile, "export class Store")}`].sort(),
+      );
       expect(withDeclaration).toEqual(await rowsFor(storeFile, "Store", true));
     },
     CALL_BUDGET_MS * 3,
@@ -180,7 +211,13 @@ describe("a subject addressed through an import binding", () => {
         `"s" is a renamed import of store (${aliasStore}:${storeLine}) - this lists the local name's uses only; ask for store in ${aliasStore} for every use`.toLowerCase(),
       );
       // An import that is not renamed carries no such field.
-      const named = await references(freshManager(), aliasRoot, join(aliasRoot, "src", "via-barrel.ts"), "Store", false);
+      const named = await references(
+        freshManager(),
+        aliasRoot,
+        join(aliasRoot, "src", "via-barrel.ts"),
+        "Store",
+        false,
+      );
       expect(referencesOf(named).resolved).not.toHaveProperty("renamedImportOf");
       expect(fromDeclaration.some((row) => row.startsWith("src/store.ts:"))).toBe(false);
       expect(fromRenamed).toContain(`src/renamed.ts:${lineOf(renamed, "import { Store as S }")}`);
@@ -254,7 +291,8 @@ describe("the uncovered files that mention the name", () => {
       const result = await references(manager, workspaceRoot, storeFile, "Store", false);
       const answer = referencesOf(result);
       const scope = answer.scope;
-      if (!("uncoveredSources" in scope)) throw new Error(`no uncovered block: ${JSON.stringify(scope)}`);
+      if (!("uncoveredSources" in scope))
+        throw new Error(`no uncovered block: ${JSON.stringify(scope)}`);
       const uncovered = scope.uncoveredSources;
 
       expect(uncovered.count).toBe(1);
@@ -262,12 +300,16 @@ describe("the uncovered files that mention the name", () => {
       expect(uncovered.directoriesTruncated).toBe(0);
       expect(uncovered.namedFileUncovered).toBe(false);
       // The file is absent from the listing — no project loads it — and present as a text pointer instead.
-      expect(lineRows(workspaceRoot, answer).some((row) => row.startsWith("test/outside.ts:"))).toBe(false);
+      expect(
+        lineRows(workspaceRoot, answer).some((row) => row.startsWith("test/outside.ts:")),
+      ).toBe(false);
       expect(uncovered.mentioning.name).toBe("Store");
       expect(uncovered.mentioning.count).toBe(1);
       expect(uncovered.mentioning.unchecked).toBe(0);
       expect(uncovered.mentioning.files).toHaveLength(1);
-      expect(under(workspaceRoot, uncovered.mentioning.files[0]?.file ?? "")).toBe("test/outside.ts");
+      expect(under(workspaceRoot, uncovered.mentioning.files[0]?.file ?? "")).toBe(
+        "test/outside.ts",
+      );
       expect(uncovered.mentioning.files[0]?.matchingLines).toBeGreaterThanOrEqual(1);
       expect(uncovered.mentioning.filesTruncated).toBe(0);
       expect(answer.scope.limits).toContain("uncovered-sources-present");
@@ -277,7 +319,9 @@ describe("the uncovered files that mention the name", () => {
 
       const summary = textOf(result);
       expect(summary).toContain("were not searched");
-      expect(summary.split("\n")[1]).toMatch(/^INCOMPLETE: 1 file\(s\) no tsconfig project includes were not searched/);
+      expect(summary.split("\n")[1]).toMatch(
+        /^INCOMPLETE: 1 file\(s\) no tsconfig project includes were not searched/,
+      );
       expect(summary).toContain(" matching line");
       expect(summary).toContain(uncovered.mentioning.files[0]?.file ?? "");
     },
@@ -313,7 +357,9 @@ describe("the uncovered files that mention the name", () => {
       expect(textOf(byFile)).toContain(join(workspaceRoot, "test", "outside.ts"));
 
       // The scan changes no row and no count: the successful listing still holds no uncovered site.
-      const listed = referencesOf(await references(manager, workspaceRoot, storeFile, "Store", false));
+      const listed = referencesOf(
+        await references(manager, workspaceRoot, storeFile, "Store", false),
+      );
       expect(listed.files.some((group) => /outside\.ts$/.test(group.file))).toBe(false);
     },
     CALL_BUDGET_MS * 3,

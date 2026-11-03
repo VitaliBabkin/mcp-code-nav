@@ -3,7 +3,12 @@ import { matchSymbols, splitQualifiedName } from "../../src/symbols/match.js";
 import type { FlatSymbol } from "../../src/clangd/outline.js";
 
 function flat(qualifiedPath: string[], kind: string): FlatSymbol {
-  return { qualifiedPath, name: qualifiedPath[qualifiedPath.length - 1] as string, kind, range: { startLine: 1, endLine: 2 } };
+  return {
+    qualifiedPath,
+    name: qualifiedPath[qualifiedPath.length - 1] as string,
+    kind,
+    range: { startLine: 1, endLine: 2 },
+  };
 }
 
 describe("splitQualifiedName", () => {
@@ -23,7 +28,10 @@ describe("matchSymbols", () => {
   });
 
   it("matches a qualified name against the symbol's trailing path segments", () => {
-    const symbols = [flat(["outer", "ns", "Class", "method"], "method"), flat(["ns", "Other", "method"], "method")];
+    const symbols = [
+      flat(["outer", "ns", "Class", "method"], "method"),
+      flat(["ns", "Other", "method"], "method"),
+    ];
     expect(matchSymbols(symbols, { name: "Class::method" })).toEqual([symbols[0]]);
   });
 
@@ -38,12 +46,20 @@ describe("matchSymbols", () => {
   });
 
   it("defaults a bare name matching both a class and its constructor to the class", () => {
-    const symbols = [flat(["Foo"], "class"), flat(["Foo"], "constructor"), flat(["Foo"], "constructor")];
+    const symbols = [
+      flat(["Foo"], "class"),
+      flat(["Foo"], "constructor"),
+      flat(["Foo"], "constructor"),
+    ];
     expect(matchSymbols(symbols, { name: "Foo" })).toEqual([symbols[0]]);
   });
 
   it("does not apply the class/constructor default when other kinds are also present", () => {
-    const symbols = [flat(["Foo"], "class"), flat(["Foo"], "constructor"), flat(["Foo"], "function")];
+    const symbols = [
+      flat(["Foo"], "class"),
+      flat(["Foo"], "constructor"),
+      flat(["Foo"], "function"),
+    ];
     expect(matchSymbols(symbols, { name: "Foo" })).toEqual(symbols);
   });
 });

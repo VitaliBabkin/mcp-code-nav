@@ -27,7 +27,10 @@ describe("resolveCallLogConfig", () => {
   });
 
   it("refuses an empty value rather than reading it as `off`", () => {
-    expect(resolveCallLogConfig({ MCP_CODE_NAV_CALL_LOG: "" })).toEqual({ kind: "invalid", value: "" });
+    expect(resolveCallLogConfig({ MCP_CODE_NAV_CALL_LOG: "" })).toEqual({
+      kind: "invalid",
+      value: "",
+    });
   });
 
   it("refuses a drive-relative path, which resolves against the drive's current directory", () => {

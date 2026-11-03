@@ -112,7 +112,12 @@ function toolCall(
   name = "cpp_file_symbols",
   args: unknown = { projectRoot: "D:\\b", file: "a.cpp" },
 ): JSONRPCMessage {
-  return { jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } } as JSONRPCMessage;
+  return {
+    jsonrpc: "2.0",
+    id,
+    method: "tools/call",
+    params: { name, arguments: args },
+  } as JSONRPCMessage;
 }
 
 function response(id: number, result: Record<string, unknown>): JSONRPCMessage {
@@ -134,7 +139,11 @@ describe("the tap forwards", () => {
     const h = harness();
     const messages: JSONRPCMessage[] = [
       response(1, { content: [] }),
-      { jsonrpc: "2.0", method: "notifications/progress", params: { progressToken: "t", progress: 1 } } as JSONRPCMessage,
+      {
+        jsonrpc: "2.0",
+        method: "notifications/progress",
+        params: { progressToken: "t", progress: 1 },
+      } as JSONRPCMessage,
       response(2, { tools: [] }),
       response(3, { content: [{ type: "text", text: "done" }] }),
     ];
@@ -151,11 +160,18 @@ describe("the tap forwards", () => {
         jsonrpc: "2.0",
         id: 1,
         method: "initialize",
-        params: { protocolVersion: "2025-06-18", clientInfo: { name: "claude-code", version: "1.2.3" } },
+        params: {
+          protocolVersion: "2025-06-18",
+          clientInfo: { name: "claude-code", version: "1.2.3" },
+        },
       } as JSONRPCMessage,
       toolCall(2),
       { jsonrpc: "2.0", id: 3, method: "tools/list", params: {} } as JSONRPCMessage,
-      { jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 2 } } as JSONRPCMessage,
+      {
+        jsonrpc: "2.0",
+        method: "notifications/cancelled",
+        params: { requestId: 2 },
+      } as JSONRPCMessage,
     ];
     for (const message of messages) h.receive(message);
 
@@ -235,7 +251,12 @@ describe("the tap forwards", () => {
     };
     const h = harness();
 
-    h.receive({ jsonrpc: "2.0", id: 1, method: "tools/call", params: poisoned } as unknown as JSONRPCMessage);
+    h.receive({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: poisoned,
+    } as unknown as JSONRPCMessage);
     expect(h.handler).toHaveBeenCalledTimes(1);
     expect(h.stderr).toHaveLength(1);
     expect(h.stderr[0]).toContain("call log tap disabled");
@@ -256,7 +277,10 @@ describe("one record per outcome", () => {
     h.receive(toolCall(7));
     await h.send(
       response(7, {
-        content: [{ type: "text", text: "3 symbols" }, { type: "image", data: "x" }],
+        content: [
+          { type: "text", text: "3 symbols" },
+          { type: "image", data: "x" },
+        ],
         structuredContent: { symbols: [{}, {}, {}], scope: { limits: ["compile-database-only"] } },
       }),
     );
@@ -285,7 +309,8 @@ describe("one record per outcome", () => {
   });
 
   it("records `isError` without a payload as error, classified from the tool's own text", async () => {
-    const failure = 'cpp_file_symbols failed: compile_commands.json not found or unreadable at "D:\\repo"';
+    const failure =
+      'cpp_file_symbols failed: compile_commands.json not found or unreadable at "D:\\repo"';
     const h = harness();
     h.receive(toolCall(1, "cpp_file_symbols", { projectRoot: "D:\\repo", file: "a.cpp" }));
     await h.send(answered(1, failure));
@@ -303,12 +328,18 @@ describe("one record per outcome", () => {
 
   it("records `isError` with a payload as partial, which is the sweep ceiling's answer", async () => {
     const h = harness();
-    h.receive(toolCall(1, "cpp_find_derived_classes", { projectRoot: "D:\\b", qualifiedName: "Base" }));
+    h.receive(
+      toolCall(1, "cpp_find_derived_classes", { projectRoot: "D:\\b", qualifiedName: "Base" }),
+    );
     await h.send(
-      answered(1, "cpp_find_derived_classes swept 3/9 translation units within its 5000 ms ceiling", {
-        matches: [{}, {}, {}],
-        sweep: { cache: "partial" },
-      }),
+      answered(
+        1,
+        "cpp_find_derived_classes swept 3/9 translation units within its 5000 ms ceiling",
+        {
+          matches: [{}, {}, {}],
+          sweep: { cache: "partial" },
+        },
+      ),
     );
 
     expect(h.lines.at(-1)).toMatchObject({
@@ -323,7 +354,11 @@ describe("one record per outcome", () => {
   it("records a JSON-RPC error response as protocol-error, deriving nothing from a payload it never had", async () => {
     const h = harness();
     h.receive(toolCall(1));
-    await h.send({ jsonrpc: "2.0", id: 1, error: { code: -32601, message: "Method not found" } } as JSONRPCMessage);
+    await h.send({
+      jsonrpc: "2.0",
+      id: 1,
+      error: { code: -32601, message: "Method not found" },
+    } as JSONRPCMessage);
 
     expect(h.lines.at(-1)).toMatchObject({
       outcome: "protocol-error",
@@ -338,7 +373,11 @@ describe("one record per outcome", () => {
   it("records a cancelled call once, from the notification, and ignores the answer that arrives after it", async () => {
     const h = harness();
     h.receive(toolCall(4));
-    h.receive({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 4 } } as JSONRPCMessage);
+    h.receive({
+      jsonrpc: "2.0",
+      method: "notifications/cancelled",
+      params: { requestId: 4 },
+    } as JSONRPCMessage);
     await h.send(response(4, { content: [{ type: "text", text: "late" }] }));
 
     expect(calls(h.lines)).toHaveLength(1);
@@ -360,7 +399,11 @@ describe("one record per outcome", () => {
     h.receive(toolCall(1));
     await h.send(response(1, { content: [] }));
     await h.send(response(1, { content: [] }));
-    h.receive({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 1 } } as JSONRPCMessage);
+    h.receive({
+      jsonrpc: "2.0",
+      method: "notifications/cancelled",
+      params: { requestId: 1 },
+    } as JSONRPCMessage);
 
     expect(calls(h.lines)).toHaveLength(1);
   });
@@ -377,7 +420,12 @@ describe("one record per outcome", () => {
 
   it("records a request whose parameters do not read as a tool call, rather than faulting on it", async () => {
     const h = harness();
-    h.receive({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: 7 } } as unknown as JSONRPCMessage);
+    h.receive({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: 7 },
+    } as unknown as JSONRPCMessage);
     await h.send(response(1, { content: [] }));
 
     expect(h.lines.at(-1)).toMatchObject({ tool: "", lang: null, args: {}, argKeys: [] });
@@ -409,7 +457,13 @@ describe("the run header", () => {
         clientInfo: { name: "qwen-cli-mcp-client-mcp-code-nav", version: "0.0.1" },
       },
     } as JSONRPCMessage);
-    await h.send(response(0, { protocolVersion: "2025-06-18", capabilities: {}, serverInfo: { name: "s", version: "v" } }));
+    await h.send(
+      response(0, {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        serverInfo: { name: "s", version: "v" },
+      }),
+    );
     expect(h.lines).toEqual([]);
 
     h.receive(toolCall(1));
@@ -493,7 +547,8 @@ describe("what the language-server layer notes", () => {
     const h = harness();
     const sessions = new LspSessionManager();
     h.handler.mockImplementation((message: JSONRPCMessage) => {
-      if ("method" in message && message.method === "tools/call") sessions.get("D:\\b", clangdConfig);
+      if ("method" in message && message.method === "tools/call")
+        sessions.get("D:\\b", clangdConfig);
     });
 
     h.receive(toolCall(1));
@@ -536,7 +591,13 @@ describe("the caps, end to end", () => {
 
   it("names a parameter it is not allowed to record instead of storing its contents", async () => {
     const h = harness();
-    h.receive(toolCall(1, "cpp_file_symbols", { projectRoot: "D:\\b", file: "a.cpp", auditToken: { user: "me" } }));
+    h.receive(
+      toolCall(1, "cpp_file_symbols", {
+        projectRoot: "D:\\b",
+        file: "a.cpp",
+        auditToken: { user: "me" },
+      }),
+    );
     await h.send(response(1, { content: [] }));
 
     expect(calls(h.lines).at(-1)).toMatchObject({
@@ -563,7 +624,11 @@ describe("close", () => {
     h.transport.onclose = () => void seen.push("assigned");
     h.transport.onerror = (error) => void seen.push(error.message);
 
-    h.receive({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 99 } } as JSONRPCMessage);
+    h.receive({
+      jsonrpc: "2.0",
+      method: "notifications/cancelled",
+      params: { requestId: 99 },
+    } as JSONRPCMessage);
     h.fireClose();
     h.inner.onerror?.(new Error("the child died"));
 
@@ -613,17 +678,20 @@ describe("watchStdinClose", () => {
     return { h, stdin, exits, shutdowns: () => shutdowns };
   }
 
-  it.each(["end", "close"])("runs the close path when stdin emits `%s`, with its records already written", (event) => {
-    const { h, stdin, exits, shutdowns } = watched();
-    h.receive(toolCall(1));
-    h.receive(toolCall(2));
+  it.each(["end", "close"])(
+    "runs the close path when stdin emits `%s`, with its records already written",
+    (event) => {
+      const { h, stdin, exits, shutdowns } = watched();
+      h.receive(toolCall(1));
+      h.receive(toolCall(2));
 
-    stdin.emit(event);
+      stdin.emit(event);
 
-    expect(shutdowns()).toBe(1);
-    expect(exits).toEqual([{ calls: 2, logClosed: 1 }]);
-    expect(calls(h.lines).map((line) => line.outcome)).toEqual(["abandoned", "abandoned"]);
-  });
+      expect(shutdowns()).toBe(1);
+      expect(exits).toEqual([{ calls: 2, logClosed: 1 }]);
+      expect(calls(h.lines).map((line) => line.outcome)).toEqual(["abandoned", "abandoned"]);
+    },
+  );
 
   it("is a no-op for the second event, as stdin emits `end` and then `close`", () => {
     const { h, stdin, shutdowns } = watched();

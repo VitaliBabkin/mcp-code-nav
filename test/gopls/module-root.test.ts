@@ -31,7 +31,10 @@ describe("findModuleRoot", () => {
   }
 
   it("finds the go.mod above the file and reports the module root, with no go.work in effect", () => {
-    const mod = dirWithFiles(join(tmp, "mod"), { "go.mod": "module example.com/mod\n", "a.go": "package a\n" });
+    const mod = dirWithFiles(join(tmp, "mod"), {
+      "go.mod": "module example.com/mod\n",
+      "a.go": "package a\n",
+    });
     expect(findModuleRoot(join(mod, "a.go"), [mod])).toEqual({
       kind: "found",
       moduleRoot: resolve(mod),
@@ -68,8 +71,13 @@ describe("findModuleRoot", () => {
   });
 
   it("reports outside-roots for a module in a sibling directory the caller never declared", () => {
-    const other = dirWithFiles(join(tmp, "other"), { "go.mod": "module example.com/other\n", "a.go": "package a\n" });
-    const declared = dirWithFiles(join(tmp, "declared"), { "go.mod": "module example.com/declared\n" });
+    const other = dirWithFiles(join(tmp, "other"), {
+      "go.mod": "module example.com/other\n",
+      "a.go": "package a\n",
+    });
+    const declared = dirWithFiles(join(tmp, "declared"), {
+      "go.mod": "module example.com/declared\n",
+    });
     const outcome = findModuleRoot(join(other, "a.go"), [declared]);
     expect(outcome.kind).toBe("outside-roots");
     // `resolveWithinAnyRoot` rejects such a file before this function is reached; the outcome still
@@ -88,7 +96,10 @@ describe("findModuleRoot", () => {
 
   it("reports the nearest go.work above the module, which GOWORK=off keeps out of the answer", () => {
     const ws = dirWithFiles(join(tmp, "ws"), { "go.work": "go 1.21\n" });
-    const mod = dirWithFiles(join(ws, "mod"), { "go.mod": "module example.com/ws/mod\n", "a.go": "package a\n" });
+    const mod = dirWithFiles(join(ws, "mod"), {
+      "go.mod": "module example.com/ws/mod\n",
+      "a.go": "package a\n",
+    });
     expect(findModuleRoot(join(mod, "a.go"), [ws])).toMatchObject({
       kind: "found",
       moduleRoot: resolve(mod),
@@ -102,24 +113,42 @@ describe("findModuleRoot", () => {
       "go.work": "go 1.21\n",
       "a.go": "package a\n",
     });
-    expect(findModuleRoot(join(mod, "a.go"), [mod])).toMatchObject({ kind: "found", goWork: join(mod, "go.work") });
+    expect(findModuleRoot(join(mod, "a.go"), [mod])).toMatchObject({
+      kind: "found",
+      goWork: join(mod, "go.work"),
+    });
   });
 
   it("finds the go.mod IN a directory anchor, which is the whole point of the directory input", () => {
-    const mod = dirWithFiles(join(tmp, "mod"), { "go.mod": "module example.com/mod\n", "a.go": "package a\n" });
-    expect(findModuleRoot(mod, [mod], "directory")).toEqual({ kind: "found", moduleRoot: resolve(mod), goWork: null });
+    const mod = dirWithFiles(join(tmp, "mod"), {
+      "go.mod": "module example.com/mod\n",
+      "a.go": "package a\n",
+    });
+    expect(findModuleRoot(mod, [mod], "directory")).toEqual({
+      kind: "found",
+      moduleRoot: resolve(mod),
+      goWork: null,
+    });
   });
 
   it("searches upward from a directory anchor too, so a package directory roots at its module", () => {
     const repo = dirWithFiles(join(tmp, "repo"), { "go.mod": "module example.com/repo\n" });
     const pkg = dirWithFiles(join(repo, "pkg", "deep"), { "a.go": "package a\n" });
-    expect(findModuleRoot(pkg, [repo], "directory")).toMatchObject({ kind: "found", moduleRoot: resolve(repo) });
+    expect(findModuleRoot(pkg, [repo], "directory")).toMatchObject({
+      kind: "found",
+      moduleRoot: resolve(repo),
+    });
   });
 
   it("takes the NEAREST go.mod for a directory anchor, so a nested module roots itself", () => {
-    const inner = dirWithFiles(join(tmp, "mod", "inner"), { "go.mod": "module example.com/mod/inner\n" });
+    const inner = dirWithFiles(join(tmp, "mod", "inner"), {
+      "go.mod": "module example.com/mod/inner\n",
+    });
     dirWithFiles(join(tmp, "mod"), { "go.mod": "module example.com/mod\n" });
-    expect(findModuleRoot(inner, [inner], "directory")).toMatchObject({ kind: "found", moduleRoot: resolve(inner) });
+    expect(findModuleRoot(inner, [inner], "directory")).toMatchObject({
+      kind: "found",
+      moduleRoot: resolve(inner),
+    });
   });
 
   it("reports outside-roots for a directory whose own go.mod sits above every declared root", () => {
@@ -134,15 +163,24 @@ describe("findModuleRoot", () => {
 
   it("reports not-in-module for a directory with no go.mod, naming the directory itself", () => {
     const plain = dirWithFiles(join(tmp, "plain"), { "a.go": "package a\n" });
-    expect(findModuleRoot(plain, [plain], "directory")).toEqual({ kind: "not-in-module", searchedFrom: resolve(plain) });
+    expect(findModuleRoot(plain, [plain], "directory")).toEqual({
+      kind: "not-in-module",
+      searchedFrom: resolve(plain),
+    });
   });
 
   it("starts a file-shaped search one level UP, which is why the module root needs the directory input", () => {
     // Same path, same roots, only the declared kind differs: read as a file, the module root's own `go.mod`
     // is invisible because the search begins in its parent, and the caller would be told the directory is
     // in no module at all.
-    const mod = dirWithFiles(join(tmp, "mod"), { "go.mod": "module example.com/mod\n", "a.go": "package a\n" });
-    expect(findModuleRoot(mod, [tmp])).toEqual({ kind: "not-in-module", searchedFrom: resolve(tmp) });
+    const mod = dirWithFiles(join(tmp, "mod"), {
+      "go.mod": "module example.com/mod\n",
+      "a.go": "package a\n",
+    });
+    expect(findModuleRoot(mod, [tmp])).toEqual({
+      kind: "not-in-module",
+      searchedFrom: resolve(tmp),
+    });
     expect(findModuleRoot(mod, [mod], "directory").kind).toBe("found");
   });
 });

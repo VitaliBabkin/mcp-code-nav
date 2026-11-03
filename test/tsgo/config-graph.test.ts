@@ -1,6 +1,10 @@
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { readConfigGraph, type ConfigGraph, type ConfigGraphDeps } from "../../src/tsgo/config-graph.js";
+import {
+  readConfigGraph,
+  type ConfigGraph,
+  type ConfigGraphDeps,
+} from "../../src/tsgo/config-graph.js";
 
 /**
  * The config closure, read through this module's own injection seam. Every case says
@@ -45,7 +49,11 @@ function graphOf(
 ): { graph: ConfigGraph; reads: string[] } {
   const reads: string[] = [];
   const configs = table.configs ?? {};
-  const files = new Set<string>([...Object.keys(configs), ...(table.unreadable ?? []), ...(table.files ?? [])]);
+  const files = new Set<string>([
+    ...Object.keys(configs),
+    ...(table.unreadable ?? []),
+    ...(table.files ?? []),
+  ]);
   const directories = new Set<string>(table.directories ?? []);
   const deps: ConfigGraphDeps = {
     readJson: (path) => {
@@ -126,7 +134,9 @@ describe("readConfigGraph", () => {
 
   it("resolves a `references` path that carries no leading ./ against the config that named it", () => {
     const app = under("configs", "app.json");
-    const { graph } = graphOf({ configs: { [ROOT_CONFIG]: refs("configs/app.json"), [app]: {} } }, [ROOT_CONFIG]);
+    const { graph } = graphOf({ configs: { [ROOT_CONFIG]: refs("configs/app.json"), [app]: {} } }, [
+      ROOT_CONFIG,
+    ]);
 
     // A reference names a path, never a package: `node_modules` has nothing to do with it, and treating it as
     // a specifier makes a valid reference unresolvable and the snapshot with it.
@@ -160,7 +170,13 @@ describe("readConfigGraph", () => {
 
   it("reads a references target that is a directory as that directory's tsconfig.json", () => {
     const target = under("configs", "app", "tsconfig.json");
-    const { graph } = graphOf({ configs: { [ROOT_CONFIG]: refs("./configs/app"), [target]: {} }, directories: [under("configs", "app")] }, [ROOT_CONFIG]);
+    const { graph } = graphOf(
+      {
+        configs: { [ROOT_CONFIG]: refs("./configs/app"), [target]: {} },
+        directories: [under("configs", "app")],
+      },
+      [ROOT_CONFIG],
+    );
 
     expect(graph.projects).toEqual([ROOT_CONFIG, target]);
     expect(graph.referencesOf.get(ROOT_CONFIG)).toEqual([target]);
@@ -170,7 +186,10 @@ describe("readConfigGraph", () => {
   it("reads an extends target that is a directory as that directory's tsconfig.json", () => {
     const base = under("shared", "tsconfig.json");
     const { graph } = graphOf(
-      { configs: { [ROOT_CONFIG]: { extends: "./shared" }, [base]: {} }, directories: [under("shared")] },
+      {
+        configs: { [ROOT_CONFIG]: { extends: "./shared" }, [base]: {} },
+        directories: [under("shared")],
+      },
       [ROOT_CONFIG],
     );
 
@@ -188,7 +207,9 @@ describe("readConfigGraph", () => {
 
     // A closure member has to be an existing file, so the spec
     // is unresolved and the path the directory WOULD have resolved to joins neither the closure nor the snapshot.
-    expect(graph.unresolved).toEqual([`extends resolves to nothing: "./shared" in "${ROOT_CONFIG}"`]);
+    expect(graph.unresolved).toEqual([
+      `extends resolves to nothing: "./shared" in "${ROOT_CONFIG}"`,
+    ]);
     expect(graph.closure).toEqual([ROOT_CONFIG]);
     expect(graph.closure).not.toContain(phantom);
     expect(graph.projects).toEqual([ROOT_CONFIG]);
@@ -204,7 +225,9 @@ describe("readConfigGraph", () => {
 
     // Not a project, not a reference edge, not a closure file: a project this server cannot name is a spec
     // that resolves to nothing, and the unprovable closure says so in those words.
-    expect(graph.unresolved).toEqual([`references resolves to nothing: "./configs/app" in "${ROOT_CONFIG}"`]);
+    expect(graph.unresolved).toEqual([
+      `references resolves to nothing: "./configs/app" in "${ROOT_CONFIG}"`,
+    ]);
     expect(graph.projects).toEqual([ROOT_CONFIG]);
     expect(graph.referencesOf.get(ROOT_CONFIG)).toEqual([]);
     expect(graph.referenceOrder).toEqual([]);
@@ -220,7 +243,10 @@ describe("readConfigGraph", () => {
     const { graph, reads } = graphOf(
       {
         configs: {
-          [ROOT_CONFIG]: { extends: "./compiler-options.json", references: [{ path: "./packages/app/tsconfig.json" }] },
+          [ROOT_CONFIG]: {
+            extends: "./compiler-options.json",
+            references: [{ path: "./packages/app/tsconfig.json" }],
+          },
           [app]: { extends: ["./local.json", "../../shared/base.json"] },
           // Each inherited file is a config on disk, so the table holds its manifest: reading it is what lets
           // the chain below it be followed. An inherited file that yielded no manifest would make the closure
@@ -255,7 +281,10 @@ describe("readConfigGraph", () => {
     const { graph } = graphOf(
       {
         configs: {
-          [ROOT_CONFIG]: { extends: "./compiler-options", references: [{ path: "./configs/member" }] },
+          [ROOT_CONFIG]: {
+            extends: "./compiler-options",
+            references: [{ path: "./configs/member" }],
+          },
           [member]: {},
         },
         files: [options],
@@ -275,7 +304,10 @@ describe("readConfigGraph", () => {
     const { graph } = graphOf(
       {
         configs: {
-          [app]: { extends: "../../shared/base.json", references: [{ path: "../ui/tsconfig.json" }] },
+          [app]: {
+            extends: "../../shared/base.json",
+            references: [{ path: "../ui/tsconfig.json" }],
+          },
           [sibling]: {},
         },
         files: [base],
@@ -310,7 +342,10 @@ describe("readConfigGraph", () => {
     const app = under("packages", "app", "tsconfig.json");
     const nested = under("packages", "app", "node_modules", "@example", "base", "tsconfig.json");
     const hoisted = under("node_modules", "@example", "base", "tsconfig.json");
-    const { graph } = graphOf({ configs: { [app]: { extends: "@example/base" } }, files: [nested, hoisted] }, [app]);
+    const { graph } = graphOf(
+      { configs: { [app]: { extends: "@example/base" } }, files: [nested, hoisted] },
+      [app],
+    );
 
     expect(graph.closure).toContain(nested);
     expect(graph.closure).not.toContain(hoisted);
@@ -332,28 +367,45 @@ describe("readConfigGraph", () => {
 
   it("takes node_modules/<spec> itself when that path is a file", () => {
     const plain = under("node_modules", "tsconfig-plain");
-    const { graph } = graphOf({ configs: { [ROOT_CONFIG]: { extends: "tsconfig-plain" } }, files: [plain] }, [ROOT_CONFIG]);
+    const { graph } = graphOf(
+      { configs: { [ROOT_CONFIG]: { extends: "tsconfig-plain" } }, files: [plain] },
+      [ROOT_CONFIG],
+    );
 
     expect(graph.closure).toContain(plain);
   });
 
   it("reports an extends that resolves to nothing, naming the spec and the config that named it", () => {
-    const { graph } = graphOf({ configs: { [ROOT_CONFIG]: { extends: "./gone.json" } } }, [ROOT_CONFIG]);
+    const { graph } = graphOf({ configs: { [ROOT_CONFIG]: { extends: "./gone.json" } } }, [
+      ROOT_CONFIG,
+    ]);
 
-    expect(graph.unresolved).toEqual([`extends resolves to nothing: "./gone.json" in "${ROOT_CONFIG}"`]);
+    expect(graph.unresolved).toEqual([
+      `extends resolves to nothing: "./gone.json" in "${ROOT_CONFIG}"`,
+    ]);
   });
 
   it("reports an extends that resolves outside the workspace root in different words, and does not track it", () => {
     const escape = outside("shared", "base.json");
-    const { graph } = graphOf({ configs: { [ROOT_CONFIG]: { extends: escape } }, files: [escape] }, [ROOT_CONFIG]);
+    const { graph } = graphOf(
+      { configs: { [ROOT_CONFIG]: { extends: escape } }, files: [escape] },
+      [ROOT_CONFIG],
+    );
 
-    expect(graph.unresolved).toEqual([`extends resolves outside the workspace: "${escape}" in "${ROOT_CONFIG}"`]);
+    expect(graph.unresolved).toEqual([
+      `extends resolves outside the workspace: "${escape}" in "${ROOT_CONFIG}"`,
+    ]);
     expect(graph.closure).not.toContain(escape);
   });
 
   it("names the config that named a reference target it cannot resolve", () => {
     const app = under("packages", "app", "tsconfig.json");
-    const { graph } = graphOf({ configs: { [ROOT_CONFIG]: refs("./packages/app/tsconfig.json"), [app]: refs("./missing") } }, [ROOT_CONFIG]);
+    const { graph } = graphOf(
+      {
+        configs: { [ROOT_CONFIG]: refs("./packages/app/tsconfig.json"), [app]: refs("./missing") },
+      },
+      [ROOT_CONFIG],
+    );
 
     expect(graph.unresolved).toEqual([`references resolves to nothing: "./missing" in "${app}"`]);
   });
@@ -362,11 +414,16 @@ describe("readConfigGraph", () => {
     const pkg = under("packages", "app", "tsconfig.json");
     const escape = outside("configs", "app", "tsconfig.json");
     const { graph } = graphOf(
-      { configs: { [pkg]: refs("../../../outside/configs/app") }, directories: [outside("configs", "app")] },
+      {
+        configs: { [pkg]: refs("../../../outside/configs/app") },
+        directories: [outside("configs", "app")],
+      },
       [pkg],
     );
 
-    expect(graph.unresolved).toEqual([`references resolves outside the workspace: "../../../outside/configs/app" in "${pkg}"`]);
+    expect(graph.unresolved).toEqual([
+      `references resolves outside the workspace: "../../../outside/configs/app" in "${pkg}"`,
+    ]);
     expect(graph.projects).toEqual([pkg]);
     expect(graph.referencesOf.get(pkg)).toEqual([]);
     expect(graph.closure).not.toContain(escape);
@@ -399,7 +456,15 @@ describe("readConfigGraph", () => {
     const app = under("packages", "app", "tsconfig.json");
     // `../../tsconfig.json` is the walk's own answer for a config in `packages/app` naming the root's -
     // one `..` lands on `packages/tsconfig.json`, which this fake holds nothing for.
-    const { graph } = graphOf({ configs: { [ROOT_CONFIG]: refs("./packages/app/tsconfig.json"), [app]: refs("../../tsconfig.json") } }, [ROOT_CONFIG]);
+    const { graph } = graphOf(
+      {
+        configs: {
+          [ROOT_CONFIG]: refs("./packages/app/tsconfig.json"),
+          [app]: refs("../../tsconfig.json"),
+        },
+      },
+      [ROOT_CONFIG],
+    );
 
     expect(graph.projects).toEqual([ROOT_CONFIG, app]);
     expect(graph.closure).toEqual([ROOT_CONFIG, app]);
@@ -438,7 +503,8 @@ describe("readConfigGraph", () => {
     const directory = under("closure");
     const configAt = (index: number): string => join(directory, `c${index}.json`);
     const configs: Record<string, Manifest> = {};
-    for (let index = 0; index < 1_999; index++) configs[configAt(index)] = refs(`./c${index + 1}.json`);
+    for (let index = 0; index < 1_999; index++)
+      configs[configAt(index)] = refs(`./c${index + 1}.json`);
     const { graph, reads } = graphOf({ configs, files: [configAt(1_999)] }, [configAt(0)]);
 
     expect(graph.unresolved).toEqual([`the config closure under "${ROOT}" exceeds 2000 files`]);

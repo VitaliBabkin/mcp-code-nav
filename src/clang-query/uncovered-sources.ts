@@ -1,7 +1,12 @@
 import { resolve } from "node:path";
 import { isIgnoredPath } from "../config/ignored-paths.js";
 import { containingRoot, pathKey } from "../paths/path-containment.js";
-import { rankPaths, summariseRanked, type CappedList, type RankedPath } from "../paths/ranked-paths.js";
+import {
+  rankPaths,
+  summariseRanked,
+  type CappedList,
+  type RankedPath,
+} from "../paths/ranked-paths.js";
 import type { ProjectFingerprint } from "./project-fingerprint.js";
 
 /** Sources the fingerprint walk VISITED under the declared source roots that no compile-database entry
@@ -56,7 +61,10 @@ export function inferredFlagsCaveat(plural: boolean): string {
 }
 
 /** The sources of `translationUnits` no entry in `compileDbTus` compiles, one per physical file, keyed once. */
-function rankUnlisted(translationUnits: readonly string[], compileDbTus: readonly string[]): RankedPath[] {
+function rankUnlisted(
+  translationUnits: readonly string[],
+  compileDbTus: readonly string[],
+): RankedPath[] {
   const excluded = new Set<string>();
   for (const tu of compileDbTus) excluded.add(pathKey(tu));
   return rankPaths(translationUnits.filter((tu) => !excluded.has(pathKey(tu))));
@@ -130,6 +138,9 @@ export function uncoveredSourcesBlock(facts: UncoveredSourceFacts): UncoveredSou
     ),
   );
   return {
-    uncoveredSources: summariseRanked(unlisted.filter((entry) => visible.has(entry.file)), UNCOVERED_SOURCES_LIMIT),
+    uncoveredSources: summariseRanked(
+      unlisted.filter((entry) => visible.has(entry.file)),
+      UNCOVERED_SOURCES_LIMIT,
+    ),
   };
 }

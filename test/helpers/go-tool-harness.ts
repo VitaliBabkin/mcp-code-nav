@@ -21,7 +21,12 @@ export interface ToolResultLike {
 }
 
 /** One outline entry as gopls reports it: line-only ranges unless the test gives characters. */
-export function symbol(name: string, kind: number, startLine: number, endLine = startLine): LspDocumentSymbol {
+export function symbol(
+  name: string,
+  kind: number,
+  startLine: number,
+  endLine = startLine,
+): LspDocumentSymbol {
   return {
     name,
     kind,
@@ -193,7 +198,10 @@ export function missingGoplsSpawn(): SpawnLsp {
  * out when this advances — not when the host happens to get there. `setTimeout` and `Date` only: the
  * rest of the event loop stays real, so nothing that relies on `nextTick` can stall.
  */
-export async function runUntilBudgetExpires<T>(work: () => Promise<T>, budgetMs: number): Promise<T> {
+export async function runUntilBudgetExpires<T>(
+  work: () => Promise<T>,
+  budgetMs: number,
+): Promise<T> {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
   try {
     const running = work();

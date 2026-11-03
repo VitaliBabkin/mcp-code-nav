@@ -5,7 +5,10 @@ import { afterEach, describe, expect } from "vitest";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { dropProjectMap } from "../../src/tsgo/project-map.js";
 import { walkWorkspace } from "../../src/tsgo/workspace-snapshot.js";
-import { OUTSIDE_WORKSPACE_REASON, type TsUncoveredBlock } from "../../src/tools/ts-navigation-shared.js";
+import {
+  OUTSIDE_WORKSPACE_REASON,
+  type TsUncoveredBlock,
+} from "../../src/tools/ts-navigation-shared.js";
 import {
   runTsFindReferences,
   type TsFindReferencesPayload,
@@ -56,7 +59,8 @@ const managers: LspSessionManager[] = [];
 
 /** One manager per case, kept so `afterEach` disposes what a throwing assertion never reached. */
 function freshManager(log?: TsgoProcessLog): LspSessionManager {
-  const manager = log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
+  const manager =
+    log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
   managers.push(manager);
   return manager;
 }
@@ -72,10 +76,13 @@ function ask(
   symbol: string,
   includeDeclaration = false,
 ): Promise<Result> {
-  return runTsFindReferences(
-    manager,
-    { sourceRoots: roots, file, symbol, includeDeclaration, timeBudgetMs: CALL_BUDGET_MS },
-  );
+  return runTsFindReferences(manager, {
+    sourceRoots: roots,
+    file,
+    symbol,
+    includeDeclaration,
+    timeBudgetMs: CALL_BUDGET_MS,
+  });
 }
 
 function payload(result: Result): TsFindReferencesPayload {
@@ -116,7 +123,9 @@ function groupOf(answer: TsFindReferencesPayload, file: string): TsReferenceFile
 /** Every kept row as `file:line in <name>`, for a failure message that shows the whole listing. */
 function rows(answer: TsFindReferencesPayload, root: string): string[] {
   return answer.files.flatMap((group) =>
-    group.sites.map((site) => `${under(root, group.file)}:${site.line} in ${site.in ?? "<unnamed>"}`),
+    group.sites.map(
+      (site) => `${under(root, group.file)}:${site.line} in ${site.in ?? "<unnamed>"}`,
+    ),
   );
 }
 
@@ -129,9 +138,14 @@ function uncoveredOf(answer: TsFindReferencesPayload): TsUncoveredBlock {
   return scope.uncoveredSources;
 }
 
-function projectsOf(answer: TsFindReferencesPayload): { count: number; configs: readonly string[]; failed: readonly { config: string; reason: string }[] } {
+function projectsOf(answer: TsFindReferencesPayload): {
+  count: number;
+  configs: readonly string[];
+  failed: readonly { config: string; reason: string }[];
+} {
   const scope = answer.scope;
-  if (!("projects" in scope)) throw new Error(`no project map was reported: ${scope.projectsUnavailable}`);
+  if (!("projects" in scope))
+    throw new Error(`no project map was reported: ${scope.projectsUnavailable}`);
   return scope.projects;
 }
 
@@ -209,7 +223,9 @@ describe("ts_find_references against the real tsgo", () => {
 
           // The row naming: the subject is named in the spelling `symbol` accepts, so a caller can
           // paste `resolved.name` into the next call and land on the same declaration.
-          const replayed = payload(await ask(manager, [workspaceRoot], sharedFile, answer.resolved.name));
+          const replayed = payload(
+            await ask(manager, [workspaceRoot], sharedFile, answer.resolved.name),
+          );
           expect(replayed.resolved).toEqual(answer.resolved);
           expect(replayed.totalReferences).toBe(answer.totalReferences);
         } finally {
@@ -236,9 +252,12 @@ describe("ts_find_references against the real tsgo", () => {
       expect(uncovered.namedFileUncovered).toBe(false);
       // The file whose text holds the method's name is pointed at, not listed as a row (the row assertions below).
       expect(uncovered.mentioning.name).toBe("run");
-      expect(namesUnder(workspaceRoot, uncovered.mentioning.files.map((hit) => hit.file))).toEqual([
-        "test/store.test.ts",
-      ]);
+      expect(
+        namesUnder(
+          workspaceRoot,
+          uncovered.mentioning.files.map((hit) => hit.file),
+        ),
+      ).toEqual(["test/store.test.ts"]);
       expect(answer.scope.limits).toContain("uncovered-sources-present");
 
       // `test/store.test.ts:4` really does call `run` — that is why the file is in the fixture — and its row
@@ -265,24 +284,30 @@ describe("ts_find_references against the real tsgo", () => {
         // and one in `tools/node-uses.ts:4`; the import specifier on line 1 of each; and the same shape again
         // in `test/store.test.ts`, which no project lists.
         const uses = payload(await ask(manager, [workspaceRoot], storeFile, "Store", false));
-        const withDeclaration = payload(await ask(manager, [workspaceRoot], storeFile, "Store", true));
+        const withDeclaration = payload(
+          await ask(manager, [workspaceRoot], storeFile, "Store", true),
+        );
 
         // False: only the declaration is out. The import specifier lines stay, so each
         // consumer lists its import and its parameter type, which is what a grep for `Store` counts.
         expect(uses.totalReferences).toBe(4);
         expect(groupOf(uses, storeFile)).toBeUndefined();
-        expect(namesUnder(workspaceRoot, uses.files.map((group) => group.file))).toEqual([
-          "src/app-only.ts",
-          "tools/node-uses.ts",
-        ]);
-        expect(uses.files.every((group) => group.count === 2 && group.sites.length === 2)).toBe(true);
+        expect(
+          namesUnder(
+            workspaceRoot,
+            uses.files.map((group) => group.file),
+          ),
+        ).toEqual(["src/app-only.ts", "tools/node-uses.ts"]);
+        expect(uses.files.every((group) => group.count === 2 && group.sites.length === 2)).toBe(
+          true,
+        );
 
         // True: the class's own row appears, at the declaration's line, in its own file.
         expect(groupOf(uses, storeFile)).toBeUndefined();
         const declared = groupOf(withDeclaration, storeFile);
-        expect(declared === undefined ? "<no group>" : declared.sites.map((site) => site.line)).toEqual([
-          lineOf(storeFile, "export class Store"),
-        ]);
+        expect(
+          declared === undefined ? "<no group>" : declared.sites.map((site) => site.line),
+        ).toEqual([lineOf(storeFile, "export class Store")]);
         expect(withDeclaration.totalReferences).toBe(uses.totalReferences + 1);
 
         // What the server does with the two import specifier lines when the declaration is asked for is the
@@ -319,7 +344,12 @@ describe("ts_find_references against the real tsgo", () => {
           `${under(workspaceRoot, nodeUsesFile)}:${lineOf(nodeUsesFile, "return OWNER_FILE + store.flush();")} in nodeFlush`,
         ]);
         // No interface in the workspace declares `flush`, so nothing beyond that one row may appear.
-        expect(namesUnder(workspaceRoot, flush.files.map((group) => group.file))).toEqual(["tools/node-uses.ts"]);
+        expect(
+          namesUnder(
+            workspaceRoot,
+            flush.files.map((group) => group.file),
+          ),
+        ).toEqual(["tools/node-uses.ts"]);
 
         const run = payload(await ask(manager, [workspaceRoot], storeFile, "Store.run"));
         expect(run.scope.limits).toContain("corresponding-interface-methods-included");
@@ -357,7 +387,9 @@ describe("ts_find_references against the real tsgo", () => {
       try {
         const answer = payload(await ask(manager, [copied], copiedStore, "Store"));
         const external = answer.files.filter((group) => group.external);
-        expect(external.map((group) => under(copied, group.file))).toEqual(["node_modules/dep/index.d.ts"]);
+        expect(external.map((group) => under(copied, group.file))).toEqual([
+          "node_modules/dep/index.d.ts",
+        ]);
         // The dependency's own import line is a row as well as its use; the use is the one under test.
         expect(external[0]?.count).toBe(2);
         const site = external[0]?.sites.find(
@@ -379,10 +411,12 @@ describe("ts_find_references against the real tsgo", () => {
 
         // The in-workspace half of the answer is unchanged by the dependency's row, and still excludes the
         // file no project includes.
-        expect(namesUnder(copied, answer.files.filter((g) => !g.external).map((group) => group.file))).toEqual([
-          "src/app-only.ts",
-          "tools/node-uses.ts",
-        ]);
+        expect(
+          namesUnder(
+            copied,
+            answer.files.filter((g) => !g.external).map((group) => group.file),
+          ),
+        ).toEqual(["src/app-only.ts", "tools/node-uses.ts"]);
         expect(answer.totalReferences).toBe(6);
         expect(groupOf(answer, join(copied, "test", "store.test.ts"))).toBeUndefined();
         // A dependency's file is a dependency, not a source the workspace forgot to include.
@@ -412,7 +446,12 @@ describe("ts_find_references against the real tsgo", () => {
         const expectations = [
           { file: storeFile, symbol: "Store.run", total: 1, groups: { [appOnlyFile]: 1 } },
           { file: storeFile, symbol: "Store.flush", total: 1, groups: { [nodeUsesFile]: 1 } },
-          { file: storeFile, symbol: "Store", total: 4, groups: { [appOnlyFile]: 2, [nodeUsesFile]: 2 } },
+          {
+            file: storeFile,
+            symbol: "Store",
+            total: 4,
+            groups: { [appOnlyFile]: 2, [nodeUsesFile]: 2 },
+          },
           { file: sharedFile, symbol: "Named", total: 2, groups: { [widgetFile]: 2 } },
         ] as const;
 
@@ -424,14 +463,24 @@ describe("ts_find_references against the real tsgo", () => {
           ).toBe(one.total);
           const listed = Object.entries(one.groups) as [string, number][];
           expect(
-            namesUnder(workspaceRoot, answer.files.map((group) => group.file)),
+            namesUnder(
+              workspaceRoot,
+              answer.files.map((group) => group.file),
+            ),
             `${one.symbol}: ${JSON.stringify(rows(answer, workspaceRoot))}`,
-          ).toEqual(namesUnder(workspaceRoot, listed.map(([file]) => file)));
+          ).toEqual(
+            namesUnder(
+              workspaceRoot,
+              listed.map(([file]) => file),
+            ),
+          );
           for (const [file, count] of listed) {
             expect(groupOf(answer, file)?.count, one.symbol).toBe(count);
           }
           // The exactness: `count` is what the server reported whatever the listing caps.
-          expect(answer.files.reduce((sum, group) => sum + group.count, 0)).toBe(answer.totalReferences);
+          expect(answer.files.reduce((sum, group) => sum + group.count, 0)).toBe(
+            answer.totalReferences,
+          );
           expect(answer.filesTruncated).toBe(0);
           expect(answer.files.every((group) => group.sitesTruncated === 0)).toBe(true);
         }

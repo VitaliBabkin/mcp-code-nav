@@ -2,7 +2,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runGoFindCallers } from "../../src/tools/go-find-callers.js";
-import { CALLERS_LIMIT, REFERENCE_SITES_PER_FILE_LIMIT } from "../../src/tools/navigation-limits.js";
+import {
+  CALLERS_LIMIT,
+  REFERENCE_SITES_PER_FILE_LIMIT,
+} from "../../src/tools/navigation-limits.js";
 import { WINDOWS_AMD64 } from "../helpers/fake-go.js";
 import { uriOf } from "../helpers/fake-lsp.js";
 import {
@@ -73,12 +76,18 @@ function anonymousItem(path: string, line: number): unknown {
 function incoming(from: unknown, sites: Array<{ line: number; character: number }>): unknown {
   return {
     from,
-    fromRanges: sites.map((start) => ({ start, end: { line: start.line, character: start.character + 3 } })),
+    fromRanges: sites.map((start) => ({
+      start,
+      end: { line: start.line, character: start.character + 3 },
+    })),
   };
 }
 
 function callSites(count: number, firstLine = 43): Array<{ line: number; character: number }> {
-  return Array.from({ length: count }, (_unused, index) => ({ line: firstLine + index, character: 11 }));
+  return Array.from({ length: count }, (_unused, index) => ({
+    line: firstLine + index,
+    character: 11,
+  }));
 }
 
 /** A gopls whose outlines and call-hierarchy answers the test supplies, rooted at a real temp module. */
@@ -97,11 +106,18 @@ function harness(options: HarnessOptions = {}): Harness {
     incoming: (calls) => core.query.answer(INCOMING_METHOD, calls),
     failNextPrepare: () => core.query.crashNext(PREPARE_METHOD),
     hangIncomingCalls: () => core.query.hang(INCOMING_METHOD),
-    refuseCallHierarchy: (message) => CALL_METHODS.forEach((method) => core.query.refuse(method, message)),
+    refuseCallHierarchy: (message) =>
+      CALL_METHODS.forEach((method) => core.query.refuse(method, message)),
     run: (overrides) =>
       runGoFindCallers(
         core.manager,
-        { sourceRoots: [core.mod], file: core.file, symbol: "(*Store).Get", timeBudgetMs: 60_000, ...overrides },
+        {
+          sourceRoots: [core.mod],
+          file: core.file,
+          symbol: "(*Store).Get",
+          timeBudgetMs: 60_000,
+          ...overrides,
+        },
         { exec: core.go.exec },
       ),
   };
@@ -208,9 +224,21 @@ describe("runGoFindCallers", () => {
     expect(names(out)).toEqual(["(*Store).Flush", "(*Store).Read"]);
     expect(payload(out).totalCallers).toBe(2);
     const [named, nameless] = callersOf(out);
-    expect(named).toMatchObject({ name: "(*Store).Read", kind: "method", file: h.file, line: 41, external: false });
+    expect(named).toMatchObject({
+      name: "(*Store).Read",
+      kind: "method",
+      file: h.file,
+      line: 41,
+      external: false,
+    });
     expect(named).not.toHaveProperty("reason");
-    expect(nameless).toMatchObject({ name: "(*Store).Flush", kind: "method", file: h.file, line: 51, external: false });
+    expect(nameless).toMatchObject({
+      name: "(*Store).Flush",
+      kind: "method",
+      file: h.file,
+      line: 51,
+      external: false,
+    });
     expect(nameless).not.toHaveProperty("reason");
     // Both callers are in the queried file, whose outline is already in hand: no extra read.
     expect(countOf(h.server, "textDocument/documentSymbol")).toBe(2);
@@ -257,7 +285,10 @@ describe("runGoFindCallers", () => {
     const row = callersOf(out).find((one) => one.name === "Serve");
     expect(row).toMatchObject({
       kind: "function",
-      callSites: [{ line: 44, column: 12 }, { line: 51, column: 5 }],
+      callSites: [
+        { line: 44, column: 12 },
+        { line: 51, column: 5 },
+      ],
       callSitesTruncated: 0,
     });
     // Two callers, one file: one transient read serves both rows.
@@ -268,10 +299,15 @@ describe("runGoFindCallers", () => {
     const h = harness();
     const pg = join(h.mod, "pg.go");
     h.outline(pg, [symbol("Serve", 12, 39, 70), symbol("Warm", 12, 100, 110)]);
-    const noisy = incoming(item(pg, "Serve", 12, 39), callSites(REFERENCE_SITES_PER_FILE_LIMIT + 5));
+    const noisy = incoming(
+      item(pg, "Serve", 12, 39),
+      callSites(REFERENCE_SITES_PER_FILE_LIMIT + 5),
+    );
     const inModule = [noisy, incoming(item(pg, "Warm", 12, 100), [{ line: 104, character: 2 }])];
     const external = Array.from({ length: CALLERS_LIMIT + 1 }, (_unused, index) =>
-      incoming(item(join(h.tmp, "outside", `f${index}.go`), "Handle", 12, 5), [{ line: 9, character: 1 }]),
+      incoming(item(join(h.tmp, "outside", `f${index}.go`), "Handle", 12, 5), [
+        { line: 9, character: 1 },
+      ]),
     );
     h.prepared([item(h.file, "(*Store).Get", 6, 21, 1)]);
     h.incoming([...inModule, ...external]);
@@ -283,15 +319,27 @@ describe("runGoFindCallers", () => {
     expect(rows).toHaveLength(CALLERS_LIMIT);
     expect(payload(out).callersTruncated).toBe(3);
     // The exact per-caller count survives the site cap, which narrows only what is listed.
-    expect(rows[0]).toMatchObject({ name: "Serve", kind: "function", external: false, callSitesTruncated: 5 });
+    expect(rows[0]).toMatchObject({
+      name: "Serve",
+      kind: "function",
+      external: false,
+      callSitesTruncated: 5,
+    });
     expect(rows[0]?.callSites as unknown[]).toHaveLength(REFERENCE_SITES_PER_FILE_LIMIT);
     expect(rows.filter((row) => !row.external)).toHaveLength(2);
     // Both in-module rows are still listed — but they were reported first here, so this case proves
     // nothing about which side of the cap a drop falls on. The ordering case below owns that claim.
-    expect(callersOf(out).slice(0, 2).map((row) => String(row.name)).sort()).toEqual(["Serve", "Warm"]);
+    expect(
+      callersOf(out)
+        .slice(0, 2)
+        .map((row) => String(row.name))
+        .sort(),
+    ).toEqual(["Serve", "Warm"]);
     expect(limitsOf(out)).toContain("listing-capped");
     // The summary tells listed apart from found, which is only visible once a cap has bitten.
-    expect(textOf(out)).toContain(`${CALLERS_LIMIT} caller(s) listed from ${CALLERS_LIMIT + 3} found`);
+    expect(textOf(out)).toContain(
+      `${CALLERS_LIMIT} caller(s) listed from ${CALLERS_LIMIT + 3} found`,
+    );
     // The fan-out stopped at the rows that survived the cap: one read for pg.go, and none for any of the
     // 38 external rows that were listed.
     expect(countOf(h.server, "textDocument/documentSymbol")).toBe(3);
@@ -302,10 +350,15 @@ describe("runGoFindCallers", () => {
     const pg = join(h.mod, "pg.go");
     h.outline(pg, [symbol("Serve", 12, 39, 45)]);
     const externalFirst = Array.from({ length: CALLERS_LIMIT + 2 }, (_unused, index) =>
-      incoming(item(join(h.tmp, "outside", `f${index}.go`), "Handle", 12, 5), [{ line: 9, character: 1 }]),
+      incoming(item(join(h.tmp, "outside", `f${index}.go`), "Handle", 12, 5), [
+        { line: 9, character: 1 },
+      ]),
     );
     h.prepared([item(h.file, "(*Store).Get", 6, 21, 1)]);
-    h.incoming([...externalFirst, incoming(item(pg, "Serve", 12, 39), [{ line: 43, character: 11 }])]);
+    h.incoming([
+      ...externalFirst,
+      incoming(item(pg, "Serve", 12, 39), [{ line: 43, character: 11 }]),
+    ]);
     await h.ready();
 
     const out = await h.run();
@@ -317,7 +370,9 @@ describe("runGoFindCallers", () => {
     expect(rows.filter((row) => !row.external)).toHaveLength(1);
     expect(rows.slice(1).every((row) => row.external)).toBe(true);
     expect(payload(out).callersTruncated).toBe(3);
-    expect(textOf(out)).toContain(`${CALLERS_LIMIT} caller(s) listed from ${CALLERS_LIMIT + 3} found`);
+    expect(textOf(out)).toContain(
+      `${CALLERS_LIMIT} caller(s) listed from ${CALLERS_LIMIT + 3} found`,
+    );
   });
 
   it("carries listing-capped when only the per-caller site cap bites, with totalCallers exact", async () => {
@@ -453,7 +508,12 @@ describe("runGoFindCallers", () => {
     h.prepared([item(h.file, "(*Store[K, V]).Get", 6, 30, 1)]);
     await h.ready();
 
-    for (const spelling of ["Store.Get", "(*Store).Get", "(*Store[K, V]).Get", "(s *Store[K,V]).Get"]) {
+    for (const spelling of [
+      "Store.Get",
+      "(*Store).Get",
+      "(*Store[K, V]).Get",
+      "(s *Store[K,V]).Get",
+    ]) {
       const out = await h.run({ symbol: spelling });
       expect(out.isError, `${spelling}: ${textOf(out)}`).toBeFalsy();
       expect(payload(out).resolved).toMatchObject({ name: "(*Store[K, V]).Get", kind: "method" });
@@ -504,48 +564,57 @@ describe("runGoFindCallers", () => {
     ["a variable", 13],
     ["a constant", 14],
     ["a field", 8],
-  ])("refuses %s, naming the kind with the right article", async (article: string, kind: number) => {
-    const h = harness();
-    h.outline(h.file, [symbol("Decl", kind, 8)]);
-    await h.ready();
+  ])(
+    "refuses %s, naming the kind with the right article",
+    async (article: string, kind: number) => {
+      const h = harness();
+      h.outline(h.file, [symbol("Decl", kind, 8)]);
+      await h.ready();
 
-    const out = await h.run({ symbol: "Decl" });
-    expect(out.isError).toBe(true);
-    expect(textOf(out)).toContain(`is ${article}`);
-    expect(textOf(out)).toMatch(/only a function or a method has callers/);
-    expect(textOf(out)).toContain("go_find_references");
-    expect(h.server.methods).not.toContain("textDocument/prepareCallHierarchy");
-  });
+      const out = await h.run({ symbol: "Decl" });
+      expect(out.isError).toBe(true);
+      expect(textOf(out)).toContain(`is ${article}`);
+      expect(textOf(out)).toMatch(/only a function or a method has callers/);
+      expect(textOf(out)).toContain("go_find_references");
+      expect(h.server.methods).not.toContain("textDocument/prepareCallHierarchy");
+    },
+  );
 
   it.each([
     ["function", 12],
     ["method", 6],
-  ])("lets a %s through the kind gate and on to the server", async (_kindName: string, kind: number) => {
-    const h = harness();
-    h.outline(h.file, [symbol("Do", kind, 8)]);
-    h.prepared([]);
-    await h.ready();
+  ])(
+    "lets a %s through the kind gate and on to the server",
+    async (_kindName: string, kind: number) => {
+      const h = harness();
+      h.outline(h.file, [symbol("Do", kind, 8)]);
+      h.prepared([]);
+      await h.ready();
 
-    const out = await h.run({ symbol: "Do" });
-    expect(textOf(out)).not.toMatch(/only a function or a method has callers/);
-    expect(textOf(out)).toMatch(/no call-hierarchy item/);
-    expect(h.server.methods).toContain("textDocument/prepareCallHierarchy");
-  });
+      const out = await h.run({ symbol: "Do" });
+      expect(textOf(out)).not.toMatch(/only a function or a method has callers/);
+      expect(textOf(out)).toMatch(/no call-hierarchy item/);
+      expect(h.server.methods).toContain("textDocument/prepareCallHierarchy");
+    },
+  );
 
   it.each([
     ["an empty list", []],
     ["null", null],
-  ])("refuses when prepareCallHierarchy answers %s, and will not substitute references", async (_name: string, answer: unknown) => {
-    const h = harness();
-    h.prepared(answer as unknown[]);
-    await h.ready();
+  ])(
+    "refuses when prepareCallHierarchy answers %s, and will not substitute references",
+    async (_name: string, answer: unknown) => {
+      const h = harness();
+      h.prepared(answer as unknown[]);
+      await h.ready();
 
-    const out = await h.run();
-    expect(out.isError).toBe(true);
-    expect(textOf(out)).toMatch(/no call-hierarchy item/);
-    expect(textOf(out)).toMatch(/a mention is not a call/);
-    expect(h.server.methods).not.toContain("callHierarchy/incomingCalls");
-  });
+      const out = await h.run();
+      expect(out.isError).toBe(true);
+      expect(textOf(out)).toMatch(/no call-hierarchy item/);
+      expect(textOf(out)).toMatch(/a mention is not a call/);
+      expect(h.server.methods).not.toContain("callHierarchy/incomingCalls");
+    },
+  );
 
   it("lists every item when prepareCallHierarchy offers several, and never picks one", async () => {
     const h = harness();
@@ -712,7 +781,7 @@ describe("runGoFindCallers", () => {
   it("keeps the tried spellings of a relative file when the prelude throws on the way to an answer", async () => {
     const h = harness({
       spawn: () => {
-        throw new Error("Cannot start gopls: \"gopls\" on PATH was not found");
+        throw new Error('Cannot start gopls: "gopls" on PATH was not found');
       },
     });
 

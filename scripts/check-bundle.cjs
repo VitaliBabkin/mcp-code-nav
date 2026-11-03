@@ -1,15 +1,18 @@
 // Node-only stdio handshake: starts the given server file, lists its tools, exits non-zero on any failure.
-// Usage: node scripts/check-bundle.cjs <path-to-server.js>
+// Usage: node scripts/check-bundle.cjs <path-to-server.js> [expected-server-version]
 const { spawn } = require("node:child_process");
 
 const TIMEOUT_MS = 30000;
 
 const target = process.argv[2];
 if (!target) {
-  console.error("usage: node scripts/check-bundle.cjs <path-to-server.js>");
+  console.error(
+    "usage: node scripts/check-bundle.cjs <path-to-server.js> [expected-server-version]",
+  );
   process.exit(2);
 }
 
+const expectedVersion = process.argv[3];
 const server = spawn(process.execPath, [target], { stdio: ["pipe", "pipe", "inherit"] });
 const send = (message) => server.stdin.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n");
 const fail = (reason) => {
@@ -36,6 +39,11 @@ server.stdout.on("data", (chunk) => {
     const reply = JSON.parse(line);
     if (reply.id === 1) {
       console.log("server:", reply.result.serverInfo.name, reply.result.serverInfo.version);
+      if (expectedVersion !== undefined && reply.result.serverInfo.version !== expectedVersion) {
+        done = true;
+        fail(`the server reports ${reply.result.serverInfo.version}, expected ${expectedVersion}`);
+        return;
+      }
       send({ method: "notifications/initialized" });
       send({ id: 2, method: "tools/list" });
     } else if (reply.id === 2) {
@@ -54,5 +62,9 @@ server.stdout.on("data", (chunk) => {
 send({
   id: 1,
   method: "initialize",
-  params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "check", version: "0" } },
+  params: {
+    protocolVersion: "2025-03-26",
+    capabilities: {},
+    clientInfo: { name: "check", version: "0" },
+  },
 });

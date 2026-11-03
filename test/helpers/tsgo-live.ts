@@ -3,9 +3,18 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { it } from "vitest";
-import { createMessageConnection, StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
+import {
+  createMessageConnection,
+  StreamMessageReader,
+  StreamMessageWriter,
+} from "vscode-jsonrpc/node";
 import { fileStamp } from "../../src/lsp/file-stamp.js";
-import { attachLifecycleHandlers, type LspConnection, type LspProcess, type SpawnLsp } from "../../src/lsp/process.js";
+import {
+  attachLifecycleHandlers,
+  type LspConnection,
+  type LspProcess,
+  type SpawnLsp,
+} from "../../src/lsp/process.js";
 import { resolveTsgoBinary, defaultTsExec, type TsgoBinary } from "../../src/tsgo/binary.js";
 import type { LanguageServerConfig, SpawnAttempt } from "../../src/lsp/server-config.js";
 
@@ -32,7 +41,8 @@ export const itIfTsgoAvailable = tsgoAvailable ? it : it.skip;
 
 /** The server to measure against, for a case that only runs under `itIfTsgoAvailable`. */
 export function requireTsgo(): TsgoBinary {
-  if (tsgoBinary === undefined) throw new Error(`no TypeScript 7 native server on this host: ${tsgoMiss}`);
+  if (tsgoBinary === undefined)
+    throw new Error(`no TypeScript 7 native server on this host: ${tsgoMiss}`);
   return tsgoBinary;
 }
 
@@ -49,8 +59,12 @@ export function recordEvidence(directory: string, name: string, answer: unknown)
   if (!process.env.MCP_CODE_NAV_LIVE_EVIDENCE) return;
   const target = join(dirname(fileURLToPath(import.meta.url)), "..", "..", ".work", directory);
   mkdirSync(target, { recursive: true });
-  writeFileSync(join(target, `${name}.json`), `${JSON.stringify(answer, null, 2)}
-`, "utf-8");
+  writeFileSync(
+    join(target, `${name}.json`),
+    `${JSON.stringify(answer, null, 2)}
+`,
+    "utf-8",
+  );
 }
 
 export interface LiveResult {
@@ -157,8 +171,12 @@ export function tsgoProcessLog(): TsgoProcessLog {
 }
 
 function openedDocument(params: unknown): OpenedDocument {
-  const doc = (params as { textDocument?: { uri?: string; languageId?: string } })?.textDocument ?? {};
-  return { file: doc.uri === undefined ? "" : fileURLToPath(doc.uri), languageId: doc.languageId ?? "" };
+  const doc =
+    (params as { textDocument?: { uri?: string; languageId?: string } })?.textDocument ?? {};
+  return {
+    file: doc.uri === undefined ? "" : fileURLToPath(doc.uri),
+    languageId: doc.languageId ?? "",
+  };
 }
 
 /** One row of the machine's process table, as far as the gate needs it. */
@@ -183,10 +201,14 @@ function windowsChildren(pid: number): ProcessInfo[] {
   const script =
     `Get-CimInstance -ClassName Win32_Process -Filter "ParentProcessId=${pid}" | ` +
     "Select-Object -Property ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress";
-  const printed = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
-    encoding: "utf-8",
-    maxBuffer: 16 * 1024 * 1024,
-  });
+  const printed = execFileSync(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", script],
+    {
+      encoding: "utf-8",
+      maxBuffer: 16 * 1024 * 1024,
+    },
+  );
   if (printed.trim() === "") return [];
   const parsed: unknown = JSON.parse(printed);
   const rows = (Array.isArray(parsed) ? parsed : [parsed]) as Record<string, unknown>[];
@@ -208,7 +230,12 @@ function posixChildren(pid: number): ProcessInfo[] {
   for (const line of printed.split(/\r?\n/)) {
     const fields = /^\s*(\d+)\s+(\d+)\s+(\S+)\s*(.*)$/.exec(line);
     if (fields === null || Number(fields[2]) !== pid) continue;
-    rows.push({ pid: Number(fields[1]), parentPid: pid, name: fields[3], commandLine: fields[4] ?? "" });
+    rows.push({
+      pid: Number(fields[1]),
+      parentPid: pid,
+      name: fields[3],
+      commandLine: fields[4] ?? "",
+    });
   }
   return rows;
 }
@@ -236,7 +263,9 @@ export function isAcquisitionProcess(row: ProcessInfo): boolean {
 
 /** How a descendant list reads in a report: name, pid and a clipped command line, one per line. */
 export function describeProcesses(rows: readonly ProcessInfo[]): string[] {
-  return rows.map((row) => `${row.name} pid=${row.pid} parent=${row.parentPid} ${row.commandLine.slice(0, 120)}`);
+  return rows.map(
+    (row) => `${row.name} pid=${row.pid} parent=${row.parentPid} ${row.commandLine.slice(0, 120)}`,
+  );
 }
 
 /**
@@ -253,7 +282,11 @@ export async function withKnownChild<T>(probe: (pid: number) => Promise<T>): Pro
 }
 
 /** The files under `dir` a tsgo answer would cover, bounded so a stray huge tree cannot hang a gate. */
-export function firstSourceUnder(dir: string, extensions: readonly string[], limit = 200): string | undefined {
+export function firstSourceUnder(
+  dir: string,
+  extensions: readonly string[],
+  limit = 200,
+): string | undefined {
   const queue = [dir];
   let seen = 0;
   while (queue.length > 0 && seen < limit) {
@@ -294,9 +327,16 @@ export interface ListingResult {
 }
 
 /** `tsc --listFilesOnly -p <config>`: the compiler's own answer about which files a project reads. */
-export async function listFilesOnly(binary: TsgoBinary, configPath: string): Promise<ListingResult> {
+export async function listFilesOnly(
+  binary: TsgoBinary,
+  configPath: string,
+): Promise<ListingResult> {
   const started = Date.now();
-  const result = await defaultTsExec(binary.executable, ["--listFilesOnly", "-p", configPath], dirname(configPath));
+  const result = await defaultTsExec(
+    binary.executable,
+    ["--listFilesOnly", "-p", configPath],
+    dirname(configPath),
+  );
   const lines = `${result.stdout}`.split(/\r?\n/).filter((line) => line.trim() !== "");
   return {
     exitCode: result.exitCode,

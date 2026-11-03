@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import setup from "./live-setup.js";
 
 const MISSING = join(process.cwd(), "no-such-gopls-binary");
-const saved = { gopls: process.env.MCP_CODE_NAV_GOPLS, require: process.env.MCP_CODE_NAV_LIVE_REQUIRE };
+const saved = {
+  gopls: process.env.MCP_CODE_NAV_GOPLS,
+  require: process.env.MCP_CODE_NAV_LIVE_REQUIRE,
+};
 
 function restore(name: string, value: string | undefined): void {
   if (value === undefined) delete process.env[name];

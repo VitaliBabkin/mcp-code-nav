@@ -43,15 +43,24 @@ describe("the two C++ walks agree about what a compile database leaves uncovered
     sourceDir = join(tmp, "src");
     mkdirSync(buildDir, { recursive: true });
     mkdirSync(sourceDir, { recursive: true });
-    writeFileSync(join(sourceDir, "widget.cpp"), '#include "widget.h"\n\nint Widget::value() {\n  return 1;\n}\n');
-    writeFileSync(join(sourceDir, "widget.h"), "#pragma once\n\nclass Widget {\npublic:\n  int value();\n};\n");
+    writeFileSync(
+      join(sourceDir, "widget.cpp"),
+      '#include "widget.h"\n\nint Widget::value() {\n  return 1;\n}\n',
+    );
+    writeFileSync(
+      join(sourceDir, "widget.h"),
+      "#pragma once\n\nclass Widget {\npublic:\n  int value();\n};\n",
+    );
     // The blind spot: a source the build never named. It is the only thing the pair may list.
     writeFileSync(join(sourceDir, "orphan.cpp"), "int orphan() { return 0; }\n");
     writeFileSync(join(sourceDir, "notes.md"), "# not a source\n");
     mkdirSync(join(sourceDir, "sub"), { recursive: true });
     writeFileSync(join(sourceDir, "sub", "nested.cpp"), "int nested() { return 0; }\n");
     mkdirSync(join(sourceDir, ".cache", "clangd", "index"), { recursive: true });
-    writeFileSync(join(sourceDir, ".cache", "clangd", "index", "widget.cpp.AAAAAAAA.idx"), "shards");
+    writeFileSync(
+      join(sourceDir, ".cache", "clangd", "index", "widget.cpp.AAAAAAAA.idx"),
+      "shards",
+    );
     writeFileSync(
       join(buildDir, "compile_commands.json"),
       JSON.stringify([
@@ -101,7 +110,9 @@ describe("the two C++ walks agree about what a compile database leaves uncovered
     const drift = fromDriftWalk([sourceDir]);
 
     expect(drift).toEqual(fromFingerprintWalk([sourceDir]));
-    expect(drift).toEqual({ uncoveredSources: { count: 1, files: [join(sourceDir, "orphan.cpp")] } });
+    expect(drift).toEqual({
+      uncoveredSources: { count: 1, files: [join(sourceDir, "orphan.cpp")] },
+    });
   });
 
   it("keeps a header out of both, because a header is essentially never a database entry", () => {
@@ -159,7 +170,10 @@ describe("the two C++ walks agree about what a compile database leaves uncovered
       indirectDispatch: false,
     });
 
-    expect(cppNavigationLimits(facts(false))).toEqual(["compile-database-only", "uncovered-sources-present"]);
+    expect(cppNavigationLimits(facts(false))).toEqual([
+      "compile-database-only",
+      "uncovered-sources-present",
+    ]);
     expect(cppNavigationLimits(facts(true))).toEqual([
       "compile-database-only",
       "uncovered-sources-present",
@@ -180,6 +194,9 @@ describe("the two C++ walks agree about what a compile database leaves uncovered
     if (!("staleFiles" in stale)) throw new Error("a stale verdict must carry staleFiles");
     expect(stale.staleFiles.count).toBe(25);
     expect(stale.staleFiles.files).toHaveLength(20);
-    expect(unknown).toEqual({ state: "building", driftUnknown: "this is the first index-backed answer" });
+    expect(unknown).toEqual({
+      state: "building",
+      driftUnknown: "this is the first index-backed answer",
+    });
   });
 });

@@ -29,7 +29,9 @@ describe("listTranslationUnits", () => {
       ]),
     );
     const tus = listTranslationUnits(projectRoot);
-    expect(tus.sort()).toEqual([resolve(projectRoot, "a.cpp"), resolve(projectRoot, "b.cpp")].sort());
+    expect(tus.sort()).toEqual(
+      [resolve(projectRoot, "a.cpp"), resolve(projectRoot, "b.cpp")].sort(),
+    );
   });
 
   it("throws on malformed JSON", () => {

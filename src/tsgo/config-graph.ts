@@ -61,7 +61,7 @@ const defaultDeps: ConfigGraphDeps = {
     try {
       const parsed: unknown = parse(readFileSync(path, "utf-8"));
       return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-        ? (parsed as ConfigManifest)
+        ? parsed
         : undefined;
     } catch {
       return undefined;
@@ -87,7 +87,9 @@ function referenceSpecs(manifest: ConfigManifest): string[] {
   const value = manifest.references;
   if (!Array.isArray(value)) return [];
   return value
-    .map((item) => (typeof item === "object" && item !== null ? (item as { path?: unknown }).path : undefined))
+    .map((item) =>
+      typeof item === "object" && item !== null ? (item as { path?: unknown }).path : undefined,
+    )
     .filter((path): path is string => typeof path === "string" && path !== "");
 }
 
@@ -105,7 +107,8 @@ function asConfigFile(path: string, deps: ConfigGraphDeps): string | undefined {
   }
   if (kind === "file") return path;
   // `./configs/app` names `./configs/app.json`; the extension is added only when nothing is there without it.
-  if (extname(path) === "") return deps.kindOf(`${path}.json`) === "file" ? `${path}.json` : undefined;
+  if (extname(path) === "")
+    return deps.kindOf(`${path}.json`) === "file" ? `${path}.json` : undefined;
   return undefined;
 }
 
@@ -124,11 +127,20 @@ type Spec = { readonly path: string } | { readonly outside: true } | { readonly 
  * stops at the workspace boundary instead of stat'ing above it: a copy outside the declared roots is not this
  * server's to look for, so a specifier with no hit inside answers as nothing.
  */
-function resolveSpecifier(fromConfig: string, spec: string, root: string, deps: ConfigGraphDeps): Spec {
+function resolveSpecifier(
+  fromConfig: string,
+  spec: string,
+  root: string,
+  deps: ConfigGraphDeps,
+): Spec {
   let directory = dirname(fromConfig);
   for (;;) {
     const modules = join(directory, "node_modules");
-    for (const candidate of [join(modules, spec), `${join(modules, spec)}.json`, join(modules, spec, "tsconfig.json")]) {
+    for (const candidate of [
+      join(modules, spec),
+      `${join(modules, spec)}.json`,
+      join(modules, spec, "tsconfig.json"),
+    ]) {
       if (!withinRoot(candidate, root)) continue;
       const found = asConfigFile(candidate, deps);
       if (found !== undefined && deps.kindOf(found) === "file") return { path: found };
@@ -146,7 +158,8 @@ function resolveSpecifier(fromConfig: string, spec: string, root: string, deps: 
  * which one it was would be reading outside the roots this server was given.
  */
 function resolveSpec(fromConfig: string, spec: string, root: string, deps: ConfigGraphDeps): Spec {
-  if (!(spec.startsWith(".") || isAbsolute(spec))) return resolveSpecifier(fromConfig, spec, root, deps);
+  if (!(spec.startsWith(".") || isAbsolute(spec)))
+    return resolveSpecifier(fromConfig, spec, root, deps);
   return resolvePathSpec(fromConfig, spec, root, deps);
 }
 
@@ -157,7 +170,12 @@ function resolveSpec(fromConfig: string, spec: string, root: string, deps: Confi
  * `node_modules`, and sending it through the specifier rule made valid references unresolvable and the
  * snapshot built from them unprovable.
  */
-function resolvePathSpec(fromConfig: string, spec: string, root: string, deps: ConfigGraphDeps): Spec {
+function resolvePathSpec(
+  fromConfig: string,
+  spec: string,
+  root: string,
+  deps: ConfigGraphDeps,
+): Spec {
   const syntactic = resolveRelative(fromConfig, spec);
   if (!withinRoot(syntactic, root)) return { outside: true };
   const found = asConfigFile(syntactic, deps);
@@ -166,7 +184,12 @@ function resolvePathSpec(fromConfig: string, spec: string, root: string, deps: C
 }
 
 /** A `references` target: always the declaring config's own directory to resolve from, never a specifier. */
-function resolveReference(fromConfig: string, spec: string, root: string, deps: ConfigGraphDeps): Spec {
+function resolveReference(
+  fromConfig: string,
+  spec: string,
+  root: string,
+  deps: ConfigGraphDeps,
+): Spec {
   return resolvePathSpec(fromConfig, spec, root, deps);
 }
 
@@ -246,7 +269,9 @@ function visit(state: GraphState, config: string): void {
   if (state.queued.has(config)) return;
   state.queued.add(config);
   if (state.closure.size >= CLOSURE_LIMIT) {
-    state.unresolved.push(`the config closure under "${state.root}" exceeds ${CLOSURE_LIMIT} files`);
+    state.unresolved.push(
+      `the config closure under "${state.root}" exceeds ${String(CLOSURE_LIMIT)} files`,
+    );
     return;
   }
   state.closure.add(config);
@@ -267,7 +292,11 @@ function visit(state: GraphState, config: string): void {
  * whether or not it is itself a project. A spec that resolves to nothing, or to a path outside `root`, is
  * collected as unresolved: the caller cannot prove a closure it cannot finish.
  */
-export function readConfigGraph(seeds: readonly string[], root: string, deps: Partial<ConfigGraphDeps> = {}): ConfigGraph {
+export function readConfigGraph(
+  seeds: readonly string[],
+  root: string,
+  deps: Partial<ConfigGraphDeps> = {},
+): ConfigGraph {
   const state: GraphState = {
     root,
     deps: { ...defaultDeps, ...deps },
@@ -282,5 +311,12 @@ export function readConfigGraph(seeds: readonly string[], root: string, deps: Pa
   };
   for (const seed of seeds) visit(state, resolve(seed));
   const { projects, referenceOrder, referencesOf, unreadable, unresolved } = state;
-  return { projects, closure: [...state.closure], referenceOrder, referencesOf, unreadable, unresolved };
+  return {
+    projects,
+    closure: [...state.closure],
+    referenceOrder,
+    referencesOf,
+    unreadable,
+    unresolved,
+  };
 }

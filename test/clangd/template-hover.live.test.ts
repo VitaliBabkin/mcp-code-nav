@@ -94,7 +94,8 @@ interface HoverPayload {
   descriptionUnavailable?: string;
 }
 
-const textOf = (result: { content: readonly { text?: string }[] }): string => result.content[0]?.text ?? "";
+const textOf = (result: { content: readonly { text?: string }[] }): string =>
+  result.content[0]?.text ?? "";
 
 const payloadOf = (result: { structuredContent?: unknown; isError?: boolean }): HoverPayload => {
   expect(result.isError, textOf(result)).toBeFalsy();
@@ -117,8 +118,16 @@ describe("a template declaration's description against a real clangd binary", ()
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
       JSON.stringify([
-        { directory: projectRoot, command: "clang++ -std=c++17 -c use.cpp -o use.o", file: "use.cpp" },
-        { directory: projectRoot, command: "clang++ -std=c++17 -fsyntax-only holder.h", file: header },
+        {
+          directory: projectRoot,
+          command: "clang++ -std=c++17 -c use.cpp -o use.o",
+          file: "use.cpp",
+        },
+        {
+          directory: projectRoot,
+          command: "clang++ -std=c++17 -fsyntax-only holder.h",
+          file: header,
+        },
       ]),
     );
   });
@@ -150,7 +159,12 @@ describe("a template declaration's description against a real clangd binary", ()
   }
 
   /** clangd's answer at one position, exactly as it arrives. */
-  async function rawHover(session: LspSession, file: string, line: number, character: number): Promise<unknown> {
+  async function rawHover(
+    session: LspSession,
+    file: string,
+    line: number,
+    character: number,
+  ): Promise<unknown> {
     await session.documentSymbol(file);
     return session.request<unknown>("textDocument/hover", {
       textDocument: textDocumentId(file),
@@ -158,82 +172,123 @@ describe("a template declaration's description against a real clangd binary", ()
     });
   }
 
-  const asked = (name: string) => runCppFindSymbol(freshManager(), { projectRoot, name, file: "holder.h" } as never);
+  const asked = (name: string) =>
+    runCppFindSymbol(freshManager(), { projectRoot, name, file: "holder.h" } as never);
 
-  itIfClangd("carries the template header in the primary template's own rendering", async () => {
-    const found = payloadOf(await asked("Holder"));
+  itIfClangd(
+    "carries the template header in the primary template's own rendering",
+    async () => {
+      const found = payloadOf(await asked("Holder"));
 
-    expect(found).toMatchObject({ name: "gizmo::Holder", kind: "class", file: header, range: { startLine: 7 } });
-    // The prose is compared with line breaks collapsed on both sides: clangd 18 separates its parts with a hard break,
-    // later releases with a blank line.
-    // Verbatim, because the rendering is the answer: the parameter list is part of what clangd shows, and
-    // the prose keeps the size line only for a type whose layout is fixed — a primary template's is not.
-    expect(found.signature).toBe("// In namespace gizmo\ntemplate <class T> class Holder {}");
-    expect(collapseLineBreaks(found.documentation)).toBe(
-      collapseLineBreaks("### class `Holder`\n\n---\nHolds a value of the type it was given.\n\n---"),
-    );
-    expect(found.descriptionUnavailable).toBeUndefined();
-  }, 30_000);
+      expect(found).toMatchObject({
+        name: "gizmo::Holder",
+        kind: "class",
+        file: header,
+        range: { startLine: 7 },
+      });
+      // The prose is compared with line breaks collapsed on both sides: clangd 18 separates its parts with a hard break,
+      // later releases with a blank line.
+      // Verbatim, because the rendering is the answer: the parameter list is part of what clangd shows, and
+      // the prose keeps the size line only for a type whose layout is fixed — a primary template's is not.
+      expect(found.signature).toBe("// In namespace gizmo\ntemplate <class T> class Holder {}");
+      expect(collapseLineBreaks(found.documentation)).toBe(
+        collapseLineBreaks(
+          "### class `Holder`\n\n---\nHolds a value of the type it was given.\n\n---",
+        ),
+      );
+      expect(found.descriptionUnavailable).toBeUndefined();
+    },
+    30_000,
+  );
 
-  itIfClangd("describes a template's member as the member of the uninstantiated primary", async () => {
-    const found = payloadOf(await asked("Holder::value"));
+  itIfClangd(
+    "describes a template's member as the member of the uninstantiated primary",
+    async () => {
+      const found = payloadOf(await asked("Holder::value"));
 
-    expect(found).toMatchObject({
-      name: "gizmo::Holder::value",
-      kind: "method",
-      file: header,
-      range: { startLine: 10 },
-    });
-    // `// In Holder<T>` is clangd saying whose member this is while it is still unspecialised, and the
-    // return arrow is its rendering of the signature's result — the return type is the template parameter.
-    expect(found.signature).toBe("// In Holder<T>\npublic: T value() const");
-    expect(collapseLineBreaks(found.documentation)).toBe(
-      collapseLineBreaks("### instance-method `value`\n\n---\n→ `T`\n\nThe stored value.\n\n---"),
-    );
-    expect(found.descriptionUnavailable).toBeUndefined();
-  }, 30_000);
+      expect(found).toMatchObject({
+        name: "gizmo::Holder::value",
+        kind: "method",
+        file: header,
+        range: { startLine: 10 },
+      });
+      // `// In Holder<T>` is clangd saying whose member this is while it is still unspecialised, and the
+      // return arrow is its rendering of the signature's result — the return type is the template parameter.
+      expect(found.signature).toBe("// In Holder<T>\npublic: T value() const");
+      expect(collapseLineBreaks(found.documentation)).toBe(
+        collapseLineBreaks("### instance-method `value`\n\n---\n→ `T`\n\nThe stored value.\n\n---"),
+      );
+      expect(found.descriptionUnavailable).toBeUndefined();
+    },
+    30_000,
+  );
 
-  itIfClangd("keeps an explicit specialization a separate declaration, named with its argument list", async () => {
-    const found = payloadOf(await asked("Holder<int>"));
+  itIfClangd(
+    "keeps an explicit specialization a separate declaration, named with its argument list",
+    async () => {
+      const found = payloadOf(await asked("Holder<int>"));
 
-    // The outline entry begins on the `template <>` line, not the `class` line, so the range this server
-    // reports for a specialization starts one row earlier than a reader might expect — and the name keeps
-    // `<int>`, which is what distinguishes it from the primary at the same spelling.
-    expect(found).toMatchObject({ name: "gizmo::Holder<int>", kind: "class", file: header, range: { startLine: 16 } });
-    expect(found.signature).toBe("// In namespace gizmo\ntemplate <> class Holder<int> {}");
-    expect(collapseLineBreaks(found.documentation)).toBe(
-      collapseLineBreaks("### class `Holder<int>`\n\n---\nSize: 4 bytes, alignment 4 bytes\n\nThe integral case, rounded.\n\n---"),
-    );
-  }, 30_000);
+      // The outline entry begins on the `template <>` line, not the `class` line, so the range this server
+      // reports for a specialization starts one row earlier than a reader might expect — and the name keeps
+      // `<int>`, which is what distinguishes it from the primary at the same spelling.
+      expect(found).toMatchObject({
+        name: "gizmo::Holder<int>",
+        kind: "class",
+        file: header,
+        range: { startLine: 16 },
+      });
+      expect(found.signature).toBe("// In namespace gizmo\ntemplate <> class Holder<int> {}");
+      expect(collapseLineBreaks(found.documentation)).toBe(
+        collapseLineBreaks(
+          "### class `Holder<int>`\n\n---\nSize: 4 bytes, alignment 4 bytes\n\nThe integral case, rounded.\n\n---",
+        ),
+      );
+    },
+    30_000,
+  );
 
-  itIfClangd("describes a specialized member beside the primary's, and never conflates the two", async () => {
-    const specialized = payloadOf(await asked("Holder<int>::value"));
-    const primary = payloadOf(await asked("gizmo::Holder::value"));
+  itIfClangd(
+    "describes a specialized member beside the primary's, and never conflates the two",
+    async () => {
+      const specialized = payloadOf(await asked("Holder<int>::value"));
+      const primary = payloadOf(await asked("gizmo::Holder::value"));
 
-    expect(specialized).toMatchObject({ name: "gizmo::Holder<int>::value", kind: "method", range: { startLine: 19 } });
-    expect(specialized.signature).toBe("// In Holder<int>\npublic: int value() const");
-    // The specialization's member carries no doc comment, so the prose is clangd's own result line and
-    // nothing more: no invented documentation.
-    expect(collapseLineBreaks(specialized.documentation)).toBe(
-      collapseLineBreaks("### instance-method `value`\n\n---\n→ `int`\n\n---"),
-    );
-    expect(primary.name).toBe("gizmo::Holder::value");
-    expect(primary.signature).toBe("// In Holder<T>\npublic: T value() const");
-  }, 30_000);
+      expect(specialized).toMatchObject({
+        name: "gizmo::Holder<int>::value",
+        kind: "method",
+        range: { startLine: 19 },
+      });
+      expect(specialized.signature).toBe("// In Holder<int>\npublic: int value() const");
+      // The specialization's member carries no doc comment, so the prose is clangd's own result line and
+      // nothing more: no invented documentation.
+      expect(collapseLineBreaks(specialized.documentation)).toBe(
+        collapseLineBreaks("### instance-method `value`\n\n---\n→ `int`\n\n---"),
+      );
+      expect(primary.name).toBe("gizmo::Holder::value");
+      expect(primary.signature).toBe("// In Holder<T>\npublic: T value() const");
+    },
+    30_000,
+  );
 
-  itIfClangd("answers a call on an instantiation with the substituted member it reached", async () => {
-    const session = bareSession();
-    const answer = (await rawHover(session, source, 7, 12)) as { contents: { kind: string; value: string } };
+  itIfClangd(
+    "answers a call on an instantiation with the substituted member it reached",
+    async () => {
+      const session = bareSession();
+      const answer = (await rawHover(session, source, 7, 12)) as {
+        contents: { kind: string; value: string };
+      };
 
-    // At `h.value()` where `h` is `Holder<int> &`, clangd names the primary's member, reports where it came
-    // from, and renders it substituted to `int`. This is the description of a call site, not of a
-    // declaration — which is why `cpp_find_symbol` asks at a declaration's own identifier instead.
-    expect(answer.contents.kind).toBe("markdown");
-    expect(collapseLineBreaks(answer.contents.value)).toBe(
-      collapseLineBreaks(
-        "### instance-method `value`\n\nprovided by `\"holder.h\"`\n\n---\n→ `int`\n\n---\n" +
-          "```cpp\n// In Holder<int>\npublic: int value() const\n```",
-      ),
-    );
-  }, 30_000);
+      // At `h.value()` where `h` is `Holder<int> &`, clangd names the primary's member, reports where it came
+      // from, and renders it substituted to `int`. This is the description of a call site, not of a
+      // declaration — which is why `cpp_find_symbol` asks at a declaration's own identifier instead.
+      expect(answer.contents.kind).toBe("markdown");
+      expect(collapseLineBreaks(answer.contents.value)).toBe(
+        collapseLineBreaks(
+          '### instance-method `value`\n\nprovided by `"holder.h"`\n\n---\n→ `int`\n\n---\n' +
+            "```cpp\n// In Holder<int>\npublic: int value() const\n```",
+        ),
+      );
+    },
+    30_000,
+  );
 });

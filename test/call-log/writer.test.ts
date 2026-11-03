@@ -116,7 +116,9 @@ function fakeFs(
       mkdirSync: (path) => void madeDirs.push(path),
       readdir: async (path) => {
         if (options.entries === undefined) {
-          throw Object.assign(new Error(`ENOENT: no such file or directory, scandir '${path}'`), { code: "ENOENT" });
+          throw Object.assign(new Error(`ENOENT: no such file or directory, scandir '${path}'`), {
+            code: "ENOENT",
+          });
         }
         return Object.keys(options.entries);
       },
@@ -171,7 +173,11 @@ describe("openCallLog", () => {
 
     expect(disk.appended.every((line) => line.endsWith("\n"))).toBe(true);
     expect(parsed(disk.appended).map((line) => line.type)).toEqual(["run", "call", "call"]);
-    expect(parsed(disk.appended).slice(1).map((line) => line.seq)).toEqual([1, 2]);
+    expect(
+      parsed(disk.appended)
+        .slice(1)
+        .map((line) => line.seq),
+    ).toEqual([1, 2]);
   });
 
   it("writes nothing at all when the switch is off", async () => {
@@ -206,7 +212,9 @@ describe("openCallLog", () => {
   });
 
   it("costs a write failure one line of stderr naming the path and the code", async () => {
-    const failure = Object.assign(new Error("EACCES: permission denied, open 'x'"), { code: "EACCES" });
+    const failure = Object.assign(new Error("EACCES: permission denied, open 'x'"), {
+      code: "EACCES",
+    });
     const disk = fakeFs({ rejectWith: failure });
     const stderr = vi.fn();
     const log = openCallLog({ kind: "on", dir: DIR }, { fs: disk.fs, stderr });
@@ -262,7 +270,9 @@ describe("openCallLog", () => {
     return settled(1).then(() => {
       log.close();
 
-      const onDisk = (disk.appended.join("") + disk.appendedSync.join("")).split("\n").filter((row) => row !== "");
+      const onDisk = (disk.appended.join("") + disk.appendedSync.join(""))
+        .split("\n")
+        .filter((row) => row !== "");
       expect(onDisk).toHaveLength(2);
       expect(() => JSON.parse(onDisk[0] ?? "")).toThrow();
       expect(onDisk[1]).toBe(whole.trimEnd());
@@ -356,7 +366,9 @@ describe("openCallLog", () => {
     await settled(12);
 
     expect(disk.appended).toHaveLength(9);
-    expect(stderr.mock.calls.map(([line]) => line)).toEqual([expect.stringContaining("8388608 bytes")]);
+    expect(stderr.mock.calls.map(([line]) => line)).toEqual([
+      expect.stringContaining("8388608 bytes"),
+    ]);
     expect(String(stderr.mock.calls[0]?.[0])).toContain(callsFile(disk.paths));
   });
 
@@ -379,7 +391,9 @@ describe("openCallLog", () => {
       dropped: 1,
     });
     expect(disk.appended).toHaveLength(3);
-    expect(stderr.mock.calls.map(([line]) => line)).toEqual([expect.stringContaining("8388608 bytes")]);
+    expect(stderr.mock.calls.map(([line]) => line)).toEqual([
+      expect.stringContaining("8388608 bytes"),
+    ]);
   });
 
   it("refuses a record outside the schema with one line and never writes it", async () => {
@@ -439,7 +453,9 @@ describe("startup pruning", () => {
   });
 
   it("leaves the directory alone when it is already under budget", async () => {
-    const disk = fakeFs({ entries: { [callsName("20260901T000000", 1)]: { size: 1024, ageMs: DAY } } });
+    const disk = fakeFs({
+      entries: { [callsName("20260901T000000", 1)]: { size: 1024, ageMs: DAY } },
+    });
     openCallLog({ kind: "on", dir: DIR }, { fs: disk.fs });
     await settled();
     expect(disk.removed).toEqual([]);

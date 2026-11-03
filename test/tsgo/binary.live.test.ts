@@ -1,7 +1,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { defaultTsExec, resolveTsgoBinary, withoutNpmPrefix, type TsgoBinary } from "../../src/tsgo/binary.js";
+import {
+  defaultTsExec,
+  resolveTsgoBinary,
+  withoutNpmPrefix,
+  type TsgoBinary,
+} from "../../src/tsgo/binary.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { runTsFileSymbols } from "../../src/tools/ts-file-symbols.js";
 import {
@@ -43,44 +48,65 @@ describe("resolveTsgoBinary against this host", () => {
   // A skipped tsgo suite reads as a pass. When the host does have a global TypeScript 7, the suite skipping means
   // the resolver missed it — as it did when a launcher's `npm --prefix` redirected `npm root -g` — so that is a
   // failure here rather than a silent skip everywhere else.
-  it("is not skipping the tsgo suites on a host that has a global typescript@7", async () => {
-    const root = (await defaultTsExec("npm", ["root", "-g"], process.cwd(), withoutNpmPrefix(process.env))).stdout.trim();
-    const manifestPath = join(root, "typescript", "package.json");
-    if (root === "" || !existsSync(manifestPath)) return;
-    const version: unknown = (JSON.parse(readFileSync(manifestPath, "utf-8")) as { version?: unknown }).version;
-    if (typeof version !== "string" || Number(version.split(".")[0]) < 7) return;
+  it(
+    "is not skipping the tsgo suites on a host that has a global typescript@7",
+    async () => {
+      const root = (
+        await defaultTsExec("npm", ["root", "-g"], process.cwd(), withoutNpmPrefix(process.env))
+      ).stdout.trim();
+      const manifestPath = join(root, "typescript", "package.json");
+      if (root === "" || !existsSync(manifestPath)) return;
+      const version: unknown = (
+        JSON.parse(readFileSync(manifestPath, "utf-8")) as { version?: unknown }
+      ).version;
+      if (typeof version !== "string" || Number(version.split(".")[0]) < 7) return;
 
-    expect(tsgoAvailable, `a global typescript@${version} is installed at ${root}, but: ${tsgoMiss}`).toBe(true);
-  }, CALL_BUDGET_MS);
+      expect(
+        tsgoAvailable,
+        `a global typescript@${version} is installed at ${root}, but: ${tsgoMiss}`,
+      ).toBe(true);
+    },
+    CALL_BUDGET_MS,
+  );
 
-  itIfTsgoAvailable("finds the global 7 native server by the installed-package rule, with no override set", async () => {
-    withoutOverride();
-    const started = Date.now();
-    const binary = requireLocated(await resolveTsgoBinary());
-    const ms = Date.now() - started;
+  itIfTsgoAvailable(
+    "finds the global 7 native server by the installed-package rule, with no override set",
+    async () => {
+      withoutOverride();
+      const started = Date.now();
+      const binary = requireLocated(await resolveTsgoBinary());
+      const ms = Date.now() - started;
 
-    expect(binary.source).toBe("global");
-    expect(isAbsolute(binary.executable)).toBe(true);
-    expect(existsSync(binary.executable)).toBe(true);
-    expect(binary.version.split(".")[0]).toBe("7");
-    // The one location cost every later TS call avoids by being cached for the process.
-    console.info(`located in ${ms} ms: ${binary.executable} version ${binary.version}`);
-  }, CALL_BUDGET_MS);
+      expect(binary.source).toBe("global");
+      expect(isAbsolute(binary.executable)).toBe(true);
+      expect(existsSync(binary.executable)).toBe(true);
+      expect(binary.version.split(".")[0]).toBe("7");
+      // The one location cost every later TS call avoids by being cached for the process.
+      console.info(`located in ${ms} ms: ${binary.executable} version ${binary.version}`);
+    },
+    CALL_BUDGET_MS,
+  );
 
-  itIfTsgoAvailable("the override wins over the global search, naming the executable it was given", async () => {
-    const located = requireTsgo();
-    process.env[OVERRIDE_NAME] = located.executable;
+  itIfTsgoAvailable(
+    "the override wins over the global search, naming the executable it was given",
+    async () => {
+      const located = requireTsgo();
+      process.env[OVERRIDE_NAME] = located.executable;
 
-    const binary = requireLocated(await resolveTsgoBinary());
+      const binary = requireLocated(await resolveTsgoBinary());
 
-    expect(binary.source).toBe("override");
-    expect(binary.executable).toBe(located.executable);
-    // The version a located executable states for itself, which is what `--version` and the package beside it
-    // are two ways of reading the same fact.
-    const stated = await defaultTsExec(located.executable, ["--version"], tsFixtureRoot);
-    console.info(`--version printed: ${JSON.stringify(stated.stdout.trim())} exit ${stated.exitCode}`);
-    expect(stated.stdout).toContain(binary.version);
-  }, CALL_BUDGET_MS);
+      expect(binary.source).toBe("override");
+      expect(binary.executable).toBe(located.executable);
+      // The version a located executable states for itself, which is what `--version` and the package beside it
+      // are two ways of reading the same fact.
+      const stated = await defaultTsExec(located.executable, ["--version"], tsFixtureRoot);
+      console.info(
+        `--version printed: ${JSON.stringify(stated.stdout.trim())} exit ${stated.exitCode}`,
+      );
+      expect(stated.stdout).toContain(binary.version);
+    },
+    CALL_BUDGET_MS,
+  );
 
   it("refuses an override that names no executable, in the sentence a failed spawn would have carried", async () => {
     const missing = join(tsFixtureRoot, "no-such-tsc.exe");
@@ -88,7 +114,8 @@ describe("resolveTsgoBinary against this host", () => {
 
     const located = await resolveTsgoBinary();
 
-    if (!("unavailable" in located)) throw new Error(`"${missing}" was located as ${JSON.stringify(located.binary)}`);
+    if (!("unavailable" in located))
+      throw new Error(`"${missing}" was located as ${JSON.stringify(located.binary)}`);
     expect(located.attempted).toBe(missing);
     expect(located.unavailable).toContain(`${OVERRIDE_NAME}="${missing}"`);
     expect(located.unavailable).toContain("was not found (ENOENT)");

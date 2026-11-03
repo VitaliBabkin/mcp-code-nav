@@ -12,7 +12,12 @@
 import { readdirSync, type Dirent } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileStamp } from "../lsp/file-stamp.js";
-import { diffSnapshots, pushFileChanges, type FileChangePush, type SnapshotDiff } from "../lsp/module-freshness.js";
+import {
+  diffSnapshots,
+  pushFileChanges,
+  type FileChangePush,
+  type SnapshotDiff,
+} from "../lsp/module-freshness.js";
 import { isCppSourceName, isCppTrackedName, isSkippedDirName } from "./cpp-sources.js";
 import { isEscapingRelative, pathKey } from "./path-containment.js";
 import { messageOf } from "../error-message.js";
@@ -124,7 +129,10 @@ function visitDir(state: SnapshotWalk, dir: string): void {
  * entered (because the outer walk skipped it by name) is reported, so a signal never claims a file was
  * looked at when it was not. (The fingerprint walk folds its roots the same way, for the same reason.)
  */
-function foldRoots(roots: readonly string[]): { readonly entered: string[]; readonly dropped: Map<string, string> } {
+function foldRoots(roots: readonly string[]): {
+  readonly entered: string[];
+  readonly dropped: Map<string, string>;
+} {
   const unique = new Map<string, string>();
   for (const root of roots) {
     const key = pathKey(root);
@@ -175,7 +183,9 @@ export function takeIndexSnapshot(
     incomplete: false,
   };
   for (const root of folded.entered) visitDir(state, root);
-  const unreachable = [...folded.dropped].filter(([key]) => !state.reached.has(key)).map(([, path]) => path);
+  const unreachable = [...folded.dropped]
+    .filter(([key]) => !state.reached.has(key))
+    .map(([, path]) => path);
   return {
     stamps: state.stamps,
     paths: state.paths,
@@ -239,7 +249,11 @@ function rootsKey(roots: readonly string[]): string {
 const quoted = (roots: readonly string[]): string => roots.map((root) => `"${root}"`).join(", ");
 
 /** The paths a diff names, in the spelling each look saw them in: a deleted file is only in the old one. */
-function namedPaths(diff: SnapshotDiff, current: IndexSnapshot, previous: IndexSnapshot): SnapshotDiff {
+function namedPaths(
+  diff: SnapshotDiff,
+  current: IndexSnapshot,
+  previous: IndexSnapshot,
+): SnapshotDiff {
   const shown = (map: Map<string, string>) => (key: string) => map.get(key) ?? key;
   return {
     created: diff.created.map(shown(current.paths)),

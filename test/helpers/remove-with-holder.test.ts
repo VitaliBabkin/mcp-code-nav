@@ -4,7 +4,9 @@ import { holdersOf, removeFileNamingHolder } from "./remove-with-holder.js";
 const OPTIONS = { maxRetries: 25, retryDelay: 200 };
 
 function eperm(): Error {
-  return Object.assign(new Error("EPERM: operation not permitted, rm 'D:\\mod\\disk.go'"), { code: "EPERM" });
+  return Object.assign(new Error("EPERM: operation not permitted, rm 'D:\\mod\\disk.go'"), {
+    code: "EPERM",
+  });
 }
 
 describe("removeFileNamingHolder", () => {
@@ -30,7 +32,9 @@ describe("removeFileNamingHolder", () => {
     );
 
     expect(thrown.message.split("\n")[0]).toBe(original.message);
-    expect(thrown.message).toContain('"D:\\mod\\disk.go" is held by: gopls.exe (pid 4242); gopls.exe (pid 4243)');
+    expect(thrown.message).toContain(
+      '"D:\\mod\\disk.go" is held by: gopls.exe (pid 4242); gopls.exe (pid 4243)',
+    );
     expect(thrown.cause).toBe(original);
   });
 
@@ -84,7 +88,9 @@ describe("the wrapped error", () => {
 
 describe("holdersOf", () => {
   const windowsOnly = process.platform === "win32" ? it : it.skip;
-  const answering = (stdout: string, stderr = "") => () => ({ stdout, stderr });
+  const answering =
+    (stdout: string, stderr = "") =>
+    () => ({ stdout, stderr });
 
   windowsOnly("reads the holders after the success sentinel, and an empty list as none", () => {
     expect(holdersOf("D:\\x", answering("OK:gopls.exe (pid 7)\r\n"))).toBe("gopls.exe (pid 7)");
@@ -93,7 +99,9 @@ describe("holdersOf", () => {
 
   windowsOnly("treats output without the sentinel as a failed lookup, never as no holder", () => {
     expect(() => holdersOf("D:\\x", answering("", "Add-Type : error CS0103"))).toThrow(/Add-Type/);
-    expect(() => holdersOf("D:\\x", answering("RmGetList failed: 5"))).toThrow(/RmGetList failed: 5/);
+    expect(() => holdersOf("D:\\x", answering("RmGetList failed: 5"))).toThrow(
+      /RmGetList failed: 5/,
+    );
   });
 });
 

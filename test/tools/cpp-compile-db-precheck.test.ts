@@ -13,7 +13,8 @@ import type { CppAddress } from "../../src/tools/cpp-navigation-shared.js";
 import { fakeProcessByFile, symAt } from "../helpers/fake-clangd.js";
 
 const DB = "compile_commands.json";
-const headAt = (projectRoot: string): string => `compile_commands.json not found or unreadable at "${projectRoot}"`;
+const headAt = (projectRoot: string): string =>
+  `compile_commands.json not found or unreadable at "${projectRoot}"`;
 
 interface Answer {
   isError?: boolean;
@@ -57,16 +58,35 @@ describe("the C++ tools' compile-database pre-check", () => {
     return { sessions: new LspSessionManager({ spawn, sleep: async () => {} }), spawn };
   }
 
-  const address = (projectRoot: string): CppAddress => ({ projectRoot, name: "Widget", sourceRoots: [srcDir] });
+  const address = (projectRoot: string): CppAddress => ({
+    projectRoot,
+    name: "Widget",
+    sourceRoots: [srcDir],
+  });
 
-  const tools: readonly { readonly tool: string; readonly ask: (sessions: LspSessionManager, root: string) => Promise<Answer> }[] = [
+  const tools: readonly {
+    readonly tool: string;
+    readonly ask: (sessions: LspSessionManager, root: string) => Promise<Answer>;
+  }[] = [
     {
       tool: "cpp_file_symbols",
-      ask: (sessions, root) => runCppFileSymbols(sessions, { projectRoot: root, file: widget, sourceRoots: [srcDir], depth: 1 }),
+      ask: (sessions, root) =>
+        runCppFileSymbols(sessions, {
+          projectRoot: root,
+          file: widget,
+          sourceRoots: [srcDir],
+          depth: 1,
+        }),
     },
     { tool: "cpp_find_symbol", ask: (sessions, root) => runCppFindSymbol(sessions, address(root)) },
-    { tool: "cpp_find_references", ask: (sessions, root) => runCppFindReferences(sessions, address(root) as never) },
-    { tool: "cpp_find_callers", ask: (sessions, root) => runCppFindCallers(sessions, address(root) as never) },
+    {
+      tool: "cpp_find_references",
+      ask: (sessions, root) => runCppFindReferences(sessions, address(root) as never),
+    },
+    {
+      tool: "cpp_find_callers",
+      ask: (sessions, root) => runCppFindCallers(sessions, address(root) as never),
+    },
   ];
 
   const refusing = tools.filter(({ tool }) => tool !== "cpp_file_symbols");
@@ -94,7 +114,9 @@ describe("the C++ tools' compile-database pre-check", () => {
       const out = await ask(sessions, repoRoot);
 
       expect(out.isError).toBe(true);
-      expect(textOf(out)).toBe(`${prefixFor(tool)}${headAt(repoRoot)}. The file is present but could not be read.`);
+      expect(textOf(out)).toBe(
+        `${prefixFor(tool)}${headAt(repoRoot)}. The file is present but could not be read.`,
+      );
       expect(spawn).not.toHaveBeenCalled();
     });
   }
@@ -113,10 +135,16 @@ describe("the C++ tools' compile-database pre-check", () => {
   it("cpp_file_symbols outlines the repository root's file from a default-flags parse, naming the build directory", async () => {
     const { sessions, spawn } = watchedSessions();
 
-    const out = await runCppFileSymbols(sessions, { projectRoot: repoRoot, file: widget, sourceRoots: [srcDir], depth: 1 });
+    const out = await runCppFileSymbols(sessions, {
+      projectRoot: repoRoot,
+      file: widget,
+      sourceRoots: [srcDir],
+      depth: 1,
+    });
 
     expect(out.isError).toBeUndefined();
-    const summary = (out as unknown as { structuredContent: { summary: string } }).structuredContent.summary;
+    const summary = (out as unknown as { structuredContent: { summary: string } }).structuredContent
+      .summary;
     expect(summary).toContain(
       `${headAt(repoRoot)}. Directories under it that hold a compile_commands.json, nearest first: "${buildDir}".`,
     );
@@ -127,10 +155,17 @@ describe("the C++ tools' compile-database pre-check", () => {
     mkdirSync(join(repoRoot, DB));
     const { sessions } = watchedSessions();
 
-    const out = await runCppFileSymbols(sessions, { projectRoot: repoRoot, file: widget, sourceRoots: [srcDir], depth: 1 });
+    const out = await runCppFileSymbols(sessions, {
+      projectRoot: repoRoot,
+      file: widget,
+      sourceRoots: [srcDir],
+      depth: 1,
+    });
 
     expect(out.isError).toBeUndefined();
-    expect(textOf(out)).toContain(`${headAt(repoRoot)}. The file is present but could not be read.`);
+    expect(textOf(out)).toContain(
+      `${headAt(repoRoot)}. The file is present but could not be read.`,
+    );
   });
 
   it("refuses the root before it resolves the file, so a wrong root reads as a wrong root", async () => {

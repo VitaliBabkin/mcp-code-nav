@@ -105,13 +105,19 @@ describe("cpp_file_symbols", () => {
     return new LspSessionManager({ spawn: () => process, sleep: async () => {} });
   }
 
-  const outline = { symbols: [{ name: "Widget", kind: "class", range: { startLine: 1, endLine: 1 } }] };
+  const outline = {
+    symbols: [{ name: "Widget", kind: "class", range: { startLine: 1, endLine: 1 } }],
+  };
 
   it("outlines an absolute file in the source tree beside the build directory when sourceRoots is omitted", async () => {
     const layout = makeLayout();
     const sessions = sessionsAnswering(() => widgetOutline);
 
-    const result = await runCppFileSymbols(sessions, { projectRoot: layout.build, file: layout.widget, depth: 1 } as never);
+    const result = await runCppFileSymbols(sessions, {
+      projectRoot: layout.build,
+      file: layout.widget,
+      depth: 1,
+    } as never);
 
     expect(structured(result)).toEqual(outline);
   });
@@ -120,7 +126,11 @@ describe("cpp_file_symbols", () => {
     const layout = makeLayout();
     const sessions = sessionsAnswering(() => widgetOutline);
 
-    const result = await runCppFileSymbols(sessions, { projectRoot: layout.build, file: "src/widget.cpp", depth: 1 } as never);
+    const result = await runCppFileSymbols(sessions, {
+      projectRoot: layout.build,
+      file: "src/widget.cpp",
+      depth: 1,
+    } as never);
 
     expect(structured(result)).toEqual(outline);
   });
@@ -129,7 +139,11 @@ describe("cpp_file_symbols", () => {
     const layout = makeLayout();
     const sessions = sessionsAnswering(() => widgetOutline);
 
-    const result = await runCppFileSymbols(sessions, { projectRoot: layout.build, file: layout.otherFile, depth: 1 } as never);
+    const result = await runCppFileSymbols(sessions, {
+      projectRoot: layout.build,
+      file: layout.otherFile,
+      depth: 1,
+    } as never);
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toBe(
@@ -164,7 +178,11 @@ describe("cpp_file_symbols", () => {
     writeFileSync(inside, "class Widget {};\n");
     const sessions = sessionsAnswering(() => widgetOutline);
 
-    const result = await runCppFileSymbols(sessions, { projectRoot: layout.build, file: inside, depth: 1 } as never);
+    const result = await runCppFileSymbols(sessions, {
+      projectRoot: layout.build,
+      file: inside,
+      depth: 1,
+    } as never);
 
     expect(structured(result)).toEqual(outline);
   });
@@ -173,7 +191,11 @@ describe("cpp_file_symbols", () => {
     const layout = makeLayout("invalid");
     const sessions = sessionsAnswering(() => widgetOutline);
 
-    const result = await runCppFileSymbols(sessions, { projectRoot: layout.build, file: layout.widget, depth: 1 } as never);
+    const result = await runCppFileSymbols(sessions, {
+      projectRoot: layout.build,
+      file: layout.widget,
+      depth: 1,
+    } as never);
 
     expect(textOf(result)).toBe(
       `cpp_file_symbols failed: path "${layout.widget}" escapes every declared root: "${layout.build}"` +
@@ -186,13 +208,19 @@ describe("cpp_file_symbols", () => {
     const layout = makeLayout("invalid");
     const sessions = sessionsAnswering(() => widgetOutline);
 
-    const result = await runCppFileSymbols(sessions, { projectRoot: layout.build, file: "missing.cpp", depth: 1 } as never);
+    const result = await runCppFileSymbols(sessions, {
+      projectRoot: layout.build,
+      file: "missing.cpp",
+      depth: 1,
+    } as never);
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain("cpp_file_symbols failed: ENOENT");
-    expect(textOf(result).endsWith(
-      " Only projectRoot was searched; if the file lives in a source tree outside it, pass that tree as sourceRoots.",
-    )).toBe(true);
+    expect(
+      textOf(result).endsWith(
+        " Only projectRoot was searched; if the file lives in a source tree outside it, pass that tree as sourceRoots.",
+      ),
+    ).toBe(true);
     expect(classifyError(textOf(result)).errorClass).toBe("file-not-found");
   });
 
@@ -200,10 +228,14 @@ describe("cpp_file_symbols", () => {
     const layout = makeLayout();
     const sessions = sessionsAnswering(() => widgetOutline);
 
-    const result = await runCppFileSymbols(sessions, { projectRoot: layout.build, file: "missing.cpp", depth: 1 } as never);
+    const result = await runCppFileSymbols(sessions, {
+      projectRoot: layout.build,
+      file: "missing.cpp",
+      depth: 1,
+    } as never);
 
     expect(result.isError).toBe(true);
-    expect(textOf(result)).toContain("Resolved \"missing.cpp\"");
+    expect(textOf(result)).toContain('Resolved "missing.cpp"');
     expect(textOf(result)).not.toContain("Only projectRoot was searched");
   });
 });
@@ -232,7 +264,13 @@ function clangdFor(layout: Layout) {
       const file = pathOfDocumentId(params);
       if (method === "textDocument/documentSymbol") {
         if (file === layout.widget) {
-          return [{ ...symAt("Widget", 5, 0, 6), range: range(0, 3), children: [symAt("value", 6, 2, 6)] }];
+          return [
+            {
+              ...symAt("Widget", 5, 0, 6),
+              range: range(0, 3),
+              children: [symAt("value", 6, 2, 6)],
+            },
+          ];
         }
         if (file === layout.helper) return [{ ...symAt("helper", 12, 0, 4), range: range(0, 2) }];
         return [symAt("x", 12, 0, 4)];
@@ -247,7 +285,17 @@ function clangdFor(layout: Layout) {
       if (method === "textDocument/references") return [nameAt(layout.helper, 0, 13, 6)];
       if (method === "textDocument/prepareCallHierarchy") return [helperItem];
       if (method === "callHierarchy/incomingCalls") {
-        return [{ from: { ...helperItem, name: "caller", range: range(1, 2), selectionRange: range(1, 1) }, fromRanges: [range(1, 1)] }];
+        return [
+          {
+            from: {
+              ...helperItem,
+              name: "caller",
+              range: range(1, 2),
+              selectionRange: range(1, 1),
+            },
+            fromRanges: [range(1, 1)],
+          },
+        ];
       }
       throw new Error(`unexpected request: ${method}`);
     },
@@ -268,12 +316,17 @@ describe("cpp_find_symbol, the index branch", () => {
     const layout = makeLayout();
     const sessions = sessionsFor(clangdFor(layout).process);
 
-    const result = await runCppFindSymbol(sessions, { projectRoot: layout.build, name: "Widget" } as never);
+    const result = await runCppFindSymbol(sessions, {
+      projectRoot: layout.build,
+      name: "Widget",
+    } as never);
     const payload = structured<{ scope: Scope; descriptionUnavailable?: string }>(result);
 
     expect(Object.keys(payload.scope).slice(0, 3)).toEqual(["projectRoot", "sourceRoots", "index"]);
     expect(payload.scope.sourceRoots).toEqual(derivedBlock(layout));
-    expect(payload.descriptionUnavailable ?? "").not.toContain("outside every declared source root");
+    expect(payload.descriptionUnavailable ?? "").not.toContain(
+      "outside every declared source root",
+    );
   });
 
   it("states a declared list as declared, and derives nothing", async () => {
@@ -286,14 +339,20 @@ describe("cpp_find_symbol, the index branch", () => {
       sourceRoots: [layout.src],
     } as never);
 
-    expect(structured<{ scope: Scope }>(result).scope.sourceRoots).toEqual({ origin: "declared", roots: [layout.src] });
+    expect(structured<{ scope: Scope }>(result).scope.sourceRoots).toEqual({
+      origin: "declared",
+      roots: [layout.src],
+    });
   });
 
   it("states projectRoot alone, with the reason, when the database names no ancestor's sources", async () => {
     const layout = makeLayout("docker");
     const sessions = sessionsFor(clangdFor(layout).process);
 
-    const result = await runCppFindSymbol(sessions, { projectRoot: layout.build, name: "Widget" } as never);
+    const result = await runCppFindSymbol(sessions, {
+      projectRoot: layout.build,
+      name: "Widget",
+    } as never);
     const payload = structured<{ scope: Scope; descriptionUnavailable?: string }>(result);
 
     expect(payload.scope.sourceRoots).toEqual({
@@ -309,7 +368,10 @@ describe("cpp_find_symbol, the index branch", () => {
     writeFileSync(join(layout.src, "unlisted.cpp"), "int unlisted() { return 0; }\n");
     const sessions = sessionsFor(clangdFor(layout).process);
 
-    const result = await runCppFindSymbol(sessions, { projectRoot: layout.build, name: "Widget" } as never);
+    const result = await runCppFindSymbol(sessions, {
+      projectRoot: layout.build,
+      name: "Widget",
+    } as never);
     const { scope } = structured<{ scope: Scope }>(result);
 
     expect(scope.uncoveredSourcesUnavailable).toBeUndefined();
@@ -366,10 +428,17 @@ describe("cpp_find_references", () => {
     const layout = makeLayout();
     const sessions = sessionsFor(clangdFor(layout).process);
 
-    const result = await runCppFindReferences(sessions, { projectRoot: layout.build, name: "Widget" } as never);
-    const payload = structured<{ files: { file: string; external: boolean }[]; scope: Scope }>(result);
+    const result = await runCppFindReferences(sessions, {
+      projectRoot: layout.build,
+      name: "Widget",
+    } as never);
+    const payload = structured<{ files: { file: string; external: boolean }[]; scope: Scope }>(
+      result,
+    );
 
-    expect(payload.files).toEqual([expect.objectContaining({ file: layout.helper, external: false })]);
+    expect(payload.files).toEqual([
+      expect.objectContaining({ file: layout.helper, external: false }),
+    ]);
     expect(Object.keys(payload.scope).slice(0, 2)).toEqual(["projectRoot", "sourceRoots"]);
     expect(payload.scope.sourceRoots).toEqual(derivedBlock(layout));
     expect(payload.scope.uncoveredSourcesUnavailable).toBeUndefined();
@@ -394,7 +463,10 @@ describe("cpp_find_references", () => {
     const layout = makeLayout("docker");
     const sessions = sessionsFor(clangdFor(layout).process);
 
-    const result = await runCppFindReferences(sessions, { projectRoot: layout.build, name: "Widget" } as never);
+    const result = await runCppFindReferences(sessions, {
+      projectRoot: layout.build,
+      name: "Widget",
+    } as never);
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain("outside every declared source root");
@@ -410,7 +482,10 @@ describe("cpp_find_references", () => {
       sourceRoots: [layout.src],
     } as never);
 
-    expect(structured<{ scope: Scope }>(result).scope.sourceRoots).toEqual({ origin: "declared", roots: [layout.src] });
+    expect(structured<{ scope: Scope }>(result).scope.sourceRoots).toEqual({
+      origin: "declared",
+      roots: [layout.src],
+    });
   });
 });
 
@@ -419,10 +494,17 @@ describe("cpp_find_callers", () => {
     const layout = makeLayout();
     const sessions = sessionsFor(clangdFor(layout).process);
 
-    const result = await runCppFindCallers(sessions, { projectRoot: layout.build, name: "helper" } as never);
-    const payload = structured<{ callers: { file: string; external: boolean }[]; scope: Scope }>(result);
+    const result = await runCppFindCallers(sessions, {
+      projectRoot: layout.build,
+      name: "helper",
+    } as never);
+    const payload = structured<{ callers: { file: string; external: boolean }[]; scope: Scope }>(
+      result,
+    );
 
-    expect(payload.callers).toEqual([expect.objectContaining({ file: layout.helper, external: false })]);
+    expect(payload.callers).toEqual([
+      expect.objectContaining({ file: layout.helper, external: false }),
+    ]);
     expect(Object.keys(payload.scope).slice(0, 2)).toEqual(["projectRoot", "sourceRoots"]);
     expect(payload.scope.sourceRoots).toEqual(derivedBlock(layout));
   });
@@ -452,14 +534,20 @@ describe("cpp_find_callers", () => {
       sourceRoots: [layout.src],
     } as never);
 
-    expect(structured<{ scope: Scope }>(result).scope.sourceRoots).toEqual({ origin: "declared", roots: [layout.src] });
+    expect(structured<{ scope: Scope }>(result).scope.sourceRoots).toEqual({
+      origin: "declared",
+      roots: [layout.src],
+    });
   });
 });
 
 describe("cpp_find_derived_classes", () => {
   const clean: ClangQueryExecFn = async () => ({ exitCode: 0, stdout: "", stderr: "" });
   const run = (input: Record<string, unknown>, exec: ClangQueryExecFn = clean) =>
-    runCppFindDerivedClasses({ exec, cache: new SweepCache() }, { qualifiedName: "Base", ...input } as never);
+    runCppFindDerivedClasses({ exec, cache: new SweepCache() }, {
+      qualifiedName: "Base",
+      ...input,
+    } as never);
 
   interface Sweep {
     readonly cache: string;
@@ -485,7 +573,10 @@ describe("cpp_find_derived_classes", () => {
     const layout = makeLayout();
     const cache = new SweepCache();
     const runCached = () =>
-      runCppFindDerivedClasses({ exec: clean, cache }, { qualifiedName: "Base", projectRoot: layout.build } as never);
+      runCppFindDerivedClasses({ exec: clean, cache }, {
+        qualifiedName: "Base",
+        projectRoot: layout.build,
+      } as never);
     expect(sweepOf(await runCached()).cache).toBe("miss");
     expect(sweepOf(await runCached()).cache).toBe("hit");
 
@@ -538,7 +629,11 @@ describe("cpp_find_derived_classes", () => {
 
     const sweep = sweepOf(await run({ projectRoot: layout.build, files: [inside] }));
 
-    expect(sweep.sourceRoots).toEqual({ origin: "project-root-only", roots: [], reason: "compile-db-unlistable" });
+    expect(sweep.sourceRoots).toEqual({
+      origin: "project-root-only",
+      roots: [],
+      reason: "compile-db-unlistable",
+    });
   });
 
   it("names the derived root and the way out for a `files` entry beyond it", async () => {
@@ -559,7 +654,11 @@ describe("cpp_find_derived_classes", () => {
 
     const result = await run({ projectRoot: layout.build, files: [layout.widget] });
 
-    expect(textOf(result).endsWith(`pass the source tree as sourceRoots, e.g. sourceRoots: [${JSON.stringify(layout.repo)}].`)).toBe(true);
+    expect(
+      textOf(result).endsWith(
+        `pass the source tree as sourceRoots, e.g. sourceRoots: [${JSON.stringify(layout.repo)}].`,
+      ),
+    ).toBe(true);
     expect(classifyError(textOf(result)).errorClass).toBe("path-escape");
   });
 

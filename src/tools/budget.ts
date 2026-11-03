@@ -21,7 +21,9 @@ export function budgetOf(ceilingMs: number): Budget {
 export async function withinBudget<T>(work: Promise<T>, budget: Budget): Promise<T | undefined> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<undefined>((resolve) => {
-    timer = setTimeout(() => resolve(undefined), budget.remainingMs());
+    timer = setTimeout(() => {
+      resolve(undefined);
+    }, budget.remainingMs());
   });
   try {
     return await Promise.race([work, deadline]);

@@ -27,7 +27,12 @@ import {
   type TsQueryDeps,
   type TsResolvedSymbol,
 } from "./ts-navigation-shared.js";
-import { type HumanSummary, TsSourceRootsSchema, timeBudgetSchema, withSummary } from "./ts-shared.js";
+import {
+  type HumanSummary,
+  TsSourceRootsSchema,
+  timeBudgetSchema,
+  withSummary,
+} from "./ts-shared.js";
 import { messageOf } from "../error-message.js";
 
 const TOOL = "ts_find_references";
@@ -70,13 +75,13 @@ export type TsFindReferencesPayload = {
 
 export const TsFindReferencesInput = z.object({
   sourceRoots: TsSourceRootsSchema,
-  file: PathInput
-    .describe("The file declaring the symbol: absolute, or relative to exactly one sourceRoots entry."),
-  symbol: NameInput
-    .describe(
-      "Name as declared in `file`: top-level, or a dotted path through classes, interfaces, enums and " +
-        "namespaces (`ExecDriver.run`, `Ns.Inner.x`).",
-    ),
+  file: PathInput.describe(
+    "The file declaring the symbol: absolute, or relative to exactly one sourceRoots entry.",
+  ),
+  symbol: NameInput.describe(
+    "Name as declared in `file`: top-level, or a dotted path through classes, interfaces, enums and " +
+      "namespaces (`ExecDriver.run`, `Ns.Inner.x`).",
+  ),
   includeDeclaration: z
     .boolean()
     .default(false)
@@ -96,7 +101,11 @@ function groupByFile(locations: readonly ReportedLocation[]): readonly Reference
   for (const location of locations) {
     const seen = byKey.get(location.key);
     if (seen === undefined) {
-      byKey.set(location.key, { file: location.file, external: location.external, sites: [location] });
+      byKey.set(location.key, {
+        file: location.file,
+        external: location.external,
+        sites: [location],
+      });
     } else {
       seen.sites.push(location);
     }
@@ -155,38 +164,47 @@ async function buildListing(
 
 function fileText(group: TsReferenceFile): string {
   const where = group.external ? "outside the workspace" : "in the workspace";
-  const tail = group.sitesTruncated > 0 ? `, ${group.sitesTruncated} site(s) not listed` : "";
-  return `  ${group.file} - ${group.count} reference(s) ${where}${tail}`;
+  const tail =
+    group.sitesTruncated > 0 ? `, ${String(group.sitesTruncated)} site(s) not listed` : "";
+  return `  ${group.file} - ${String(group.count)} reference(s) ${where}${tail}`;
 }
 
 function siteText(site: TsReferenceSite): string {
-  const column = site.column === null ? "" : `:${site.column}`;
-  return `    ${site.line}${column} in ${site.in ?? "<unnamed>"}${site.reason ? ` - ${site.reason}` : ""}`;
+  const column = site.column === null ? "" : `:${String(site.column)}`;
+  return `    ${String(site.line)}${column} in ${site.in ?? "<unnamed>"}${site.reason ? ` - ${site.reason}` : ""}`;
 }
 
 /** The same JSON, phrased once for a reader who will not parse it. */
 function humanSummary(payload: TsFindReferencesPayload): HumanSummary {
   const { resolved, totalReferences, files, filesTruncated, scope } = payload;
   const sites = files.reduce((total, group) => total + group.sitesTruncated, 0);
-  const listing = files.map((group) => [fileText(group), ...group.sites.map(siteText)].join("\n")).join("\n");
+  const listing = files
+    .map((group) => [fileText(group), ...group.sites.map(siteText)].join("\n"))
+    .join("\n");
   const tail = capsText([
     filesTruncated > 0
-      ? `${filesTruncated} file group(s) dropped by the ${REFERENCE_FILES_LIMIT}-file cap`
+      ? `${String(filesTruncated)} file group(s) dropped by the ${String(REFERENCE_FILES_LIMIT)}-file cap`
       : undefined,
-    sites > 0 ? `${sites} site(s) dropped by the ${REFERENCE_SITES_PER_FILE_LIMIT}-sites-per-file cap` : undefined,
+    sites > 0
+      ? `${String(sites)} site(s) dropped by the ${String(REFERENCE_SITES_PER_FILE_LIMIT)}-sites-per-file cap`
+      : undefined,
   ]);
   const head =
-    `References to ${resolved.kind} "${resolved.name}" (${resolved.file}:${resolved.line})${tsScopeText(scope)} ` +
-    `- ${totalReferences} reference(s) across ${files.length + filesTruncated} file(s)${tail}` +
+    `References to ${resolved.kind} "${resolved.name}" (${resolved.file}:${String(resolved.line)})${tsScopeText(scope)} ` +
+    `- ${String(totalReferences)} reference(s) across ${String(files.length + filesTruncated)} file(s)${tail}` +
     `${renamedText(resolved)}.`;
-  return summarised(head, scope, `limits: ${scope.limits.join(", ")}${listing === "" ? "" : `\n${listing}`}`);
+  return summarised(
+    head,
+    scope,
+    `limits: ${scope.limits.join(", ")}${listing === "" ? "" : `\n${listing}`}`,
+  );
 }
 
 /** The sentence that says a renamed import's listing is the local name's, and where the full set is asked for. */
 function renamedText(resolved: TsResolvedSymbol): string {
   const of = resolved.renamedImportOf;
   if (of === undefined) return "";
-  const where = `${of.file}:${of.line}`;
+  const where = `${of.file}:${String(of.line)}`;
   const local = `"${resolved.name}"`;
   const binding = of.reExport ? "re-export" : "import";
   if (of.module) {
@@ -227,11 +245,19 @@ export async function runTsFindReferences(
       `answer the query for "${input.symbol}"`,
     );
     if (!answered.ok) return errorResult(answered.error);
-    const locations = toReported("tsgo", TOOL, answered.value, tsFileExternal(query.workspaceRoot), input.symbol);
+    const locations = toReported(
+      "tsgo",
+      TOOL,
+      answered.value,
+      tsFileExternal(query.workspaceRoot),
+      input.symbol,
+    );
     if (!locations.ok) return errorResult(locations.error);
     // Before the grouping, the caps and the naming, so every count says what the listing holds.
     const identity = await subjectIdentity(TOOL, query, input.symbol);
-    const kept = input.includeDeclaration ? locations.value : withoutPositions(locations.value, identity.own);
+    const kept = input.includeDeclaration
+      ? locations.value
+      : withoutPositions(locations.value, identity.own);
     const renamed = await renamedImportOf(query, identity, locations.value);
 
     const { files, filesTruncated, sitesTruncated } = await buildListing(query, groupByFile(kept));
@@ -245,7 +271,8 @@ export async function runTsFindReferences(
       mentionNameOf(input.symbol),
     );
     const payload: TsFindReferencesPayload = {
-      resolved: renamed === undefined ? query.resolved : { ...query.resolved, renamedImportOf: renamed },
+      resolved:
+        renamed === undefined ? query.resolved : { ...query.resolved, renamedImportOf: renamed },
       totalReferences: kept.length,
       files,
       filesTruncated,

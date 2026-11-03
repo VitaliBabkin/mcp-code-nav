@@ -2,7 +2,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runGoFindReferences } from "../../src/tools/go-find-references.js";
-import { REFERENCE_FILES_LIMIT, REFERENCE_SITES_PER_FILE_LIMIT } from "../../src/tools/navigation-limits.js";
+import {
+  REFERENCE_FILES_LIMIT,
+  REFERENCE_SITES_PER_FILE_LIMIT,
+} from "../../src/tools/navigation-limits.js";
 import { notStarted, fakeGo, WINDOWS_AMD64, type FakeGo } from "../helpers/fake-go.js";
 import { uriOf, type FakeServer } from "../helpers/fake-lsp.js";
 import {
@@ -52,7 +55,10 @@ const OPEN = symbol("Open", 12, 20, 25);
 
 /** One `Location` as gopls spells it: 0-based line and character. */
 function location(path: string, line: number, character = 4): unknown {
-  return { uri: uriOf(path), range: { start: { line, character }, end: { line, character: character + 5 } } };
+  return {
+    uri: uriOf(path),
+    range: { start: { line, character }, end: { line, character: character + 5 } },
+  };
 }
 
 /** A gopls whose outlines and `references` answer the test supplies, rooted at a real temp module. */
@@ -148,14 +154,20 @@ describe("runGoFindReferences", () => {
       ],
       filesTruncated: 0,
       scope: {
-        ...expectedScope("exported", ["one-module", "one-port", "exported-symbol-importers-invisible"]),
+        ...expectedScope("exported", [
+          "one-module",
+          "one-port",
+          "exported-symbol-importers-invisible",
+        ]),
         moduleRoot: resolve(h.mod),
       },
     });
     expect(textOf(out)).toContain('References to interface "Storage"');
     expect(textOf(out)).toContain("3 reference(s) across 3 file(s)");
     expect(textOf(out)).toContain("visibility: exported");
-    expect(textOf(out)).toContain("limits: one-module, one-port, exported-symbol-importers-invisible");
+    expect(textOf(out)).toContain(
+      "limits: one-module, one-port, exported-symbol-importers-invisible",
+    );
   });
 
   it("asks about the name and not the keyword: the position is selectionRange.start", async () => {
@@ -200,8 +212,13 @@ describe("runGoFindReferences", () => {
     // 43 groups answered (pg plus one per external file), 40 listed.
     expect(payload(out).filesTruncated).toBe(3);
     // The exact per-file count survives the site cap, which narrows only what is listed.
-    expect(files[0]).toMatchObject({ file: pg, external: false, count: manySites.length, sitesTruncated: 5 });
-    expect((files[0]?.sites as Site[])).toHaveLength(REFERENCE_SITES_PER_FILE_LIMIT);
+    expect(files[0]).toMatchObject({
+      file: pg,
+      external: false,
+      count: manySites.length,
+      sitesTruncated: 5,
+    });
+    expect(files[0]?.sites as Site[]).toHaveLength(REFERENCE_SITES_PER_FILE_LIMIT);
     expect(limitsOf(out)).toContain("listing-capped");
     const listed = files.reduce((total, group) => total + (group.count as number), 0);
     // Each dropped group held exactly one site, so the exact total is the listed counts plus those groups.
@@ -226,7 +243,12 @@ describe("runGoFindReferences", () => {
     expect(payload(out).totalReferences).toBe(externalFirst.length + 1);
     expect(files).toHaveLength(REFERENCE_FILES_LIMIT);
     // The in-module group was reported last and still survived; the dropped ones are all external.
-    expect(files[0]).toMatchObject({ file: pg, external: false, count: 1, sites: [{ line: 41, column: 9, in: "Serve" }] });
+    expect(files[0]).toMatchObject({
+      file: pg,
+      external: false,
+      count: 1,
+      sites: [{ line: 41, column: 9, in: "Serve" }],
+    });
     expect(files.filter((group) => !group.external)).toHaveLength(1);
     expect(files.slice(1).every((group) => group.external)).toBe(true);
     expect(payload(out).filesTruncated).toBe(3);
@@ -245,7 +267,7 @@ describe("runGoFindReferences", () => {
     expect(payload(out).filesTruncated).toBe(0);
     expect(filesOf(out)).toHaveLength(1);
     expect(filesOf(out)[0]).toMatchObject({ file: pg, count: many, sitesTruncated: 5 });
-    expect((filesOf(out)[0]?.sites as Site[])).toHaveLength(REFERENCE_SITES_PER_FILE_LIMIT);
+    expect(filesOf(out)[0]?.sites as Site[]).toHaveLength(REFERENCE_SITES_PER_FILE_LIMIT);
     // One cap biting is enough for the code: it says the listing narrowed, not that both caps did.
     expect(limitsOf(out)).toContain("listing-capped");
   });
@@ -346,7 +368,9 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run({ symbol: name });
     expect(scopeOf(out).visibility).toBe(visibility);
-    expect(limitsOf(out).includes("exported-symbol-importers-invisible")).toBe(visibility === "exported");
+    expect(limitsOf(out).includes("exported-symbol-importers-invisible")).toBe(
+      visibility === "exported",
+    );
   });
 
   it("addresses a generic-receiver method by its base type", async () => {
@@ -356,7 +380,12 @@ describe("runGoFindReferences", () => {
 
     // Every spelling that names the base type and the method is the same declaration: no not-found, and
     // never an ambiguity with itself.
-    for (const spelling of ["Store.Get", "(*Store).Get", "(*Store[K, V]).Get", "(s *Store[K,V]).Get"]) {
+    for (const spelling of [
+      "Store.Get",
+      "(*Store).Get",
+      "(*Store[K, V]).Get",
+      "(s *Store[K,V]).Get",
+    ]) {
       const out = await h.run({ symbol: spelling });
       expect(out.isError, `${spelling}: ${textOf(out)}`).toBeFalsy();
       expect(payload(out).resolved).toMatchObject({ name: "(*Store[K, V]).Get", kind: "method" });
@@ -380,9 +409,30 @@ describe("runGoFindReferences", () => {
   });
 
   it.each([
-    [true, true, true, ["one-module", "one-port", "osarch-excluded-files", "exported-symbol-importers-invisible", "listing-capped"]],
-    [true, true, false, ["one-module", "one-port", "osarch-excluded-files", "exported-symbol-importers-invisible"]],
-    [true, false, true, ["one-module", "one-port", "exported-symbol-importers-invisible", "listing-capped"]],
+    [
+      true,
+      true,
+      true,
+      [
+        "one-module",
+        "one-port",
+        "osarch-excluded-files",
+        "exported-symbol-importers-invisible",
+        "listing-capped",
+      ],
+    ],
+    [
+      true,
+      true,
+      false,
+      ["one-module", "one-port", "osarch-excluded-files", "exported-symbol-importers-invisible"],
+    ],
+    [
+      true,
+      false,
+      true,
+      ["one-module", "one-port", "exported-symbol-importers-invisible", "listing-capped"],
+    ],
     [true, false, false, ["one-module", "one-port", "exported-symbol-importers-invisible"]],
     [false, true, true, ["one-module", "one-port", "osarch-excluded-files", "listing-capped"]],
     [false, true, false, ["one-module", "one-port", "osarch-excluded-files"]],
@@ -408,7 +458,9 @@ describe("runGoFindReferences", () => {
   );
 
   it("drops one-port with the environment it describes, and says the port is unknown", async () => {
-    const h = harness({ go: fakeGo({ env: notStarted("ENOENT", "go: executable file not found") }) });
+    const h = harness({
+      go: fakeGo({ env: notStarted("ENOENT", "go: executable file not found") }),
+    });
     await h.ready();
 
     const out = await h.run();
@@ -475,7 +527,9 @@ describe("runGoFindReferences", () => {
     expect(textOf(out)).toMatch(/gopls restarted during the query/);
     expect(textOf(out)).toMatch(/initial workspace load has not been proven/);
     // The retried query really was answered — what is refused is the proof, not the reply.
-    expect(h.server.methods.filter((method) => method === "textDocument/references")).toHaveLength(2);
+    expect(h.server.methods.filter((method) => method === "textDocument/references")).toHaveLength(
+      2,
+    );
   }, 10_000);
 
   it("refuses a query gopls answered with no package metadata, naming the file and the constraint", async () => {
@@ -527,7 +581,9 @@ describe("runGoFindReferences", () => {
 
   it("fails rather than guessing a position when gopls reported no selection range", async () => {
     const h = harness();
-    h.outline(h.file, [{ name: "Bare", kind: 11, range: { start: { line: 2 }, end: { line: 4 } } }]);
+    h.outline(h.file, [
+      { name: "Bare", kind: 11, range: { start: { line: 2 }, end: { line: 4 } } },
+    ]);
     await h.ready();
 
     const out = await h.run({ symbol: "Bare" });
@@ -588,7 +644,7 @@ describe("runGoFindReferences", () => {
   it("keeps the tried spellings of a relative file when the prelude throws on the way to an answer", async () => {
     const h = harness({
       spawn: () => {
-        throw new Error("Cannot start gopls: \"gopls\" on PATH was not found");
+        throw new Error('Cannot start gopls: "gopls" on PATH was not found');
       },
     });
 

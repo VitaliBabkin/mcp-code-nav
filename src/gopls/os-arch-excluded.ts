@@ -150,7 +150,8 @@ function portSuffix(base: string, known: KnownPorts): PortSuffix | undefined {
   const last = segments[segments.length - 1] ?? "";
   if (known.goarch.has(last)) {
     const beforeLast = segments[segments.length - 2] ?? "";
-    if (segments.length >= 3 && known.goos.has(beforeLast)) return { goos: beforeLast, goarch: last };
+    if (segments.length >= 3 && known.goos.has(beforeLast))
+      return { goos: beforeLast, goarch: last };
     return { goarch: last };
   }
   return known.goos.has(last) ? { goos: last } : undefined;

@@ -36,7 +36,9 @@ const CALL_FILE = /^calls-[0-9T]{15}-[0-9]+\.jsonl$/;
 
 const nodeFs: CallLogFs = {
   appendFile: (path, data) => appendFile(path, data, "utf8"),
-  appendFileSync: (path, data) => appendFileSync(path, data, "utf8"),
+  appendFileSync: (path, data) => {
+    appendFileSync(path, data, "utf8");
+  },
   mkdirSync: (path) => void mkdirSync(path, { recursive: true }),
   readdir: (path) => readdir(path),
   stat: async (path) => {
@@ -92,7 +94,8 @@ class QueuedCallLog implements CallLog {
     if (this.closed || this.failed) return;
     const accepted = CallLogLine.safeParse(line);
     if (!accepted.success) {
-      return this.disable(new Error(`record did not match its schema: ${accepted.error.message}`));
+      this.disable(new Error(`record did not match its schema: ${accepted.error.message}`));
+      return;
     }
     if (this.queue.length >= MAX_QUEUE_ENTRIES) {
       this.dropped++;
@@ -100,7 +103,11 @@ class QueuedCallLog implements CallLog {
     }
     if (accepted.data.type === "run") this.runId = accepted.data.run;
     this.queue.push(`${JSON.stringify(accepted.data)}\n`);
-    this.chain = this.chain.then(() => this.appendNext()).catch((e: unknown) => this.disable(e));
+    this.chain = this.chain
+      .then(() => this.appendNext())
+      .catch((e: unknown) => {
+        this.disable(e);
+      });
   }
 
   close(): void {
@@ -127,6 +134,11 @@ class QueuedCallLog implements CallLog {
     }
   }
 
+  /** `close()` can run while an append is pending; a method call keeps the compiler from assuming `closed` is still false. */
+  private isClosed(): boolean {
+    return this.closed;
+  }
+
   private async appendNext(): Promise<void> {
     const line = this.queue.shift();
     if (line === undefined || this.closed || this.failed) return;
@@ -137,9 +149,10 @@ class QueuedCallLog implements CallLog {
       await this.fs.appendFile(path, line);
     } catch (e) {
       // After `close()` the line was already written synchronously, so this failure loses nothing.
-      return this.closed ? undefined : this.disable(e);
+      if (!this.isClosed()) this.disable(e);
+      return;
     }
-    if (this.closed) return;
+    if (this.isClosed()) return;
     this.outstanding = undefined;
     this.bytes += Buffer.byteLength(line, "utf8");
     if (this.bytes < MAX_FILE_BYTES) return;
@@ -147,7 +160,7 @@ class QueuedCallLog implements CallLog {
     this.closed = true;
     this.dropped += this.queue.length;
     this.queue.length = 0;
-    this.report(`call log stopped at ${MAX_FILE_BYTES} bytes: ${path}`);
+    this.report(`call log stopped at ${String(MAX_FILE_BYTES)} bytes: ${path}`);
     this.appendClosingLine();
   }
 
@@ -222,7 +235,7 @@ class QueuedCallLog implements CallLog {
 /** `calls-<UTC yyyymmddThhmmss>-<pid>.jsonl` — one file per process, so no append ever races another. */
 function callFileName(now: Date = new Date()): string {
   const stamp = now.toISOString().slice(0, 19).replaceAll(/[-:]/g, "");
-  return `calls-${stamp}-${process.pid}.jsonl`;
+  return `calls-${stamp}-${String(process.pid)}.jsonl`;
 }
 
 /** What the bounded queue refused to hold, in the run's closing line. */
@@ -233,5 +246,7 @@ function closeRecord(run: string, dropped: number): z.infer<typeof CloseRecord> 
 function describe(cause: unknown): string {
   if (!(cause instanceof Error)) return String(cause);
   const code = (cause as Error & { code?: string }).code;
-  return code === undefined || cause.message.startsWith(code) ? cause.message : `${code}: ${cause.message}`;
+  return code === undefined || cause.message.startsWith(code)
+    ? cause.message
+    : `${code}: ${cause.message}`;
 }

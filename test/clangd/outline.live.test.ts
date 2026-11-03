@@ -47,7 +47,11 @@ describe("cpp_file_symbols outline against a real clangd binary", () => {
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
       JSON.stringify([
-        { directory: projectRoot, command: "clang++ -std=c++17 -c widget.cpp -o widget.o", file: "widget.cpp" },
+        {
+          directory: projectRoot,
+          command: "clang++ -std=c++17 -c widget.cpp -o widget.o",
+          file: "widget.cpp",
+        },
       ]),
     );
     session = new LspSession({ root: projectRoot, config: clangdConfig });
@@ -72,27 +76,26 @@ describe("cpp_file_symbols outline against a real clangd binary", () => {
     }
   });
 
-  it(
-    "at the default depth, reaches through nested namespaces to the class and its immediate member",
-    async () => {
-      const file = join(projectRoot, "widget.h");
-      // The cold/warm split means the first response on a fresh clangd process
-      // may legitimately need one retry before the index is confirmed warm.
-      let result = await session.documentSymbol(file);
-      if (result.state !== "ok") {
-        result = await session.documentSymbol(file);
-      }
-      expect(result.state).toBe("ok");
-      if (result.state !== "ok") return;
+  it("at the default depth, reaches through nested namespaces to the class and its immediate member", async () => {
+    const file = join(projectRoot, "widget.h");
+    // The cold/warm split means the first response on a fresh clangd process
+    // may legitimately need one retry before the index is confirmed warm.
+    let result = await session.documentSymbol(file);
+    if (result.state !== "ok") {
+      result = await session.documentSymbol(file);
+    }
+    expect(result.state).toBe("ok");
+    if (result.state !== "ok") return;
 
-      const outline = toOutline(result.symbols, 1);
-      const widget = findByName(outline, "Widget");
-      expect(widget, `expected a "Widget" class in the outline, got: ${JSON.stringify(outline)}`).toMatchObject({
-        name: "Widget",
-        kind: "class",
-      });
-      expect(widget?.children?.some((c) => c.name === "bar" && c.kind === "method")).toBe(true);
-    },
-    30000,
-  );
+    const outline = toOutline(result.symbols, 1);
+    const widget = findByName(outline, "Widget");
+    expect(
+      widget,
+      `expected a "Widget" class in the outline, got: ${JSON.stringify(outline)}`,
+    ).toMatchObject({
+      name: "Widget",
+      kind: "class",
+    });
+    expect(widget?.children?.some((c) => c.name === "bar" && c.kind === "method")).toBe(true);
+  }, 30000);
 });

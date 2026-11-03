@@ -30,7 +30,11 @@ export interface MentionHits {
 }
 
 /** The scan, as the `scope` block reaches it; a measurement arm replaces it with an answer of its own. */
-export type MentionScanner = (files: readonly string[], name: string, budget: Budget) => Promise<MentionHits>;
+export type MentionScanner = (
+  files: readonly string[],
+  name: string,
+  budget: Budget,
+) => Promise<MentionHits>;
 
 /**
  * The name as a whole identifier: neither neighbour may be a character an identifier can carry (`$` included,
@@ -110,13 +114,20 @@ function chooseReads(
  * descending then path: the cap that bounds the published list belongs to the block that publishes it, while
  * the exact number of files that mention the name belongs here.
  */
-export async function scanMentions(files: readonly string[], name: string, budget: Budget): Promise<MentionHits> {
+export async function scanMentions(
+  files: readonly string[],
+  name: string,
+  budget: Budget,
+): Promise<MentionHits> {
   // A budget the type-aware question spent is a fact about the answer's scope, and the caller has to be able to read it.
   // An empty name matches at every boundary, so it is no search at all.
-  if (files.length === 0 || name === "" || budget.remainingMs() <= 0) return { hits: [], unchecked: files.length };
+  if (files.length === 0 || name === "" || budget.remainingMs() <= 0)
+    return { hits: [], unchecked: files.length };
   const sizes = new Map<string, number | undefined>();
   const sized = await withinBudget(
-    inPool(budget, files, sizeOf, (index, size) => sizes.set(files[index] as string, size)).then(() => true),
+    inPool(budget, files, sizeOf, (index, size) => sizes.set(files[index] as string, size)).then(
+      () => true,
+    ),
     budget,
   );
   if (sized === undefined) return { hits: [], unchecked: files.length };
@@ -128,7 +139,11 @@ export async function scanMentions(files: readonly string[], name: string, budge
     inPool(
       budget,
       chosen,
-      (file) => readFile(file, "utf-8").then((text) => countLines(text, name, pattern), () => undefined),
+      (file) =>
+        readFile(file, "utf-8").then(
+          (text) => countLines(text, name, pattern),
+          () => undefined,
+        ),
       (index, lines) => read.set(chosen[index] as string, lines),
     ),
     budget,
@@ -150,6 +165,8 @@ function compareKeys(left: string, right: string): number {
 
 function order(hits: readonly TsUncoveredMention[]): readonly TsUncoveredMention[] {
   return [...hits].sort(
-    (left, right) => right.matchingLines - left.matchingLines || compareKeys(pathKey(left.file), pathKey(right.file)),
+    (left, right) =>
+      right.matchingLines - left.matchingLines ||
+      compareKeys(pathKey(left.file), pathKey(right.file)),
   );
 }

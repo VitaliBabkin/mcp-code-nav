@@ -4,6 +4,7 @@ import { tsLanguageId } from "../tsgo/language.js";
 import { takeWorkspaceSnapshot, workspaceSnapshotReason } from "../tsgo/workspace-snapshot.js";
 import { fileUri } from "./document-uri.js";
 import type { ModuleSnapshotFn } from "./module-freshness.js";
+import { resolveClangdJobs, warnOnStderr } from "./resource-limits.js";
 import { takeIndexSnapshot, type IndexSnapshotFn } from "../paths/index-drift.js";
 import type { TsgoBinary } from "../tsgo/binary.js";
 
@@ -148,17 +149,34 @@ const CLANGD_CAPABILITIES = {
   window: { workDoneProgress: true },
 };
 
+let resolvedClangdJobs: number | undefined;
+
+/** Read from the environment on first use, so an invalid value is reported once per process, not per spawn. */
+const clangdJobs = (): number =>
+  (resolvedClangdJobs ??= resolveClangdJobs(process.env, warnOnStderr));
+
 /**
  * `--compile-commands-dir` is how clangd is told where the database is, so it is derived from the root.
  * `--background-index=true` is clangd's own default today and is passed anyway: the project-wide C++
  * reference and caller answers are computed from that index, so a future clangd
  * whose default flips must not silently change what this server's answers cover. A flag that decides the
  * scope of an answer belongs in the argv this server writes.
+ *
+ * The rest bounds what the child may take from the host: a worker cap, precompiled headers on disk and a low
+ * indexing priority. The index itself is not reduced.
  */
 const clangdArgv = (root: string): readonly string[] => [
   `--compile-commands-dir=${root}`,
   "--background-index=true",
+  "--background-index-priority=low",
+  ...clangdMemoryFlags(),
   "--log=error",
+];
+
+/** The worker cap and PCH placement every clangd child gets, whether or not it indexes. */
+const clangdMemoryFlags = (): readonly string[] => [
+  "--pch-storage=disk",
+  `-j=${String(clangdJobs())}`,
 ];
 
 /**
@@ -213,7 +231,12 @@ export const clangdConfig: LanguageServerConfig = {
 export const clangdNoDatabaseConfig: LanguageServerConfig = {
   ...clangdConfig,
   sessionKind: "clangd-no-db",
-  argv: (root) => [`--compile-commands-dir=${root}`, "--background-index=false", "--log=error"],
+  argv: (root) => [
+    `--compile-commands-dir=${root}`,
+    "--background-index=false",
+    ...clangdMemoryFlags(),
+    "--log=error",
+  ],
   allowedRequests: new Set(["initialize", "shutdown", "textDocument/documentSymbol"]),
   indexSnapshot: undefined,
 };
@@ -273,7 +296,10 @@ export const TSGO_IDENTITY: UnavailableReport = {
  * ceiling is the largest value it took. A key tsgo does not read changes nothing, so the neighbouring spellings
  * (`hover.maximumLength`, `preferences.maximumHoverLength`) are not sent.
  */
-const TSGO_SECTION_ANSWER = { disableAutomaticTypeAcquisition: true, maximumHoverLength: 2_147_483_647 };
+const TSGO_SECTION_ANSWER = {
+  disableAutomaticTypeAcquisition: true,
+  maximumHoverLength: 2_147_483_647,
+};
 
 /**
  * The sections tsgo asks about whose answer can hold automatic type acquisition off. It asks for `editor`
@@ -295,7 +321,9 @@ function answerTsgoConfiguration(params: unknown): unknown[] {
   return items.map((value) => {
     const item = value as ConfigurationItem | undefined;
     const section = item?.section ?? item?.configurationSection;
-    return section !== undefined && TSGO_TYPE_ACQUISITION_SECTIONS.has(section) ? TSGO_SECTION_ANSWER : null;
+    return section !== undefined && TSGO_TYPE_ACQUISITION_SECTIONS.has(section)
+      ? TSGO_SECTION_ANSWER
+      : null;
   });
 }
 
@@ -384,7 +412,10 @@ export function tsgoConfig(binary: TsgoBinary): LanguageServerConfig {
  * denied method holds only while a config's request set cannot be widened, so if either constant
  * stops being typed through `LanguageServerConfig` this directive goes unused and `tsc` fails.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- a compile-time guard, deliberately never called
 function allowedRequestsCannotBeWidened(): void {
+  /* eslint-disable @typescript-eslint/no-unsafe-call -- the call is the expected compile error, so its type is an error type */
   // @ts-expect-error `allowedRequests` is a `ReadonlySet`, which is the whole reason these are annotated
   clangdConfig.allowedRequests.add("textDocument/implementation");
+  /* eslint-enable @typescript-eslint/no-unsafe-call */
 }

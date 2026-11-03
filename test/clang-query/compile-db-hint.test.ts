@@ -131,7 +131,9 @@ describe("the four variants", () => {
       expect(text.startsWith(headAt(root)), `variant ${index + 1}: ${text}`).toBe(true);
       expect(text.slice(headAt(root).length), `variant ${index + 1}`).not.toBe("");
     }
-    expect(new Set(texts.map((text, index) => text.slice(headAt(roots[index] as string).length))).size).toBe(4);
+    expect(
+      new Set(texts.map((text, index) => text.slice(headAt(roots[index] as string).length))).size,
+    ).toBe(4);
 
     expect(texts[0]).toBe(`${headAt(candidatesRoot)}${named(build)}`);
     expect(texts[2]).toBe(`${headAt(absentRoot)}. That directory does not exist.`);
@@ -203,11 +205,21 @@ describe("the search", () => {
     const third = putDb(root, "charlie");
     putDb(root, "delta");
 
-    await expect(describeMissingCompileDb(root)).resolves.toBe(`${headAt(root)}${named(first, second, third)}`);
+    await expect(describeMissingCompileDb(root)).resolves.toBe(
+      `${headAt(root)}${named(first, second, third)}`,
+    );
   });
 
   it("skips every directory the contract names, and counts only the root", async () => {
-    const skipped = [".git", ".claude", "node_modules", ".cache", ".vs", ".idea", "vcpkg_installed"];
+    const skipped = [
+      ".git",
+      ".claude",
+      "node_modules",
+      ".cache",
+      ".vs",
+      ".idea",
+      "vcpkg_installed",
+    ];
     const root = makeTree(skipped);
     for (const dir of skipped) writeFileSync(join(root, dir, DB), "[]");
 
@@ -220,32 +232,47 @@ describe("the search", () => {
     const cmake = putDb(root, "cmake-build");
     const plain = putDb(root, "build");
 
-    await expect(describeMissingCompileDb(root)).resolves.toBe(`${headAt(root)}${named(plain, cmake, build)}`);
+    await expect(describeMissingCompileDb(root)).resolves.toBe(
+      `${headAt(root)}${named(plain, cmake, build)}`,
+    );
   });
 
-  itIfSymlink("never follows a symlinked directory, so a database behind one stays unnamed", async () => {
-    const root = makeTree();
-    const outside = makeTree();
-    putDb(outside, "build");
-    symlinkSync(outside, join(root, "link"), "dir");
+  itIfSymlink(
+    "never follows a symlinked directory, so a database behind one stays unnamed",
+    async () => {
+      const root = makeTree();
+      const outside = makeTree();
+      putDb(outside, "build");
+      symlinkSync(outside, join(root, "link"), "dir");
 
-    await expect(describeMissingCompileDb(root)).resolves.toBe(searchedEverything(root, 1));
-  });
+      await expect(describeMissingCompileDb(root)).resolves.toBe(searchedEverything(root, 1));
+    },
+  );
 
   it("reports a linked entry as neither a candidate nor a directory to enter", async () => {
     const root = makeTree();
     const reads: string[] = [];
-    const readdir = fakeTree({ [root]: { linked: true }, [join(root, "linked")]: { db: true } }, reads);
+    const readdir = fakeTree(
+      { [root]: { linked: true }, [join(root, "linked")]: { db: true } },
+      reads,
+    );
 
-    await expect(describeMissingCompileDb(root, { readdir })).resolves.toBe(searchedEverything(root, 1));
+    await expect(describeMissingCompileDb(root, { readdir })).resolves.toBe(
+      searchedEverything(root, 1),
+    );
     expect(reads.filter((dir) => dir.startsWith(root))).toEqual([root]);
   });
 
   it("ignores a compile_commands.json that is a directory rather than a file", async () => {
     const root = makeTree();
-    const readdir = fakeTree({ [root]: { dirs: ["build"] }, [join(root, "build")]: { db: true, dbIsFile: false } }, []);
+    const readdir = fakeTree(
+      { [root]: { dirs: ["build"] }, [join(root, "build")]: { db: true, dbIsFile: false } },
+      [],
+    );
 
-    await expect(describeMissingCompileDb(root, { readdir })).resolves.toBe(searchedEverything(root, 2));
+    await expect(describeMissingCompileDb(root, { readdir })).resolves.toBe(
+      searchedEverything(root, 2),
+    );
   });
 
   it("ignores a name that differs from the database only by case, because clangd reads the exact one", async () => {
@@ -273,7 +300,9 @@ describe("its bounds", () => {
     const text = await describeMissingCompileDb(root, { readdir: wide, now: () => 0 });
 
     expect(reads.filter((dir) => dir.startsWith(root))).toHaveLength(HINT_MAX_DIRS);
-    expect(text).toBe(searchedEverything(root, HINT_MAX_DIRS) + stoppedAt(`${HINT_MAX_DIRS} directories`));
+    expect(text).toBe(
+      searchedEverything(root, HINT_MAX_DIRS) + stoppedAt(`${HINT_MAX_DIRS} directories`),
+    );
   });
 
   it("stops at its millisecond bound and names that bound instead", async () => {
@@ -288,17 +317,24 @@ describe("its bounds", () => {
     // Every reading of the clock advances it 400 ms, so the third check passes the 1000 ms bound.
     let ticks = 0;
 
-    const text = await describeMissingCompileDb(root, { readdir: fakeTree(chain, reads), now: () => ticks++ * 400 });
+    const text = await describeMissingCompileDb(root, {
+      readdir: fakeTree(chain, reads),
+      now: () => ticks++ * 400,
+    });
 
     expect(reads.filter((dir) => dir.startsWith(root))).toEqual([root, join(root, "a")]);
-    expect(text).toBe(searchedEverything(root, 2) + stoppedAt(`${HINT_MAX_MS} ms`) + siblingsOutOfTime);
+    expect(text).toBe(
+      searchedEverything(root, 2) + stoppedAt(`${HINT_MAX_MS} ms`) + siblingsOutOfTime,
+    );
   });
 
   it("appends no bound sentence when a search filled its three candidates inside them", async () => {
     const root = makeTree();
     for (const dir of ["a", "b", "c", "d"]) putDb(root, dir);
 
-    await expect(describeMissingCompileDb(root, { now: () => 0 })).resolves.toMatch(/Pass one of them as projectRoot\.$/);
+    await expect(describeMissingCompileDb(root, { now: () => 0 })).resolves.toMatch(
+      /Pass one of them as projectRoot\.$/,
+    );
   });
 
   it("appends no bound sentence to a search that ran out of tree inside them", async () => {
@@ -336,7 +372,9 @@ describe("a listing that cannot be read", () => {
     };
 
     // Three listings were attempted, two answered: only the two that answered may be claimed as searched.
-    await expect(describeMissingCompileDb(root, { readdir: partly })).resolves.toBe(searchedEverything(root, 2));
+    await expect(describeMissingCompileDb(root, { readdir: partly })).resolves.toBe(
+      searchedEverything(root, 2),
+    );
   });
 
   it("does not claim no directory holds one when the root's own listing failed", async () => {
@@ -348,7 +386,10 @@ describe("a listing that cannot be read", () => {
           throw Object.assign(new Error("permission denied, scandir"), { code: "EACCES" });
         },
       }),
-    ).resolves.toBe(`${headAt(root)}. That directory's own listing could not be read (EACCES), ` + "so nothing below it was searched.");
+    ).resolves.toBe(
+      `${headAt(root)}. That directory's own listing could not be read (EACCES), ` +
+        "so nothing below it was searched.",
+    );
   });
 
   it("names the errno of a projectRoot that is not a directory at all", async () => {
@@ -357,7 +398,9 @@ describe("a listing that cannot be read", () => {
 
     const text = await describeMissingCompileDb(notADirectory);
 
-    expect(text.startsWith(`${headAt(notADirectory)}. That directory's own listing could not be read (`)).toBe(true);
+    expect(
+      text.startsWith(`${headAt(notADirectory)}. That directory's own listing could not be read (`),
+    ).toBe(true);
     expect(text.endsWith("), so nothing below it was searched.")).toBe(true);
   });
 
@@ -365,7 +408,9 @@ describe("a listing that cannot be read", () => {
     const root = makeTree();
     const readdir = fakeTree({ [root]: { db: true } }, []);
 
-    await expect(describeMissingCompileDb(root, { readdir })).resolves.toBe(searchedEverything(root, 1));
+    await expect(describeMissingCompileDb(root, { readdir })).resolves.toBe(
+      searchedEverything(root, 1),
+    );
   });
 });
 
@@ -378,10 +423,15 @@ describe("its bound while a listing is running", () => {
 
     // 0, 500, 1000: the second listing's remaining budget is exactly zero, so the candidate below it is
     // never reached. A bound tested with `>` rather than `>=` would read `build` and name it instead.
-    const text = await describeMissingCompileDb(root, { readdir: fakeTree(chain, reads), now: () => ticks++ * 500 });
+    const text = await describeMissingCompileDb(root, {
+      readdir: fakeTree(chain, reads),
+      now: () => ticks++ * 500,
+    });
 
     expect(reads.filter((dir) => dir.startsWith(root))).toEqual([root]);
-    expect(text).toBe(searchedEverything(root, 1) + stoppedAt(`${HINT_MAX_MS} ms`) + siblingsOutOfTime);
+    expect(text).toBe(
+      searchedEverything(root, 1) + stoppedAt(`${HINT_MAX_MS} ms`) + siblingsOutOfTime,
+    );
   });
 
   it("walks away from a listing that never answers, inside the bound it states", async () => {
@@ -406,11 +456,17 @@ describe("its bound while a listing is running", () => {
     const root = makeTree();
     let ticks = 0;
     const slowChild: ReaddirFn = async (dir: string) =>
-      dir === root ? [{ name: "slow", isFile: () => false, isDirectory: () => true }] : new Promise(() => {});
+      dir === root
+        ? [{ name: "slow", isFile: () => false, isDirectory: () => true }]
+        : new Promise(() => {});
 
-    const text = await describeMissingCompileDb(root, { readdir: slowChild, now: () => ticks++ * 300 });
+    const text = await describeMissingCompileDb(root, {
+      readdir: slowChild,
+      now: () => ticks++ * 300,
+    });
 
-    expect(text).toBe(searchedEverything(root, 1) + stoppedAt(`${HINT_MAX_MS} ms`) + siblingsOutOfTime);
+    expect(text).toBe(
+      searchedEverything(root, 1) + stoppedAt(`${HINT_MAX_MS} ms`) + siblingsOutOfTime,
+    );
   }, 20_000);
 });
-

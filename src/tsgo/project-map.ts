@@ -121,7 +121,7 @@ function errorLine(result: TsExecResult): string | undefined {
   if (printed !== undefined) return printed.trim();
   if (result.spawnCode !== undefined) return `the listing did not answer (${result.spawnCode})`;
   if (result.exitCode === undefined) return "the listing gave no exit code";
-  if (result.exitCode !== 0) return `the listing exited with code ${result.exitCode}`;
+  if (result.exitCode !== 0) return `the listing exited with code ${String(result.exitCode)}`;
   return undefined;
 }
 
@@ -141,7 +141,11 @@ function readListing(config: string, result: TsExecResult, root: string): Listin
 }
 
 /** A worker pool over `items`, so one workspace's projects do not become that many `tsc.exe` at once. */
-async function inBatches<T, R>(items: readonly T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
+async function inBatches<T, R>(
+  items: readonly T[],
+  limit: number,
+  work: (item: T) => Promise<R>,
+): Promise<R[]> {
   const results: R[] = [];
   let next = 0;
   const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
@@ -257,7 +261,11 @@ function firstInClosure(
 }
 
 /** A source no project lists, in the order the walk found them. The JS family counts only where JS is read. */
-function uncoveredOf(snapshotPaths: readonly string[], listings: ReadonlyMap<string, Listing>, anyJs: boolean): string[] {
+function uncoveredOf(
+  snapshotPaths: readonly string[],
+  listings: ReadonlyMap<string, Listing>,
+  anyJs: boolean,
+): string[] {
   const listed = new Set<string>();
   for (const listing of listings.values()) {
     for (const key of listing.memberKeys) listed.add(key);
@@ -297,11 +305,14 @@ export async function buildProjectMapWithClosure(
   const workspaceRoot = resolve(root);
   const graph = readConfigGraph(configSeeds(snapshotPaths), workspaceRoot);
   if (graph.projects.length === 0) {
-    return unavailable(`no tsconfig.json or jsconfig.json was found under "${workspaceRoot}"`, graph.closure);
+    return unavailable(
+      `no tsconfig.json or jsconfig.json was found under "${workspaceRoot}"`,
+      graph.closure,
+    );
   }
   if (graph.projects.length > PROJECT_MAP_LIMIT) {
     return unavailable(
-      `"${workspaceRoot}" holds ${graph.projects.length} tsconfig projects, over the ${PROJECT_MAP_LIMIT} this server maps`,
+      `"${workspaceRoot}" holds ${String(graph.projects.length)} tsconfig projects, over the ${String(PROJECT_MAP_LIMIT)} this server maps`,
       graph.closure,
     );
   }
@@ -310,7 +321,11 @@ export async function buildProjectMapWithClosure(
   // load, so it is reported failed with that read error rather than listed — listing it would trade a stated read error for tsc's own confusion about its config file.
   const listable = graph.projects.filter((config) => !graph.unreadable.includes(config));
   const listings = await inBatches(listable, LISTING_CONCURRENCY, async (config) =>
-    readListing(config, await exec(binary.executable, ["--listFilesOnly", "-p", config], dirname(config)), workspaceRoot),
+    readListing(
+      config,
+      await exec(binary.executable, ["--listFilesOnly", "-p", config], dirname(config)),
+      workspaceRoot,
+    ),
   );
   const byConfig = new Map(listings.map((listing) => [listing.config, listing]));
   const byDirectory = configsByDirectory(graph.projects);
@@ -343,14 +358,27 @@ export async function buildProjectMapWithClosure(
         return owner !== undefined && owner !== listing.config;
       });
       if (everyMemberOwnedElsewhere) subsumed.push(listing.config);
-      else failed.push({ config: listing.config, reason: "no member file is assigned to this project" });
+      else
+        failed.push({
+          config: listing.config,
+          reason: "no member file is assigned to this project",
+        });
       continue;
     }
     projects.push({ config: listing.config, anchor, members: listing.members });
   }
-  const anyJs = listings.some((listing) => listing.members.some((member) => JS_FAMILY.has(extensionOf(member))));
+  const anyJs = listings.some((listing) =>
+    listing.members.some((member) => JS_FAMILY.has(extensionOf(member))),
+  );
   return {
-    map: { kind: "mapped", projects, failed, subsumed, uncovered: uncoveredOf(snapshotPaths, byConfig, anyJs), owners },
+    map: {
+      kind: "mapped",
+      projects,
+      failed,
+      subsumed,
+      uncovered: uncoveredOf(snapshotPaths, byConfig, anyJs),
+      owners,
+    },
     closure: graph.closure,
     transient: listings.some((listing) => listing.transient === true),
   };
@@ -407,12 +435,17 @@ export async function cachedProjectMap(
 ): Promise<ProjectMap> {
   const key = pathKey(root);
   const running = built.get(key);
-  if (running !== undefined && running.generation === generation) return (await running.promise).map;
+  if (running !== undefined && running.generation === generation)
+    return (await running.promise).map;
   const promise = buildProjectMapWithClosure(root, snapshotPaths, binary, exec);
   // Recorded before the listings are awaited: an edit to a closure file that lands while this build is running
   // has to count as a change against the map it is about to produce, or the map listed BEFORE the edit stays
   // the answer for every call after it.
-  const entry: CacheEntry = { promise, closure: new Set(closureOf(root, snapshotPaths).map(pathKey)), generation };
+  const entry: CacheEntry = {
+    promise,
+    closure: new Set(closureOf(root, snapshotPaths).map(pathKey)),
+    generation,
+  };
   built.set(key, entry);
   const result = await promise;
   // A listing that never answered is not a verdict on its config; keeping it would put `projects-not-loaded`
@@ -427,12 +460,18 @@ export async function cachedProjectMap(
  * changed manifest, or a changed file of the config closure. Content edits to sources reuse the map, which is
  * what makes the second call cheap.
  */
-export function projectMapNeedsRebuild(root: string, diff: SnapshotDiff, generation: number): boolean {
+export function projectMapNeedsRebuild(
+  root: string,
+  diff: SnapshotDiff,
+  generation: number,
+): boolean {
   const entry = built.get(pathKey(root));
   if (entry === undefined) return true;
   if (entry.generation !== generation) return true;
   if (diff.created.length > 0 || diff.deleted.length > 0) return true;
-  return diff.changed.some((path) => entry.closure.has(pathKey(path)) || MANIFEST_NAMES.has(basename(path).toLowerCase()));
+  return diff.changed.some(
+    (path) => entry.closure.has(pathKey(path)) || MANIFEST_NAMES.has(basename(path).toLowerCase()),
+  );
 }
 
 /** Forget the map for a root: the rebuild path, and the test seam. */

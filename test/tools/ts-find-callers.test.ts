@@ -19,7 +19,10 @@ import {
   TsFindCallersInput,
   type TsFindCallersPayload,
 } from "../../src/tools/ts-find-callers.js";
-import { CALLERS_LIMIT, REFERENCE_SITES_PER_FILE_LIMIT } from "../../src/tools/navigation-limits.js";
+import {
+  CALLERS_LIMIT,
+  REFERENCE_SITES_PER_FILE_LIMIT,
+} from "../../src/tools/navigation-limits.js";
 import type { TsQueryDeps } from "../../src/tools/ts-navigation-shared.js";
 import type { TsgoBinary, TsExecFn } from "../../src/tsgo/binary.js";
 import { dropProjectMap } from "../../src/tsgo/project-map.js";
@@ -39,7 +42,8 @@ const INCOMING_METHOD = "callHierarchy/incomingCalls";
 
 /** What the located package states for itself; the fake process says something else in `initialize`. */
 const BINARY: TsgoBinary = {
-  executable: "C:/fake/npm-global/typescript/node_modules/@typescript/typescript-win32-x64/lib/tsc.exe",
+  executable:
+    "C:/fake/npm-global/typescript/node_modules/@typescript/typescript-win32-x64/lib/tsc.exe",
   version: "7.0.2",
   source: "global",
 };
@@ -62,10 +66,16 @@ const MAIN_TEXT = [
 ];
 
 /** A caller in another file of the workspace: the site is inside `caller`, the deepest addressable entry. */
-const USES_TEXT = ["export function caller(): void {", "  driver.run(\"j\");", "}"];
+const USES_TEXT = ["export function caller(): void {", '  driver.run("j");', "}"];
 
 /** A caller that is itself a class member, for the row spelling a C++-style deepest-qualified name gives. */
-const PANEL_TEXT = ["export class Panel {", "  render(): string {", "    return driver.run(\"k\");", "  }", "}"];
+const PANEL_TEXT = [
+  "export class Panel {",
+  "  render(): string {",
+  '    return driver.run("k");',
+  "  }",
+  "}",
+];
 
 type P = { line: number; character: number };
 
@@ -95,25 +105,53 @@ function sym(
 
 /** tsgo's kind numbers: 11 interface, 5 class, 6 method, 14 constant, 12 function, 13 variable. */
 const MAIN_OUTLINE: LspDocumentSymbol[] = [
-  sym(MAIN_TEXT, "Storage", 11, [0, "Storage"], [2, "}"], [0, "Storage"], [
-    sym(MAIN_TEXT, "get", 6, [1, "get"], [1, ";"], [1, "get"]),
-  ]),
-  sym(MAIN_TEXT, "Driver", 5, [3, "Driver"], [9, "}"], [3, "Driver"], [
-    sym(MAIN_TEXT, "run", 6, [4, "run"], [7, "}"], [4, "run"], [
-      sym(MAIN_TEXT, "local", 13, [5, "local"], [5, ";"], [5, "local"]),
-    ]),
-    sym(MAIN_TEXT, "stop", 6, [8, "stop"], [8, "}"], [8, "stop"]),
-  ]),
+  sym(
+    MAIN_TEXT,
+    "Storage",
+    11,
+    [0, "Storage"],
+    [2, "}"],
+    [0, "Storage"],
+    [sym(MAIN_TEXT, "get", 6, [1, "get"], [1, ";"], [1, "get"])],
+  ),
+  sym(
+    MAIN_TEXT,
+    "Driver",
+    5,
+    [3, "Driver"],
+    [9, "}"],
+    [3, "Driver"],
+    [
+      sym(
+        MAIN_TEXT,
+        "run",
+        6,
+        [4, "run"],
+        [7, "}"],
+        [4, "run"],
+        [sym(MAIN_TEXT, "local", 13, [5, "local"], [5, ";"], [5, "local"])],
+      ),
+      sym(MAIN_TEXT, "stop", 6, [8, "stop"], [8, "}"], [8, "stop"]),
+    ],
+  ),
   sym(MAIN_TEXT, "handler", 14, [10, "handler"], [10, "}"], [10, "handler"]),
   sym(MAIN_TEXT, "build", 12, [11, "build"], [11, "}"], [11, "build"]),
 ];
 
-const USES_OUTLINE: LspDocumentSymbol[] = [sym(USES_TEXT, "caller", 12, [0, "caller"], [2, "}"], [0, "caller"])];
+const USES_OUTLINE: LspDocumentSymbol[] = [
+  sym(USES_TEXT, "caller", 12, [0, "caller"], [2, "}"], [0, "caller"]),
+];
 
 const PANEL_OUTLINE: LspDocumentSymbol[] = [
-  sym(PANEL_TEXT, "Panel", 5, [0, "Panel"], [4, "}"], [0, "Panel"], [
-    sym(PANEL_TEXT, "render", 6, [1, "render"], [3, "}"], [1, "render"]),
-  ]),
+  sym(
+    PANEL_TEXT,
+    "Panel",
+    5,
+    [0, "Panel"],
+    [4, "}"],
+    [0, "Panel"],
+    [sym(PANEL_TEXT, "render", 6, [1, "render"], [3, "}"], [1, "render"])],
+  ),
 ];
 
 /** One `CallHierarchyItem` as tsgo spells it: a declaration the hierarchy can be asked about. */
@@ -123,7 +161,10 @@ function item(path: string, name: string, kind: number, line: number, character 
     kind,
     uri: uriOf(path),
     range: { start: { line, character }, end: { line, character: character + name.length } },
-    selectionRange: { start: { line, character }, end: { line, character: character + name.length } },
+    selectionRange: {
+      start: { line, character },
+      end: { line, character: character + name.length },
+    },
   };
 }
 
@@ -136,7 +177,10 @@ function item(path: string, name: string, kind: number, line: number, character 
 function incoming(path: string, name: string, kind: number, decl: P, sites: readonly P[]): unknown {
   return {
     from: item(path, name, kind, decl.line, decl.character),
-    fromRanges: sites.map((start) => ({ start, end: { line: start.line, character: start.character + 3 } })),
+    fromRanges: sites.map((start) => ({
+      start,
+      end: { line: start.line, character: start.character + 3 },
+    })),
   };
 }
 
@@ -177,7 +221,10 @@ function harness(): Harness {
   built.push({ tmp, ws });
   const src = join(ws, "packages", "ui", "src");
   mkdirSync(src, { recursive: true });
-  writeFileSync(join(ws, "package.json"), JSON.stringify({ name: "mono", workspaces: ["packages/*"] }));
+  writeFileSync(
+    join(ws, "package.json"),
+    JSON.stringify({ name: "mono", workspaces: ["packages/*"] }),
+  );
   writeFileSync(join(ws, "packages", "ui", "package.json"), JSON.stringify({ name: "@mono/ui" }));
   const config = join(ws, "tsconfig.json");
   writeFileSync(config, JSON.stringify({ compilerOptions: {} }));
@@ -216,8 +263,10 @@ function harness(): Harness {
       const server = fakeServer({
         alive: () => alive,
         respond: (method, params) => {
-          if (method === "initialize") return { serverInfo: { name: "tsgo", version: SERVER_VERSION } };
-          if (method === "textDocument/documentSymbol") return outlines.get(pathOfDocumentId(params) ?? "") ?? [];
+          if (method === "initialize")
+            return { serverInfo: { name: "tsgo", version: SERVER_VERSION } };
+          if (method === "textDocument/documentSymbol")
+            return outlines.get(pathOfDocumentId(params) ?? "") ?? [];
           if (method === PREPARE_METHOD) {
             if (hangingPrepare) return new Promise<unknown>(() => {});
             if (crashing) {
@@ -318,11 +367,15 @@ function requestFor(server: FakeServer, method: string): Record<string, unknown>
 
 /** Every path a `didOpen` named, in order — which documents this server holds, and which it only borrowed. */
 function openedPaths(server: FakeServer): (string | undefined)[] {
-  return server.notifications.filter(([method]) => method === "textDocument/didOpen").map(([, p]) => pathOfDocumentId(p));
+  return server.notifications
+    .filter(([method]) => method === "textDocument/didOpen")
+    .map(([, p]) => pathOfDocumentId(p));
 }
 
 function closedPaths(server: FakeServer): (string | undefined)[] {
-  return server.notifications.filter(([method]) => method === "textDocument/didClose").map(([, p]) => pathOfDocumentId(p));
+  return server.notifications
+    .filter(([method]) => method === "textDocument/didClose")
+    .map(([, p]) => pathOfDocumentId(p));
 }
 
 /** The `scope` the temp workspace's one loaded project and an untouched disk produce, for a method subject. */
@@ -339,10 +392,21 @@ function cleanScope(h: Harness): Record<string, unknown> {
       grepRequired: false,
       directories: [],
       directoriesTruncated: 0,
-      mentioning: { name: expect.any(String), count: 0, files: [], filesTruncated: 0, unchecked: 0 },
+      mentioning: {
+        name: expect.any(String),
+        count: 0,
+        files: [],
+        filesTruncated: 0,
+        unchecked: 0,
+      },
       namedFileUncovered: false,
     },
-    limits: ["one-workspace", "corresponding-interface-methods-included", "indirect-dispatch-not-resolved", "uncalled-mentions-included"],
+    limits: [
+      "one-workspace",
+      "corresponding-interface-methods-included",
+      "indirect-dispatch-not-resolved",
+      "uncalled-mentions-included",
+    ],
   };
 }
 
@@ -352,13 +416,28 @@ const SCOPE_SENTENCE =
 
 describe("TsFindCallersInput", () => {
   it("needs a root to bound the call, defaults the budget to 60000 ms and takes no other parameter", () => {
-    const parsed = TsFindCallersInput.parse({ sourceRoots: ["C:/ws"], file: "src/main.ts", symbol: "Driver.run" });
+    const parsed = TsFindCallersInput.parse({
+      sourceRoots: ["C:/ws"],
+      file: "src/main.ts",
+      symbol: "Driver.run",
+    });
     expect(parsed.timeBudgetMs).toBe(60_000);
-    expect(Object.keys(TsFindCallersInput.shape).sort()).toEqual(["file", "sourceRoots", "symbol", "timeBudgetMs"]);
-    expect(TsFindCallersInput.safeParse({ sourceRoots: [], file: "a.ts", symbol: "f" }).success).toBe(false);
+    expect(Object.keys(TsFindCallersInput.shape).sort()).toEqual([
+      "file",
+      "sourceRoots",
+      "symbol",
+      "timeBudgetMs",
+    ]);
     expect(
-      TsFindCallersInput.safeParse({ sourceRoots: ["C:/ws"], file: "a.ts", symbol: "f", timeBudgetMs: 600_001 })
-        .success,
+      TsFindCallersInput.safeParse({ sourceRoots: [], file: "a.ts", symbol: "f" }).success,
+    ).toBe(false);
+    expect(
+      TsFindCallersInput.safeParse({
+        sourceRoots: ["C:/ws"],
+        file: "a.ts",
+        symbol: "f",
+        timeBudgetMs: 600_001,
+      }).success,
     ).toBe(false);
   });
 });
@@ -395,7 +474,13 @@ describe("runTsFindCallers", () => {
       grepRequired: true,
       directories: [{ directory: "packages/ui/src", count: 1 }],
       directoriesTruncated: 0,
-      mentioning: { name: "run", count: 1, files: [{ file: orphan, matchingLines: 2 }], filesTruncated: 0, unchecked: 0 },
+      mentioning: {
+        name: "run",
+        count: 1,
+        files: [{ file: orphan, matchingLines: 2 }],
+        filesTruncated: 0,
+        unchecked: 0,
+      },
       namedFileUncovered: false,
     });
     const lines = textOf(out).split("\n");
@@ -468,10 +553,19 @@ describe("runTsFindCallers", () => {
   it("publishes the Go keys in order, `reason` only on an unnamed row, and no `direction` anywhere", async () => {
     const h = harness();
     h.prepared([item(h.main, "run", 6, 4, 2)]);
-    h.incoming([incoming(h.outside, "external", 12, EXTERNAL_DECL, [at(USES_TEXT, 1, "driver.run")])]);
+    h.incoming([
+      incoming(h.outside, "external", 12, EXTERNAL_DECL, [at(USES_TEXT, 1, "driver.run")]),
+    ]);
 
     const out = await h.run();
-    expect(Object.keys(payload(out))).toEqual(["summary", "resolved", "totalCallers", "callers", "callersTruncated", "scope"]);
+    expect(Object.keys(payload(out))).toEqual([
+      "summary",
+      "resolved",
+      "totalCallers",
+      "callers",
+      "callersTruncated",
+      "scope",
+    ]);
     expect(Object.keys(payload(out).resolved as object)).toEqual(["name", "kind", "file", "line"]);
     expect(Object.keys(rowsOf(out)[0] ?? {})).toEqual([
       "name",
@@ -483,7 +577,10 @@ describe("runTsFindCallers", () => {
       "callSites",
       "callSitesTruncated",
     ]);
-    expect(Object.keys((rowsOf(out)[0]?.callSites as object[])[0] ?? {})).toEqual(["line", "column"]);
+    expect(Object.keys((rowsOf(out)[0]?.callSites as object[])[0] ?? {})).toEqual([
+      "line",
+      "column",
+    ]);
     expect(Object.keys(scopeOf(out))).toEqual([
       "workspaceRoot",
       "enclosingWorkspace",
@@ -571,21 +668,24 @@ describe("runTsFindCallers", () => {
   it.each([
     ["an empty list", []],
     ["a null answer", null],
-  ])("refuses a declaration tsgo holds no call hierarchy for (%s), and will not substitute references", async (_label: string, answer: unknown) => {
-    const h = harness();
-    h.prepared(answer);
-    h.incoming([incoming(h.uses, "caller", 12, CALLER_DECL, [at(USES_TEXT, 1, "driver.run")])]);
+  ])(
+    "refuses a declaration tsgo holds no call hierarchy for (%s), and will not substitute references",
+    async (_label: string, answer: unknown) => {
+      const h = harness();
+      h.prepared(answer);
+      h.incoming([incoming(h.uses, "caller", 12, CALLER_DECL, [at(USES_TEXT, 1, "driver.run")])]);
 
-    const out = await h.run();
-    expect(out.isError).toBe(true);
-    expect(textOf(out)).toBe(
-      `ts_find_callers failed: tsgo offers no call hierarchy for "Driver.run" in "${h.main}", so it is not ` +
-        "callable - a variable, a constant that is not a function, a type or a plain object member never has " +
-        "callers. This server will not answer the question with a references list instead: a mention is not a " +
-        "call. Name the function, method or callable `const` and call again.",
-    );
-    expect(h.server.methods).not.toContain(INCOMING_METHOD);
-  });
+      const out = await h.run();
+      expect(out.isError).toBe(true);
+      expect(textOf(out)).toBe(
+        `ts_find_callers failed: tsgo offers no call hierarchy for "Driver.run" in "${h.main}", so it is not ` +
+          "callable - a variable, a constant that is not a function, a type or a plain object member never has " +
+          "callers. This server will not answer the question with a references list instead: a mention is not a " +
+          "call. Name the function, method or callable `const` and call again.",
+      );
+      expect(h.server.methods).not.toContain(INCOMING_METHOD);
+    },
+  );
 
   it("lists every item tsgo offers for one position and never picks one", async () => {
     const h = harness();
@@ -594,7 +694,7 @@ describe("runTsFindCallers", () => {
     const out = await h.run();
     expect(out.isError).toBe(true);
     expect(textOf(out)).toBe(
-      "ts_find_callers failed: tsgo offered 2 call-hierarchy items for \"Driver.run\", and picking one would " +
+      'ts_find_callers failed: tsgo offered 2 call-hierarchy items for "Driver.run", and picking one would ' +
         "be a guess, so they are listed:\n" +
         `  - run (method) at ${h.main}:5\n` +
         `  - caller (function) at ${h.uses}:1`,
@@ -608,8 +708,10 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
-    expect(textOf(out)).toContain("answered the caller query for \"Driver.run\"");
-    expect(textOf(out)).toContain("It expects `CallHierarchyItem` and `IncomingCall` entries: {\"item\":1}");
+    expect(textOf(out)).toContain('answered the caller query for "Driver.run"');
+    expect(textOf(out)).toContain(
+      'It expects `CallHierarchyItem` and `IncomingCall` entries: {"item":1}',
+    );
     expect(h.server.methods).not.toContain(INCOMING_METHOD);
   });
 
@@ -735,11 +837,18 @@ describe("runTsFindCallers", () => {
     const h = harness();
     h.prepared([item(h.main, "run", 6, 4, 2)]);
     const external = Array.from({ length: CALLERS_LIMIT + 2 }, (_unused, index) =>
-      incoming(join(h.tmp, "outside", `f${index}.ts`), `caller${index}`, 12, { line: 3, character: 1 }, [
+      incoming(
+        join(h.tmp, "outside", `f${index}.ts`),
+        `caller${index}`,
+        12,
         { line: 3, character: 1 },
-      ]),
+        [{ line: 3, character: 1 }],
+      ),
     );
-    h.incoming([...external, incoming(h.uses, "caller", 12, CALLER_DECL, [at(USES_TEXT, 1, "driver.run")])]);
+    h.incoming([
+      ...external,
+      incoming(h.uses, "caller", 12, CALLER_DECL, [at(USES_TEXT, 1, "driver.run")]),
+    ]);
 
     const out = await h.run();
     const rows = rowsOf(out);
@@ -773,7 +882,10 @@ describe("runTsFindCallers", () => {
     expect(textOf(out)).toContain("3 call site(s) not listed");
   });
 
-  it.each([["an empty hierarchy", []], ["a null answer", null]])(
+  it.each([
+    ["an empty hierarchy", []],
+    ["a null answer", null],
+  ])(
     "answers a callable nobody calls with %s as a scoped empty, because the anchors were proved",
     async (_label: string, answer: unknown) => {
       const h = harness();
@@ -818,7 +930,7 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run({ symbol: "Absent" });
     expect(out.isError).toBe(true);
-    expect(textOf(out)).toContain("declares nothing named \"Absent\"");
+    expect(textOf(out)).toContain('declares nothing named "Absent"');
     expect(h.server.methods).toEqual(["initialize", "textDocument/documentSymbol"]);
   });
 
@@ -830,7 +942,9 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
-    expect(textOf(out)).toContain("ts_find_callers failed: tsgo restarted during the query about \"Driver.run\"");
+    expect(textOf(out)).toContain(
+      'ts_find_callers failed: tsgo restarted during the query about "Driver.run"',
+    );
     expect(h.servers).toHaveLength(2);
     expect(countOf(h.server, PREPARE_METHOD)).toBe(1);
   });

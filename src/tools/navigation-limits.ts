@@ -2,6 +2,8 @@
 // shape a declaration's hover answer is read into. Shared by both languages, so a C++ and a Go answer
 // describe their limits and their declarations in the same vocabulary.
 
+import { jsonText } from "./navigation-text.js";
+
 /**
  * What an answer does not cover, in one machine-readable field rather than in prose the caller must
  * parse. The set is closed: a new limit is a new code and a description change, never an undocumented
@@ -109,7 +111,7 @@ function partsOfValue(text: string, language: string): HoverPart[] {
     const before = text.slice(rest, fence.index);
     if (before.trim() !== "") parts.push({ language: "", text: before, code: false });
     parts.push({ language: (fence[1] ?? "").trim(), text: fence[2] ?? "", code: true });
-    rest = (fence.index ?? 0) + fence[0].length;
+    rest = fence.index + fence[0].length;
   }
   if (parts.length === 0) return [{ language, text, code: false }];
   const after = text.slice(rest);
@@ -136,16 +138,19 @@ function collectParts(contents: unknown, into: HoverPart[]): void {
 /** The `contents` field of a hover answer, or the answer itself when a server skipped the envelope. */
 function hoverContents(hover: unknown): unknown {
   if (typeof hover !== "object" || hover === null) return hover;
-  return "contents" in hover ? (hover as { contents: unknown }).contents : hover;
+  return "contents" in hover ? hover.contents : hover;
 }
 
 function unreadableHover(contents: unknown): string {
-  const shape =
-    Array.isArray(contents) ? "an empty list" : contents === null || contents === undefined ? "nothing" : `a ${typeof contents}`;
+  const shape = Array.isArray(contents)
+    ? "an empty list"
+    : contents === null || contents === undefined
+      ? "nothing"
+      : `a ${typeof contents}`;
   return (
     "the hover answer carried " +
     shape +
-    ` where this server reads a code block for the signature: ${JSON.stringify(contents)?.slice(0, 200) ?? String(contents)}`
+    ` where this server reads a code block for the signature: ${jsonText(contents)?.slice(0, 200) ?? String(contents)}`
   );
 }
 
@@ -165,7 +170,8 @@ export function readSymbolDescription(hover: unknown): SymbolDescription {
     .map((part) => part.text.trim())
     .filter((text) => text !== "")
     .join("\n\n");
-  if (signature === undefined && documentation === "") return { descriptionUnavailable: unreadableHover(contents) };
+  if (signature === undefined && documentation === "")
+    return { descriptionUnavailable: unreadableHover(contents) };
   return {
     ...(signature === undefined ? {} : { signature: signature.text.trim() }),
     ...(documentation === "" ? {} : { documentation }),

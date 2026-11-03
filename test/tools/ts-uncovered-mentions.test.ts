@@ -36,7 +36,10 @@ function write(name: string, body: string): string {
 
 const WHOLE_BUDGET = budgetOf(60_000);
 
-async function scan(files: readonly string[], name = "Store"): Promise<{ hits: TsUncoveredMention[]; unchecked: number }> {
+async function scan(
+  files: readonly string[],
+  name = "Store",
+): Promise<{ hits: TsUncoveredMention[]; unchecked: number }> {
   return await scanMentions(files, name, WHOLE_BUDGET);
 }
 
@@ -65,7 +68,10 @@ describe("scanMentions' whole-identifier test", () => {
   });
 
   it("reads the name as text, so a regular-expression character in it cannot widen the match", async () => {
-    const path = write("dotted.ts", ["const a = new Driver.run();", "const b = Driverrun();"].join("\n"));
+    const path = write(
+      "dotted.ts",
+      ["const a = new Driver.run();", "const b = Driverrun();"].join("\n"),
+    );
 
     const { hits } = await scan([path], "Driver.run");
     expect(hits).toEqual([{ file: path, matchingLines: 1 }]);
@@ -82,9 +88,15 @@ describe("scanMentions' whole-identifier test", () => {
 
 describe("scanMentions' ordering and exactness", () => {
   it("orders hits by line count descending, then by path, and keeps every file that holds one", async () => {
-    const wide = write("a-wide.ts", Array.from({ length: 4 }, (_unused, index) => `new Store(${index});`).join("\n"));
+    const wide = write(
+      "a-wide.ts",
+      Array.from({ length: 4 }, (_unused, index) => `new Store(${index});`).join("\n"),
+    );
     const narrow = write("b-narrow.ts", "new Store(1);\n");
-    const wider = write("c-wider.ts", Array.from({ length: 6 }, (_unused, index) => `new Store(${index});`).join("\n"));
+    const wider = write(
+      "c-wider.ts",
+      Array.from({ length: 6 }, (_unused, index) => `new Store(${index});`).join("\n"),
+    );
 
     const { hits } = await scan([wide, narrow, wider]);
     expect(hits.map((hit) => hit.matchingLines)).toEqual([6, 4, 1]);
@@ -127,7 +139,9 @@ describe("scanMentions' byte caps and budget", () => {
     // it, and the three behind it are named as unchecked rather than quietly skipped.
     const size = UNCOVERED_MENTION_FILE_BYTES - 1;
     const filler = "x".repeat(size);
-    const paths = Array.from({ length: 36 }, (_unused, index) => write(`t${String(index).padStart(2, "0")}.ts`, filler));
+    const paths = Array.from({ length: 36 }, (_unused, index) =>
+      write(`t${String(index).padStart(2, "0")}.ts`, filler),
+    );
     const read = Math.ceil(UNCOVERED_MENTION_TOTAL_BYTES / size);
 
     const { hits, unchecked } = await scan(paths);
@@ -181,7 +195,9 @@ describe("scanMentions' remaining edges", () => {
     const lower = write("a-file.ts", "new Store();\n");
 
     const { hits } = await scan([upper, lower]);
-    expect(hits.map((hit) => hit.file)).toEqual([upper, lower].sort((left, right) => (pathKey(left) < pathKey(right) ? -1 : 1)));
+    expect(hits.map((hit) => hit.file)).toEqual(
+      [upper, lower].sort((left, right) => (pathKey(left) < pathKey(right) ? -1 : 1)),
+    );
   });
 
   it("is no search at all for an empty name", async () => {

@@ -7,10 +7,18 @@ import {
   type ClangQueryExecFn,
 } from "../../src/clang-query/find-derived-classes.js";
 import { SweepCache } from "../../src/clang-query/sweep-cache.js";
-import { CppFindDerivedClassesInput, runCppFindDerivedClasses } from "../../src/tools/cpp-find-derived-classes.js";
+import {
+  CppFindDerivedClassesInput,
+  runCppFindDerivedClasses,
+} from "../../src/tools/cpp-find-derived-classes.js";
 import { registeredDescription } from "../helpers/cpp-find-derived-classes.js";
 
-type ProgressParams = { progressToken: string | number; progress: number; total: number; message: string };
+type ProgressParams = {
+  progressToken: string | number;
+  progress: number;
+  total: number;
+  message: string;
+};
 
 function progressParamsOf(notifications: unknown[]): ProgressParams[] {
   return notifications.map((n) => (n as { params: ProgressParams }).params);
@@ -55,9 +63,14 @@ describe("runCppFindDerivedClasses", () => {
       stdout: `${header}:1:7: note: "derived" binds here\n`,
       stderr: "",
     });
-    const out = await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" });
+    const out = await runCppFindDerivedClasses(
+      { exec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
     expect(out.isError).toBeFalsy();
-    expect(out.structuredContent.matches).toEqual([{ className: "Derived", file: header, line: 1, column: 7, direct: false }]);
+    expect(out.structuredContent.matches).toEqual([
+      { className: "Derived", file: header, line: 1, column: 7, direct: false },
+    ]);
     expect(out.structuredContent).not.toHaveProperty("failedFiles");
     expect(out.structuredContent.sweep).toMatchObject({ totalTus: 1, cachedTus: 0 });
   });
@@ -65,7 +78,10 @@ describe("runCppFindDerivedClasses", () => {
   it("returns isError when compile_commands.json is missing", async () => {
     rmSync(join(projectRoot, "compile_commands.json"));
     const exec: ClangQueryExecFn = async () => ({ exitCode: 0, stdout: "", stderr: "" });
-    const out = await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" });
+    const out = await runCppFindDerivedClasses(
+      { exec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
     expect(out.isError).toBe(true);
   });
 
@@ -81,7 +97,10 @@ describe("runCppFindDerivedClasses", () => {
         throw new Error("clang-query must not run for a root that holds no database");
       };
 
-      const out = await runCppFindDerivedClasses({ exec, cache }, { projectRoot: repoRoot, qualifiedName: "Base" });
+      const out = await runCppFindDerivedClasses(
+        { exec, cache },
+        { projectRoot: repoRoot, qualifiedName: "Base" },
+      );
 
       expect(out.isError).toBe(true);
       expect(out.content[0]?.text).toBe(
@@ -108,10 +127,15 @@ describe("runCppFindDerivedClasses", () => {
       args[2] === join(projectRoot, "a.cpp")
         ? { exitCode: 1, stdout: "", stderr: "compile error" }
         : { exitCode: 0, stdout: "", stderr: "" };
-    const out = await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" });
+    const out = await runCppFindDerivedClasses(
+      { exec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent.matches).toEqual([]);
-    expect(out.structuredContent.failedFiles).toEqual([{ file: join(projectRoot, "a.cpp"), error: "compile error" }]);
+    expect(out.structuredContent.failedFiles).toEqual([
+      { file: join(projectRoot, "a.cpp"), error: "compile error" },
+    ]);
   });
 
   it("rejects a `files` entry that escapes projectRoot", async () => {
@@ -129,20 +153,29 @@ describe("runCppFindDerivedClasses", () => {
       seenTus.push(args[2] as string);
       return { exitCode: 0, stdout: "", stderr: "" };
     };
-    await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base", files: ["a.cpp"] });
+    await runCppFindDerivedClasses(
+      { exec, cache },
+      { projectRoot, qualifiedName: "Base", files: ["a.cpp"] },
+    );
     expect(seenTus).toEqual([join(projectRoot, "a.cpp")]);
   });
 
   it("returns an empty matches array, not an error, when there are genuinely no derived classes", async () => {
     const exec: ClangQueryExecFn = async () => ({ exitCode: 0, stdout: "", stderr: "" });
-    const out = await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" });
+    const out = await runCppFindDerivedClasses(
+      { exec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent.matches).toEqual([]);
   });
 
   it("omits failedFiles entirely when every TU swept cleanly", async () => {
     const exec: ClangQueryExecFn = async () => ({ exitCode: 0, stdout: "", stderr: "" });
-    const out = await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" });
+    const out = await runCppFindDerivedClasses(
+      { exec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
     expect(out.structuredContent).not.toHaveProperty("failedFiles");
   });
 
@@ -152,10 +185,20 @@ describe("runCppFindDerivedClasses", () => {
       execCalls++;
       return { exitCode: 0, stdout: "", stderr: "" };
     };
-    const first = await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" });
+    const first = await runCppFindDerivedClasses(
+      { exec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
     expect(first.structuredContent.sweep.cache).toBe("miss");
-    const second = await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" });
-    expect(second.structuredContent.sweep).toMatchObject({ cache: "hit", cachedTus: 1, totalTus: 1 });
+    const second = await runCppFindDerivedClasses(
+      { exec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
+    expect(second.structuredContent.sweep).toMatchObject({
+      cache: "hit",
+      cachedTus: 1,
+      totalTus: 1,
+    });
     expect(execCalls).toBe(1);
   });
 
@@ -167,7 +210,10 @@ describe("runCppFindDerivedClasses", () => {
     };
     await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" });
     writeFileSync(join(projectRoot, "a.cpp"), "class Touched {};\n");
-    const second = await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" });
+    const second = await runCppFindDerivedClasses(
+      { exec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
     expect(second.structuredContent.sweep).toMatchObject({ cache: "miss", cachedTus: 0 });
     expect(execCalls).toBe(2);
   });
@@ -178,9 +224,16 @@ describe("runCppFindDerivedClasses", () => {
         signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
       });
     };
-    const out = await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base", timeBudgetMs: 20 });
+    const out = await runCppFindDerivedClasses(
+      { exec, cache },
+      { projectRoot, qualifiedName: "Base", timeBudgetMs: 20 },
+    );
     expect(out.isError).toBe(true);
-    expect(out.structuredContent?.incomplete).toEqual({ sweptTus: 0, totalTus: 1, reason: "time-budget" });
+    expect(out.structuredContent?.incomplete).toEqual({
+      sweptTus: 0,
+      totalTus: 1,
+      reason: "time-budget",
+    });
     expect(out.content[0]?.text).toContain("files");
     expect(out.content[0]?.text).toContain("call again");
   });
@@ -192,7 +245,8 @@ describe("runCppFindDerivedClasses — derivation views", () => {
   let execCalls: number;
 
   const header = (name: string) => join(projectRoot, name);
-  const note = (name: string, bind: "derived" | "direct") => `${header(name)}:1:1: note: "${bind}" binds here\n`;
+  const note = (name: string, bind: "derived" | "direct") =>
+    `${header(name)}:1:1: note: "${bind}" binds here\n`;
 
   beforeEach(() => {
     projectRoot = mkdtempSync(join(tmpdir(), "mcp-code-nav-fdc-derivation-"));
@@ -233,11 +287,18 @@ describe("runCppFindDerivedClasses — derivation views", () => {
     column: 1,
     direct,
   });
-  const allRows = () => [row("MarketData.h", true), row("Session.h", false), row("Trading.h", true)];
+  const allRows = () => [
+    row("MarketData.h", true),
+    row("Session.h", false),
+    row("Trading.h", true),
+  ];
   const directRows = () => allRows().filter((r) => r.direct);
 
   it("answers the transitive view when `derivation` is omitted, echoing it as the first key", async () => {
-    const out = await runCppFindDerivedClasses({ exec: sweepExec, cache }, { projectRoot, qualifiedName: "Base" });
+    const out = await runCppFindDerivedClasses(
+      { exec: sweepExec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
     expect(out.isError).toBeFalsy();
     expect(Object.keys(out.structuredContent)[0]).toBe("derivation");
     expect(out.structuredContent.derivation).toBe("transitive");
@@ -246,7 +307,10 @@ describe("runCppFindDerivedClasses — derivation views", () => {
   });
 
   it("resolves the default both when the key is absent and when it arrives explicitly undefined", async () => {
-    const absent = await runCppFindDerivedClasses({ exec: sweepExec, cache }, { projectRoot, qualifiedName: "Base" });
+    const absent = await runCppFindDerivedClasses(
+      { exec: sweepExec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
     const explicit = await runCppFindDerivedClasses(
       { exec: sweepExec, cache },
       { projectRoot, qualifiedName: "Base", derivation: undefined },
@@ -270,7 +334,10 @@ describe("runCppFindDerivedClasses — derivation views", () => {
   });
 
   it("counts over the unfiltered rows under both views", async () => {
-    const transitive = await runCppFindDerivedClasses({ exec: sweepExec, cache }, { projectRoot, qualifiedName: "Base" });
+    const transitive = await runCppFindDerivedClasses(
+      { exec: sweepExec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
     cache.clear();
     const direct = await runCppFindDerivedClasses(
       { exec: sweepExec, cache },
@@ -282,15 +349,24 @@ describe("runCppFindDerivedClasses — derivation views", () => {
   });
 
   it("serves a `direct` call that follows a transitive one entirely from the injected cache", async () => {
-    const first = await runCppFindDerivedClasses({ exec: sweepExec, cache }, { projectRoot, qualifiedName: "Base" });
+    const first = await runCppFindDerivedClasses(
+      { exec: sweepExec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
     expect(first.structuredContent.sweep.cache).toBe("miss");
     const second = await runCppFindDerivedClasses(
       { exec: sweepExec, cache },
       { projectRoot, qualifiedName: "Base", derivation: "direct" },
     );
     expect(execCalls).toBe(1);
-    expect(second.structuredContent.sweep).toMatchObject({ cache: "hit", cachedTus: 1, totalTus: 1 });
-    expect(second.structuredContent.matches).toEqual(first.structuredContent.matches.filter((m) => m.direct));
+    expect(second.structuredContent.sweep).toMatchObject({
+      cache: "hit",
+      cachedTus: 1,
+      totalTus: 1,
+    });
+    expect(second.structuredContent.matches).toEqual(
+      first.structuredContent.matches.filter((m) => m.direct),
+    );
   });
 
   it("echoes the derivation on a payload that carries only failedFiles", async () => {
@@ -312,7 +388,9 @@ describe("runCppFindDerivedClasses — derivation views", () => {
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent.derivation).toBe("direct");
     expect(out.structuredContent.counts).toEqual({ transitive: 0, direct: 0 });
-    expect(out.structuredContent.failedFiles).toEqual([{ file: join(projectRoot, "a.cpp"), error: "compile error" }]);
+    expect(out.structuredContent.failedFiles).toEqual([
+      { file: join(projectRoot, "a.cpp"), error: "compile error" },
+    ]);
   });
 
   it("echoes the derivation on the partial payload and names it, with all three remedies, in the ceiling text", async () => {
@@ -323,7 +401,11 @@ describe("runCppFindDerivedClasses — derivation views", () => {
     expect(out.isError).toBe(true);
     expect(out.structuredContent.derivation).toBe("direct");
     expect(out.structuredContent.counts).toEqual({ transitive: 0, direct: 0 });
-    expect(out.structuredContent.incomplete).toEqual({ sweptTus: 0, totalTus: 1, reason: "time-budget" });
+    expect(out.structuredContent.incomplete).toEqual({
+      sweptTus: 0,
+      totalTus: 1,
+      reason: "time-budget",
+    });
     const text = out.content[0]?.text ?? "";
     expect(text).toContain('derivation: "direct"');
     expect(text).toContain("`files`");
@@ -341,7 +423,10 @@ describe("runCppFindDerivedClasses — uniform sweep failure", () => {
     cache = new SweepCache();
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: projectRoot, file: "a.cpp" }, { directory: projectRoot, file: "b.cpp" }]),
+      JSON.stringify([
+        { directory: projectRoot, file: "a.cpp" },
+        { directory: projectRoot, file: "b.cpp" },
+      ]),
     );
   });
 
@@ -350,8 +435,15 @@ describe("runCppFindDerivedClasses — uniform sweep failure", () => {
   });
 
   it("turns an identical failure on every TU into an error naming the shared error once, with no payload", async () => {
-    const exec: ClangQueryExecFn = async () => ({ exitCode: 1, stdout: "", stderr: "error: unknown matcher" });
-    const out = await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" });
+    const exec: ClangQueryExecFn = async () => ({
+      exitCode: 1,
+      stdout: "",
+      stderr: "error: unknown matcher",
+    });
+    const out = await runCppFindDerivedClasses(
+      { exec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
     expect(out.isError).toBe(true);
     expect(out).not.toHaveProperty("structuredContent");
     expect(out.content[0]?.text).toBe(
@@ -367,13 +459,21 @@ describe("runCppFindDerivedClasses — uniform sweep failure", () => {
       join(projectRoot, "compile_commands.json"),
       JSON.stringify([{ directory: projectRoot, file: "a.cpp" }]),
     );
-    const exec: ClangQueryExecFn = async () => ({ exitCode: 1, stdout: "", stderr: "error: unknown matcher" });
-    const out = await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" });
+    const exec: ClangQueryExecFn = async () => ({
+      exitCode: 1,
+      stdout: "",
+      stderr: "error: unknown matcher",
+    });
+    const out = await runCppFindDerivedClasses(
+      { exec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
     expect(out.isError).toBe(true);
     expect(out.content[0]?.text).toBe(
       "cpp_find_derived_classes failed on all 1 translation units with the same error, so the empty result is a " +
         "sweep failure, not an empty hierarchy - check that the clang-query on PATH supports this query. " +
-        "Shared error: error: unknown matcher Failed file: " + join(projectRoot, "a.cpp"),
+        "Shared error: error: unknown matcher Failed file: " +
+        join(projectRoot, "a.cpp"),
     );
   });
 
@@ -382,7 +482,10 @@ describe("runCppFindDerivedClasses — uniform sweep failure", () => {
       args[2] === join(projectRoot, "a.cpp")
         ? { exitCode: 1, stdout: "", stderr: "fatal error: x.h not found" }
         : { exitCode: 0, stdout: "", stderr: "" };
-    const out = await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" });
+    const out = await runCppFindDerivedClasses(
+      { exec, cache },
+      { projectRoot, qualifiedName: "Base" },
+    );
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent.failedFiles).toEqual([
       { file: join(projectRoot, "a.cpp"), error: "fatal error: x.h not found" },
@@ -419,7 +522,12 @@ describe("runCppFindDerivedClasses with sourceRoots (out-of-tree build layout)",
     };
     await runCppFindDerivedClasses(
       { exec, cache },
-      { projectRoot: buildRoot, qualifiedName: "Base", files: [join(sourceRoot, "a.cpp")], sourceRoots: [sourceRoot] },
+      {
+        projectRoot: buildRoot,
+        qualifiedName: "Base",
+        files: [join(sourceRoot, "a.cpp")],
+        sourceRoots: [sourceRoot],
+      },
     );
     expect(seenTus).toEqual([join(sourceRoot, "a.cpp")]);
   });
@@ -477,7 +585,10 @@ describe("runCppFindDerivedClasses — progress reporting", () => {
     cache = new SweepCache();
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: projectRoot, file: "a.cpp" }, { directory: projectRoot, file: "b.cpp" }]),
+      JSON.stringify([
+        { directory: projectRoot, file: "a.cpp" },
+        { directory: projectRoot, file: "b.cpp" },
+      ]),
     );
   });
 
@@ -530,7 +641,10 @@ describe("runCppFindDerivedClasses — progress heartbeat and reporter lifetime"
     cache = new SweepCache();
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: projectRoot, file: "a.cpp" }, { directory: projectRoot, file: "b.cpp" }]),
+      JSON.stringify([
+        { directory: projectRoot, file: "a.cpp" },
+        { directory: projectRoot, file: "b.cpp" },
+      ]),
     );
   });
 
@@ -611,17 +725,23 @@ describe("CppFindDerivedClassesInput", () => {
   it("accepts a bare name, a qualified name, and a leading-:: global-qualified name", () => {
     expect(CppFindDerivedClassesInput.shape.qualifiedName.safeParse("IFoo").success).toBe(true);
     expect(CppFindDerivedClassesInput.shape.qualifiedName.safeParse("ns::IFoo").success).toBe(true);
-    expect(CppFindDerivedClassesInput.shape.qualifiedName.safeParse("::ns::IFoo").success).toBe(true);
+    expect(CppFindDerivedClassesInput.shape.qualifiedName.safeParse("::ns::IFoo").success).toBe(
+      true,
+    );
   });
 
   it("rejects a qualifiedName containing a quote, before it ever reaches the clang-query matcher string", () => {
-    const parsed = CppFindDerivedClassesInput.shape.qualifiedName.safeParse('IFoo")); match cxxRecordDecl((');
+    const parsed = CppFindDerivedClassesInput.shape.qualifiedName.safeParse(
+      'IFoo")); match cxxRecordDecl((',
+    );
     expect(parsed.success).toBe(false);
   });
 
   it("rejects an empty segment (:: with nothing on one side)", () => {
     expect(CppFindDerivedClassesInput.shape.qualifiedName.safeParse("ns::").success).toBe(false);
-    expect(CppFindDerivedClassesInput.shape.qualifiedName.safeParse("ns::::IFoo").success).toBe(false);
+    expect(CppFindDerivedClassesInput.shape.qualifiedName.safeParse("ns::::IFoo").success).toBe(
+      false,
+    );
   });
 
   it("accepts an omitted timeBudgetMs and rejects one above the 600000 ms ceiling", () => {
@@ -635,7 +755,9 @@ describe("CppFindDerivedClassesInput", () => {
     expect(CppFindDerivedClassesInput.shape.derivation.safeParse("transitive").success).toBe(true);
     expect(CppFindDerivedClassesInput.shape.derivation.safeParse("direct").success).toBe(true);
     expect(CppFindDerivedClassesInput.shape.derivation.safeParse(undefined).success).toBe(true);
-    expect(CppFindDerivedClassesInput.shape.derivation.safeParse(undefined).data).toBe("transitive");
+    expect(CppFindDerivedClassesInput.shape.derivation.safeParse(undefined).data).toBe(
+      "transitive",
+    );
     for (const rejected of ["Direct", "direct-only", "both", 1, true, null]) {
       expect(CppFindDerivedClassesInput.shape.derivation.safeParse(rejected).success).toBe(false);
     }

@@ -27,7 +27,9 @@ async function running(config: LanguageServerConfig = clangdConfig) {
 async function stateOver(session: LspSession, during: () => void = () => {}): Promise<string> {
   const { index } = await session.withIndexWindow(async () => {
     during();
-    return session.request<unknown>("textDocument/documentSymbol", { textDocument: { uri: "file:///proj/a.cpp" } });
+    return session.request<unknown>("textDocument/documentSymbol", {
+      textDocument: { uri: "file:///proj/a.cpp" },
+    });
   });
   return index;
 }

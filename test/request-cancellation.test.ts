@@ -138,7 +138,9 @@ describe("helper processes started for a call", () => {
     const controller = new AbortController();
     const began = Date.now();
 
-    const run = withRequestSignal(controller.signal, () => makeGoExec(process.execPath)(SLEEP_FOR_A_MINUTE, process.cwd(), {}));
+    const run = withRequestSignal(controller.signal, () =>
+      makeGoExec(process.execPath)(SLEEP_FOR_A_MINUTE, process.cwd(), {}),
+    );
     setTimeout(() => controller.abort(), 100);
     const result = await run;
 
@@ -150,7 +152,9 @@ describe("helper processes started for a call", () => {
     const controller = new AbortController();
     const began = Date.now();
 
-    const run = withRequestSignal(controller.signal, () => defaultTsExec(process.execPath, SLEEP_FOR_A_MINUTE, process.cwd(), undefined));
+    const run = withRequestSignal(controller.signal, () =>
+      defaultTsExec(process.execPath, SLEEP_FOR_A_MINUTE, process.cwd(), undefined),
+    );
     setTimeout(() => controller.abort(), 100);
     const result = await run;
 

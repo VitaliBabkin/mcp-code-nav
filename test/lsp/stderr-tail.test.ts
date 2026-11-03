@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultSpawnLsp, NonRejectingStreamMessageWriter } from "../../src/lsp/process.js";
 import { clangdConfig, type LanguageServerConfig } from "../../src/lsp/server-config.js";
 import { LspSession } from "../../src/lsp/session.js";
-import { drainStderr, STDERR_TAIL_CHARS, stderrNote, StderrTail } from "../../src/lsp/stderr-tail.js";
+import {
+  drainStderr,
+  STDERR_TAIL_CHARS,
+  stderrNote,
+  StderrTail,
+} from "../../src/lsp/stderr-tail.js";
 
 describe("StderrTail", () => {
   it("keeps only the last `limit` characters", () => {
@@ -71,7 +76,9 @@ describe("NonRejectingStreamMessageWriter", () => {
     writer.onError(([error]) => errors.push(error));
     stream.destroy();
 
-    await expect(writer.write({ jsonrpc: "2.0", method: "initialized", params: {} })).resolves.toBeUndefined();
+    await expect(
+      writer.write({ jsonrpc: "2.0", method: "initialized", params: {} }),
+    ).resolves.toBeUndefined();
     expect(errors).toHaveLength(1);
   });
 });
@@ -123,7 +130,10 @@ describe("defaultSpawnLsp with a child that writes to stderr", () => {
 
   it("reports a crash on this server's stderr with the child's last words", async () => {
     const script = join(dir, "crash.js");
-    writeFileSync(script, "process.stderr.write('fatal: index corrupted\\n', () => process.exit(3));");
+    writeFileSync(
+      script,
+      "process.stderr.write('fatal: index corrupted\\n', () => process.exit(3));",
+    );
     const written: string[] = [];
     vi.spyOn(process.stderr, "write").mockImplementation((chunk: string | Uint8Array) => {
       written.push(String(chunk));
@@ -155,7 +165,10 @@ describe("defaultSpawnLsp with a child that writes to stderr", () => {
 
   it("puts the dead child's stderr into the error a request fails with", async () => {
     const script = join(dir, "dies.js");
-    writeFileSync(script, "process.stderr.write('fatal: cannot load workspace\\n', () => process.exit(2));");
+    writeFileSync(
+      script,
+      "process.stderr.write('fatal: cannot load workspace\\n', () => process.exit(2));",
+    );
     vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     const session = new LspSession({ root: dir, config: configRunning(script) });
 

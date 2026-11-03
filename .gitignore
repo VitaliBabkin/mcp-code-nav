@@ -8,3 +8,6 @@ coverage/
 .env
 .DS_Store
 Thumbs.db
+__pycache__/
+.claude/*
+!.claude/settings.json

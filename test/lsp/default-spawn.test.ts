@@ -72,7 +72,10 @@ describe("defaultSpawnLsp against a binary that is not there", () => {
     await drain();
     expect(first).toBeInstanceOf(LanguageServerUnavailableError);
     expect(second).toBeInstanceOf(LanguageServerUnavailableError);
-    if (first instanceof LanguageServerUnavailableError && second instanceof LanguageServerUnavailableError) {
+    if (
+      first instanceof LanguageServerUnavailableError &&
+      second instanceof LanguageServerUnavailableError
+    ) {
       expect(first.message).toBe(second.message);
       expect(first.attempted).toBe(missing);
     }

@@ -22,17 +22,8 @@ import {
   type CppNavigationScope,
   type CppTarget,
 } from "./cpp-navigation-shared.js";
-import {
-  inModuleFirst,
-  type Located,
-  type ReportedLocation,
-  toReported,
-} from "./lsp-locations.js";
-import {
-  OUTSIDE_SOURCE_ROOTS_REASON,
-  type NamedSymbol,
-  nameLocations,
-} from "./location-naming.js";
+import { inModuleFirst, type Located, type ReportedLocation, toReported } from "./lsp-locations.js";
+import { OUTSIDE_SOURCE_ROOTS_REASON, type NamedSymbol, nameLocations } from "./location-naming.js";
 import {
   NAVIGATION_CEILING_MS,
   REFERENCE_FILES_LIMIT,
@@ -121,7 +112,11 @@ function groupByFile(locations: readonly ReportedLocation[]): readonly Reference
   for (const location of locations) {
     const seen = byKey.get(location.key);
     if (seen === undefined) {
-      byKey.set(location.key, { file: location.file, external: location.external, sites: [location] });
+      byKey.set(location.key, {
+        file: location.file,
+        external: location.external,
+        sites: [location],
+      });
     } else {
       seen.sites.push(location);
     }
@@ -180,27 +175,34 @@ async function buildListing(
 
 function fileText(group: CppReferenceFile): string {
   const where = group.external ? "outside every declared source root" : "inside them";
-  const tail = group.sitesTruncated > 0 ? `, ${group.sitesTruncated} site(s) not listed` : "";
-  return `  ${group.file} - ${group.count} reference(s) ${where}${tail}`;
+  const tail =
+    group.sitesTruncated > 0 ? `, ${String(group.sitesTruncated)} site(s) not listed` : "";
+  return `  ${group.file} - ${String(group.count)} reference(s) ${where}${tail}`;
 }
 
 function siteText(site: CppReferenceSite): string {
-  const column = site.column === null ? "" : `:${site.column}`;
-  return `    ${site.line}${column} in ${site.in ?? "<unnamed>"}${site.reason ? ` - ${site.reason}` : ""}`;
+  const column = site.column === null ? "" : `:${String(site.column)}`;
+  return `    ${String(site.line)}${column} in ${site.in ?? "<unnamed>"}${site.reason ? ` - ${site.reason}` : ""}`;
 }
 
 /** The same JSON, phrased once for a reader who will not parse it. */
 function humanSummary(payload: CppFindReferencesPayload): string {
   const { resolved, totalReferences, files, filesTruncated, scope } = payload;
   const sites = files.reduce((total, group) => total + group.sitesTruncated, 0);
-  const listing = files.map((group) => [fileText(group), ...group.sites.map(siteText)].join("\n")).join("\n");
+  const listing = files
+    .map((group) => [fileText(group), ...group.sites.map(siteText)].join("\n"))
+    .join("\n");
   const tail = capsText([
-    filesTruncated > 0 ? `${filesTruncated} file group(s) dropped by the ${REFERENCE_FILES_LIMIT}-file cap` : undefined,
-    sites > 0 ? `${sites} site(s) dropped by the ${REFERENCE_SITES_PER_FILE_LIMIT}-sites-per-file cap` : undefined,
+    filesTruncated > 0
+      ? `${String(filesTruncated)} file group(s) dropped by the ${String(REFERENCE_FILES_LIMIT)}-file cap`
+      : undefined,
+    sites > 0
+      ? `${String(sites)} site(s) dropped by the ${String(REFERENCE_SITES_PER_FILE_LIMIT)}-sites-per-file cap`
+      : undefined,
   ]);
   const head =
-    `References to ${resolved.kind} "${resolved.name}" (${resolved.file}:${resolved.line}) in project ` +
-    `"${scope.projectRoot}" - ${totalReferences} reference(s) across ${files.length + filesTruncated} ` +
+    `References to ${resolved.kind} "${resolved.name}" (${resolved.file}:${String(resolved.line)}) in project ` +
+    `"${scope.projectRoot}" - ${String(totalReferences)} reference(s) across ${String(files.length + filesTruncated)} ` +
     `file(s), index: ${scope.index.state}${tail}.`;
   return `${head}\nlimits: ${scope.limits.join(", ")}${listing === "" ? "" : `\n${listing}`}`;
 }
@@ -209,19 +211,34 @@ function referencesPayload(
   context: CppAnswerContext,
   declaration: CppDeclaration,
   totalReferences: number,
-  listing: { readonly files: CppReferenceFile[]; readonly filesTruncated: number; readonly sitesTruncated: number },
+  listing: {
+    readonly files: CppReferenceFile[];
+    readonly filesTruncated: number;
+    readonly sitesTruncated: number;
+  },
 ): CppFindReferencesPayload {
   const { files, filesTruncated, sitesTruncated } = listing;
   return {
-    resolved: { name: declaration.name, kind: declaration.kind, file: declaration.file, line: declaration.line },
+    resolved: {
+      name: declaration.name,
+      kind: declaration.kind,
+      file: declaration.file,
+      line: declaration.line,
+    },
     totalReferences,
     files,
     filesTruncated,
-    scope: cppAnswerScope(context, { capped: filesTruncated > 0 || sitesTruncated > 0, indirectDispatch: false }),
+    scope: cppAnswerScope(context, {
+      capped: filesTruncated > 0 || sitesTruncated > 0,
+      indirectDispatch: false,
+    }),
   };
 }
 
-export async function runCppFindReferences(sessions: LspSessionManager, raw: CppFindReferencesInputType) {
+export async function runCppFindReferences(
+  sessions: LspSessionManager,
+  raw: CppFindReferencesInputType,
+) {
   try {
     const missingDb = await missingCompileDbHint(raw.projectRoot);
     if (missingDb !== undefined) return errorResult(`${TOOL} failed: ${missingDb}`);
@@ -239,33 +256,43 @@ export async function runCppFindReferences(sessions: LspSessionManager, raw: Cpp
     // one answer rather than a second span whose state nothing reports.
     const reading = await session.indexDriftReading(input.sourceRoots);
     const outside = outsideEveryRoot(input.projectRoot, input.sourceRoots);
-    const { value: asked, index } = await session.withIndexWindow(async (): Promise<Step<AskedReferences>> => {
-      const target = await cppQuestionDeclaration(TOOL, input, resolved.value, (query) =>
-        session.request<unknown>("workspace/symbol", { query }),
-      );
-      if (!target.ok) return target;
-      const declaration = target.value.declaration;
-      if (declaration === undefined) return { ok: true, value: { target: target.value } };
-      if (declaration.namePosition === undefined) return { ok: false, error: noPositionText(declaration) };
-      // The index can place a declaration in a file this session has never opened, and clangd answers a
-      // reference query from the AST of the document that declares the symbol. A file beyond the boundary is
-      // reported and never opened, so this question has no answer to ask.
-      if (outside(declaration.file)) return { ok: false, error: outsideSubjectText(TOOL, input.name, declaration) };
-      const position = declaration.namePosition;
-      const locations = await session.withTransientDocument(declaration.file, (holding) =>
-        holding.send<unknown>("textDocument/references", {
-          textDocument: textDocumentId(holding.openedAs),
-          position,
-          context: { includeDeclaration: false },
-        }),
-      );
-      return { ok: true, value: { target: target.value, declaration, locations } };
-    });
+    const { value: asked, index } = await session.withIndexWindow(
+      async (): Promise<Step<AskedReferences>> => {
+        const target = await cppQuestionDeclaration(TOOL, input, resolved.value, (query) =>
+          session.request<unknown>("workspace/symbol", { query }),
+        );
+        if (!target.ok) return target;
+        const declaration = target.value.declaration;
+        if (declaration === undefined) return { ok: true, value: { target: target.value } };
+        if (declaration.namePosition === undefined)
+          return { ok: false, error: noPositionText(declaration) };
+        // The index can place a declaration in a file this session has never opened, and clangd answers a
+        // reference query from the AST of the document that declares the symbol. A file beyond the boundary is
+        // reported and never opened, so this question has no answer to ask.
+        if (outside(declaration.file))
+          return { ok: false, error: outsideSubjectText(TOOL, input.name, declaration) };
+        const position = declaration.namePosition;
+        const locations = await session.withTransientDocument(declaration.file, (holding) =>
+          holding.send<unknown>("textDocument/references", {
+            textDocument: textDocumentId(holding.openedAs),
+            position,
+            context: { includeDeclaration: false },
+          }),
+        );
+        return { ok: true, value: { target: target.value, declaration, locations } };
+      },
+    );
     if (!asked.ok) return errorResult(asked.error);
     const declaration = asked.value.declaration;
     if (declaration === undefined) {
       return errorResult(
-        noIndexDeclarationText(TOOL, input.name, input.projectRoot, index, asked.value.target.capped),
+        noIndexDeclarationText(
+          TOOL,
+          input.name,
+          input.projectRoot,
+          index,
+          asked.value.target.capped,
+        ),
       );
     }
 
@@ -301,7 +328,8 @@ export async function runCppFindReferences(sessions: LspSessionManager, raw: Cpp
 const TOOL_DESCRIPTION =
   "Find every use of a C++ symbol from clangd's index - unlike grep, it tells real uses from comments, " +
   "strings and same-named identifiers. The declaration itself is excluded, and counts are exact even when " +
-  "the listing is capped. An empty listing comes only from a settled index. " + CLANGD_DISK_CLAUSE;
+  "the listing is capped. An empty listing comes only from a settled index. " +
+  CLANGD_DISK_CLAUSE;
 
 export function registerCppFindReferences(server: McpServer, sessions: LspSessionManager) {
   server.registerTool(

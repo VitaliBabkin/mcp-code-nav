@@ -87,23 +87,24 @@ export const LOGGED_ARG_KEYS: ReadonlySet<string> = new Set([
  * rather than throwing, so a payload change costs a report a column and never a call. `cpp_find_symbol`
  * answers one declaration and has no list to count, hence the constant 1.
  */
-export const RESULT_COUNT_SELECTORS: Readonly<Record<string, (payload: unknown) => number | null>> = {
-  cpp_file_symbols: (payload) => lengthOf(payload, "symbols"),
-  go_file_symbols: (payload) => lengthOf(payload, "symbols"),
-  cpp_find_symbol: (payload) => (asRecord(payload) === undefined ? null : 1),
-  go_find_symbol: (payload) => lengthOf(payload, "declarations"),
-  cpp_find_references: (payload) => countOf(payload, "totalReferences"),
-  go_find_references: (payload) => countOf(payload, "totalReferences"),
-  cpp_find_callers: (payload) => countOf(payload, "totalCallers"),
-  go_find_callers: (payload) => countOf(payload, "totalCallers"),
-  cpp_find_derived_classes: (payload) => lengthOf(payload, "matches"),
-  go_find_implementations: (payload) => lengthOf(payload, "implementations"),
-  ts_file_symbols: (payload) => lengthOf(payload, "symbols"),
-  ts_find_symbol: (payload) => lengthOf(payload, "declarations"),
-  ts_find_references: (payload) => countOf(payload, "totalReferences"),
-  ts_find_callers: (payload) => countOf(payload, "totalCallers"),
-  ts_find_implementations: (payload) => lengthOf(payload, "implementations"),
-};
+export const RESULT_COUNT_SELECTORS: Readonly<Record<string, (payload: unknown) => number | null>> =
+  {
+    cpp_file_symbols: (payload) => lengthOf(payload, "symbols"),
+    go_file_symbols: (payload) => lengthOf(payload, "symbols"),
+    cpp_find_symbol: (payload) => (asRecord(payload) === undefined ? null : 1),
+    go_find_symbol: (payload) => lengthOf(payload, "declarations"),
+    cpp_find_references: (payload) => countOf(payload, "totalReferences"),
+    go_find_references: (payload) => countOf(payload, "totalReferences"),
+    cpp_find_callers: (payload) => countOf(payload, "totalCallers"),
+    go_find_callers: (payload) => countOf(payload, "totalCallers"),
+    cpp_find_derived_classes: (payload) => lengthOf(payload, "matches"),
+    go_find_implementations: (payload) => lengthOf(payload, "implementations"),
+    ts_file_symbols: (payload) => lengthOf(payload, "symbols"),
+    ts_find_symbol: (payload) => lengthOf(payload, "declarations"),
+    ts_find_references: (payload) => countOf(payload, "totalReferences"),
+    ts_find_callers: (payload) => countOf(payload, "totalCallers"),
+    ts_find_implementations: (payload) => lengthOf(payload, "implementations"),
+  };
 
 function asRecord(payload: unknown): Record<string, unknown> | undefined {
   return typeof payload === "object" && payload !== null && !Array.isArray(payload)

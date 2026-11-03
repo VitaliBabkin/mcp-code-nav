@@ -59,8 +59,18 @@ afterEach(() => {
   while (managers.length > 0) managers.pop()?.disposeAll();
 });
 
-function ask(manager: LspSessionManager, symbol: string, anchor: string, root = workspaceRoot): Promise<Result> {
-  return runTsFindSymbol(manager, { sourceRoots: [root], symbol, anchor, timeBudgetMs: CALL_BUDGET_MS });
+function ask(
+  manager: LspSessionManager,
+  symbol: string,
+  anchor: string,
+  root = workspaceRoot,
+): Promise<Result> {
+  return runTsFindSymbol(manager, {
+    sourceRoots: [root],
+    symbol,
+    anchor,
+    timeBudgetMs: CALL_BUDGET_MS,
+  });
 }
 
 function payload(result: Result): TsFindSymbolPayload {
@@ -89,7 +99,9 @@ function lineAfter(file: string, anchor: string, needle: string): number {
 /** Every row as `<name> (<kind>) <file relative to the fixture>:<line>`, which is what a failure has to show. */
 function listed(answer: TsFindSymbolPayload): string[] {
   return answer.declarations.map((row) => {
-    const where = row.external ? "<external>" : relative(workspaceRoot, row.file).replaceAll("\\", "/");
+    const where = row.external
+      ? "<external>"
+      : relative(workspaceRoot, row.file).replaceAll("\\", "/");
     return `${row.name} (${row.kind}) ${where}:${row.line}`;
   });
 }
@@ -122,7 +134,11 @@ describe("ts_find_symbol against the real tsgo", () => {
       expect(readFileSync(shapesFile, "utf-8")).not.toContain("label: string");
       expect(row.signature).toContain("factor: number");
       expect(row.signature).toContain("label: string");
-      expect(scaled.scope).toMatchObject({ lookup: "document-symbol", workspaceRoot, limits: ["one-workspace", "one-file"] });
+      expect(scaled.scope).toMatchObject({
+        lookup: "document-symbol",
+        workspaceRoot,
+        limits: ["one-workspace", "one-file"],
+      });
       expect(treeStamps(workspaceRoot)).toEqual(before);
     },
     CALL_BUDGET_MS + 30_000,
@@ -140,7 +156,8 @@ describe("ts_find_symbol against the real tsgo", () => {
         .filter((line) => line > 0);
       expect(parse.declarations.map((row) => row.line)).toEqual(parseLines);
       expect(parse.declarations).toHaveLength(3);
-      for (const row of parse.declarations) expect(row.signature, JSON.stringify(row)).toContain("function parse(");
+      for (const row of parse.declarations)
+        expect(row.signature, JSON.stringify(row)).toContain("function parse(");
 
       const merged = payload(await ask(manager, "Merged", shapesFile));
       recordAnswer("find-symbol-file-merged", merged);
@@ -152,13 +169,18 @@ describe("ts_find_symbol against the real tsgo", () => {
 
       const nested = payload(await ask(manager, "Geometry.Worker.run", shapesFile));
       recordAnswer("find-symbol-file-nested", nested);
-      expect(listed(nested)).toEqual([`Geometry.Worker.run (method) src/shapes.ts:${lineAfter(shapesFile, "  export class Worker {", "run()")}`]);
+      expect(listed(nested)).toEqual([
+        `Geometry.Worker.run (method) src/shapes.ts:${lineAfter(shapesFile, "  export class Worker {", "run()")}`,
+      ]);
       expect(nested.declarations[0]?.signature).toBe("(method) Worker.run(): string");
 
       const aliased = payload(await ask(manager, "ShapeName", shapesFile));
       recordAnswer("find-symbol-file-alias", aliased);
       // tsgo reports a type alias with the kind number of a class; published as reported.
-      expect(aliased.declarations[0]).toMatchObject({ kind: "class", signature: 'type ShapeName = "circle" | "square"' });
+      expect(aliased.declarations[0]).toMatchObject({
+        kind: "class",
+        signature: 'type ShapeName = "circle" | "square"',
+      });
 
       const bare = await ask(manager, "run", shapesFile);
       expect(bare.isError).toBe(true);
@@ -178,13 +200,17 @@ describe("ts_find_symbol against the real tsgo", () => {
       recordAnswer("find-symbol-dir-area", answer);
       const shapesArea = lineOf(shapesFile, "export function area(");
       expect(answer.declarations.map((row) => row.name)).toEqual(["area", "area", "area"]);
-      expect(answer.declarations.map((row) => [pathKey(row.file), row.line, row.external])).toEqual([
-        [pathKey(libArea), 1, false],
-        [pathKey(shapesFile), shapesArea, false],
-        [pathKey(externalFile), lineOf(externalFile, "export function area("), true],
-      ]);
+      expect(answer.declarations.map((row) => [pathKey(row.file), row.line, row.external])).toEqual(
+        [
+          [pathKey(libArea), 1, false],
+          [pathKey(shapesFile), shapesArea, false],
+          [pathKey(externalFile), lineOf(externalFile, "export function area("), true],
+        ],
+      );
       expect(answer.declarations.map((row) => row.container)).toEqual(["src/lib", "src", null]);
-      expect(answer.declarations[0]?.signature).toBe("function area(width: number, height: number): number");
+      expect(answer.declarations[0]?.signature).toBe(
+        "function area(width: number, height: number): number",
+      );
       expect(answer.declarations[1]?.signature).toBe("function area(shape: Shape): number");
       expect(answer.declarations[2]).toMatchObject({
         descriptionUnavailable: "outside the workspace root; not read",
@@ -194,7 +220,9 @@ describe("ts_find_symbol against the real tsgo", () => {
       expect(listed(answer).some((row) => row.startsWith("rectangleArea"))).toBe(false);
 
       const opened = new Set(log.opened.map((document) => pathKey(document.file)));
-      expect(opened.has(pathKey(externalFile)), "the external file must never be opened").toBe(false);
+      expect(opened.has(pathKey(externalFile)), "the external file must never be opened").toBe(
+        false,
+      );
       expect(answer.scope).toMatchObject({
         lookup: "workspace-symbol",
         workspaceRoot,
@@ -219,11 +247,15 @@ describe("ts_find_symbol against the real tsgo", () => {
       expect(top.declarations[0]?.signature).toBe("(method) Worker.run(): number");
 
       const nested = payload(await ask(manager, "Geometry.Worker.run", workspaceRoot));
-      expect(listed(nested)).toEqual([`Geometry.Worker.run (method) src/shapes.ts:${lineAfter(shapesFile, "  export class Worker {", "run()")}`]);
+      expect(listed(nested)).toEqual([
+        `Geometry.Worker.run (method) src/shapes.ts:${lineAfter(shapesFile, "  export class Worker {", "run()")}`,
+      ]);
       expect(nested.declarations[0]?.signature).toBe("(method) Worker.run(): string");
 
       const constant = payload(await ask(manager, "Geometry.UNIT", workspaceRoot));
-      expect(listed(constant)).toEqual([`Geometry.UNIT (variable) src/shapes.ts:${lineOf(shapesFile, "export const UNIT")}`]);
+      expect(listed(constant)).toEqual([
+        `Geometry.UNIT (variable) src/shapes.ts:${lineOf(shapesFile, "export const UNIT")}`,
+      ]);
 
       // `run` is a member of three classes, and no top-level declaration: a bare name never matches a member.
       const bare = await ask(manager, "run", workspaceRoot);
@@ -235,15 +267,24 @@ describe("ts_find_symbol against the real tsgo", () => {
       const binary = requireTsgo();
       const raw = manager.get(workspaceRoot, tsgoConfig(binary));
       await raw.openAnchors([shapesFile]);
-      const entries = await raw.request<{ name: string; containerName?: string }[] | null>("workspace/symbol", { query: "local" });
-      expect(entries?.some((entry) => entry.name === "local" && entry.containerName === "describe")).toBe(true);
+      const entries = await raw.request<{ name: string; containerName?: string }[] | null>(
+        "workspace/symbol",
+        { query: "local" },
+      );
+      expect(
+        entries?.some((entry) => entry.name === "local" && entry.containerName === "describe"),
+      ).toBe(true);
 
       const local = await ask(manager, "describe.local", workspaceRoot);
       expect(local.isError, textOf(local)).toBe(true);
-      expect(textOf(local)).toContain('no declaration named "describe.local" was found in the whole workspace');
+      expect(textOf(local)).toContain(
+        'no declaration named "describe.local" was found in the whole workspace',
+      );
       const bareLocal = await ask(manager, "local", workspaceRoot);
       expect(bareLocal.isError, textOf(bareLocal)).toBe(true);
-      expect(textOf(bareLocal)).toContain('no declaration named "local" was found in the whole workspace');
+      expect(textOf(bareLocal)).toContain(
+        'no declaration named "local" was found in the whole workspace',
+      );
     },
     CALL_BUDGET_MS + 30_000,
   );
@@ -255,7 +296,9 @@ describe("ts_find_symbol against the real tsgo", () => {
 
       const renamed = payload(await ask(manager, "rectangleArea", workspaceRoot));
       recordAnswer("find-symbol-dir-barrel-renamed", renamed);
-      expect(listed(renamed)).toEqual([`rectangleArea (variable) src/barrel.ts:${lineOf(barrelFile, "rectangleArea")}`]);
+      expect(listed(renamed)).toEqual([
+        `rectangleArea (variable) src/barrel.ts:${lineOf(barrelFile, "rectangleArea")}`,
+      ]);
 
       const plain = payload(await ask(manager, "Circle", workspaceRoot));
       recordAnswer("find-symbol-dir-barrel-plain", plain);
@@ -274,12 +317,17 @@ describe("ts_find_symbol against the real tsgo", () => {
       const answer = payload(await ask(manager, "area", builtRoot, builtRoot));
       recordAnswer("find-symbol-dir-built", answer);
       const summary = JSON.stringify(answer.declarations.map((row) => [row.file, row.ownedBy]));
-      expect(answer.declarations.map((row) => pathKey(row.file)), summary).toEqual([
+      expect(
+        answer.declarations.map((row) => pathKey(row.file)),
+        summary,
+      ).toEqual([
         pathKey(join(builtRoot, "app", "src", "area.ts")),
         pathKey(join(builtRoot, "built", "area.d.ts")),
       ]);
       expect(answer.declarations[0]?.ownedBy, summary).toBeDefined();
-      expect(pathKey(answer.declarations[0]?.ownedBy ?? ""), summary).toBe(pathKey(join(builtRoot, "app", "tsconfig.json")));
+      expect(pathKey(answer.declarations[0]?.ownedBy ?? ""), summary).toBe(
+        pathKey(join(builtRoot, "app", "tsconfig.json")),
+      );
       expect(answer.declarations[1], summary).toHaveProperty("ownedBy", null);
       expect(answer.declarations[1]?.external).toBe(false);
       expect(treeStamps(builtRoot)).toEqual(before);
@@ -293,7 +341,9 @@ describe("ts_find_symbol against the real tsgo", () => {
       const manager = freshManager();
       const out = await ask(manager, "NoSuchDeclaration", workspaceRoot);
       expect(out.isError).toBe(true);
-      expect(textOf(out)).toContain('no declaration named "NoSuchDeclaration" was found in the whole workspace');
+      expect(textOf(out)).toContain(
+        'no declaration named "NoSuchDeclaration" was found in the whole workspace',
+      );
       expect(textOf(out)).not.toMatch(/ranked out/);
     },
     CALL_BUDGET_MS + 30_000,
@@ -335,7 +385,10 @@ describe("the workspace/symbol cap watermark", () => {
     const root = mkdtempSync(join(tmpdir(), "mcp-code-nav-tssym-cap-"));
     mkdirSync(join(root, "src"), { recursive: true });
     writeFileSync(join(root, "package.json"), JSON.stringify({ name: "cap-probe", private: true }));
-    writeFileSync(join(root, "tsconfig.json"), JSON.stringify({ compilerOptions: { strict: true, noEmit: true }, include: ["src"] }));
+    writeFileSync(
+      join(root, "tsconfig.json"),
+      JSON.stringify({ compilerOptions: { strict: true, noEmit: true }, include: ["src"] }),
+    );
     const file = join(root, "src", "gen.ts");
     const body = Array.from({ length: GENERATED }, (_unused, index) => {
       const name = `gen${String(index).padStart(3, "0")}`;
@@ -363,7 +416,13 @@ describe("the workspace/symbol cap watermark", () => {
         const single = await ask("e");
         const narrow = await ask("gen007");
         const evidence = `gen=${broad} e=${single} gen007=${narrow} of ${GENERATED} declared`;
-        recordAnswer("find-symbol-watermark", { broad, single, narrow, declared: GENERATED, watermark: TS_WORKSPACE_SYMBOL_CAP_WATERMARK });
+        recordAnswer("find-symbol-watermark", {
+          broad,
+          single,
+          narrow,
+          declared: GENERATED,
+          watermark: TS_WORKSPACE_SYMBOL_CAP_WATERMARK,
+        });
         expect(broad, evidence).toBe(TS_WORKSPACE_SYMBOL_CAP_WATERMARK);
         expect(single, evidence).toBe(TS_WORKSPACE_SYMBOL_CAP_WATERMARK);
         expect(narrow, evidence).toBeLessThan(TS_WORKSPACE_SYMBOL_CAP_WATERMARK);

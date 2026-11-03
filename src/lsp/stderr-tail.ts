@@ -40,14 +40,20 @@ export function drainStderr(stream: Readable | null, tail: StderrTail): void {
     return;
   }
   stream.setEncoding("utf8");
-  stream.on("data", (chunk: string) => tail.push(chunk));
+  stream.on("data", (chunk: string) => {
+    tail.push(chunk);
+  });
   // A broken pipe on a dying child is not a second failure worth reporting.
-  stream.on("error", () => tail.end());
-  stream.on("close", () => tail.end());
+  stream.on("error", () => {
+    tail.end();
+  });
+  stream.on("close", () => {
+    tail.end();
+  });
 }
 
 /** The stderr tail as a block that can be appended to an error message; empty when there is nothing to say. */
 export function stderrNote(serverId: string, tail: string | undefined): string {
   if (tail === undefined || tail === "") return "";
-  return `\n${serverId} stderr (last ${STDERR_TAIL_CHARS} characters at most):\n${tail}`;
+  return `\n${serverId} stderr (last ${String(STDERR_TAIL_CHARS)} characters at most):\n${tail}`;
 }

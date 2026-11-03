@@ -2,7 +2,10 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { findDerivedClasses, type ClangQueryExecFn } from "../../src/clang-query/find-derived-classes.js";
+import {
+  findDerivedClasses,
+  type ClangQueryExecFn,
+} from "../../src/clang-query/find-derived-classes.js";
 import { SweepCache } from "../../src/clang-query/sweep-cache.js";
 
 const readFile = (map: Record<string, string>) => (path: string) => {
@@ -37,7 +40,9 @@ describe("findDerivedClasses", () => {
       exec,
       readFile: readFile({ [header]: "line1\nline2\nclass Derived : public Base {\n};\n" }),
     });
-    expect(outcome.matches).toEqual([{ className: "Derived", file: header, line: 3, column: 7, direct: false }]);
+    expect(outcome.matches).toEqual([
+      { className: "Derived", file: header, line: 3, column: 7, direct: false },
+    ]);
     expect(outcome.failedFiles).toEqual([]);
   });
 
@@ -63,7 +68,12 @@ describe("findDerivedClasses", () => {
   it("returns an empty matches array when a TU compiles cleanly with no matches", async () => {
     const tu = join(projectRoot, "a.cpp");
     const exec: ClangQueryExecFn = async () => ({ exitCode: 0, stdout: "", stderr: "" });
-    const outcome = await findDerivedClasses({ projectRoot, qualifiedName: "Base", translationUnits: [tu], exec });
+    const outcome = await findDerivedClasses({
+      projectRoot,
+      qualifiedName: "Base",
+      translationUnits: [tu],
+      exec,
+    });
     expect(outcome.matches).toEqual([]);
     expect(outcome.failedFiles).toEqual([]);
   });
@@ -84,7 +94,9 @@ describe("findDerivedClasses", () => {
       exec,
       readFile: readFile({ [header]: "class Derived : public Base {};\n" }),
     });
-    expect(outcome.matches).toEqual([{ className: "Derived", file: header, line: 1, column: 7, direct: false }]);
+    expect(outcome.matches).toEqual([
+      { className: "Derived", file: header, line: 1, column: 7, direct: false },
+    ]);
     expect(outcome.failedFiles).toEqual([{ file: badTu, error: "fatal error: x.h not found" }]);
   });
 
@@ -114,7 +126,8 @@ describe("findDerivedClasses", () => {
       translationUnits: [pairTu, plainTu, emptyTu, stderrTu],
       exec,
     });
-    const errorFor = (tu: string) => outcome.failedFiles.find((entry) => entry.file === tu)?.error ?? "";
+    const errorFor = (tu: string) =>
+      outcome.failedFiles.find((entry) => entry.file === tu)?.error ?? "";
 
     expect(errorFor(pairTu)).toBe(
       "1:1: Error parsing argument 1 for matcher cxxRecordDecl. 1:15: Matcher not found: isNoSuchMatcher",
@@ -128,7 +141,11 @@ describe("findDerivedClasses", () => {
   it("returns empty matches with every TU listed in failedFiles when all TUs fail", async () => {
     const tu1 = join(projectRoot, "a.cpp");
     const tu2 = join(projectRoot, "b.cpp");
-    const exec: ClangQueryExecFn = async () => ({ exitCode: 1, stdout: "", stderr: "compile error" });
+    const exec: ClangQueryExecFn = async () => ({
+      exitCode: 1,
+      stdout: "",
+      stderr: "compile error",
+    });
     const outcome = await findDerivedClasses({
       projectRoot,
       qualifiedName: "Base",
@@ -198,7 +215,9 @@ describe("findDerivedClasses", () => {
       exec,
       readFile: readFile({ [header]: "class Derived : public Base {};\n" }),
     });
-    expect(outcome.matches).toEqual([{ className: "Derived", file: header, line: 1, column: 7, direct: false }]);
+    expect(outcome.matches).toEqual([
+      { className: "Derived", file: header, line: 1, column: 7, direct: false },
+    ]);
     expect(outcome.failedFiles).toEqual([]);
   });
 
@@ -219,7 +238,9 @@ describe("findDerivedClasses", () => {
       exec,
       readFile: readFile({ [header]: "class Derived : public Base {};\n" }),
     });
-    expect(outcome.matches).toEqual([{ className: "Derived", file: header, line: 1, column: 1, direct: false }]);
+    expect(outcome.matches).toEqual([
+      { className: "Derived", file: header, line: 1, column: 1, direct: false },
+    ]);
   });
 
   it("extracts the class name for a struct declaration the same way", async () => {
@@ -237,7 +258,9 @@ describe("findDerivedClasses", () => {
       exec,
       readFile: readFile({ [header]: "struct Derived : public Base {};\n" }),
     });
-    expect(outcome.matches).toEqual([{ className: "Derived", file: header, line: 1, column: 1, direct: false }]);
+    expect(outcome.matches).toEqual([
+      { className: "Derived", file: header, line: 1, column: 1, direct: false },
+    ]);
   });
 
   it("recognizes an MSVC-style bind note (clang-cl.exe's `path(line,col):` format), not only GNU-style", async () => {
@@ -258,7 +281,9 @@ describe("findDerivedClasses", () => {
       exec,
       readFile: readFile({ [header]: "line1\nline2\nclass Derived : public Base {};\n" }),
     });
-    expect(outcome.matches).toEqual([{ className: "Derived", file: header, line: 3, column: 1, direct: false }]);
+    expect(outcome.matches).toEqual([
+      { className: "Derived", file: header, line: 3, column: 1, direct: false },
+    ]);
     expect(outcome.failedFiles).toEqual([]);
   });
 
@@ -269,7 +294,8 @@ describe("findDerivedClasses", () => {
     const exec: ClangQueryExecFn = async () => ({
       exitCode: 0,
       stdout:
-        `${goodHeader}:1:1: note: "derived" binds here\n` + `${badHeader}:1:1: note: "derived" binds here\n`,
+        `${goodHeader}:1:1: note: "derived" binds here\n` +
+        `${badHeader}:1:1: note: "derived" binds here\n`,
       stderr: "",
     });
     const outcome = await findDerivedClasses({
@@ -279,7 +305,9 @@ describe("findDerivedClasses", () => {
       exec,
       readFile: readFile({ [goodHeader]: "class Derived : public Base {};\n" }),
     });
-    expect(outcome.matches).toEqual([{ className: "Derived", file: goodHeader, line: 1, column: 1, direct: false }]);
+    expect(outcome.matches).toEqual([
+      { className: "Derived", file: goodHeader, line: 1, column: 1, direct: false },
+    ]);
     expect(outcome.failedFiles).toHaveLength(1);
     expect(outcome.failedFiles[0]?.file).toBe(badHeader);
   });
@@ -313,7 +341,9 @@ describe("findDerivedClasses — the two bind names", () => {
       const exec: ClangQueryExecFn = async () => ({
         exitCode: 0,
         stdout:
-          note(directHeader, 2, 1, "derived") + note(deepHeader, 1, 3, "derived") + note(directHeader, 2, 1, "direct"),
+          note(directHeader, 2, 1, "derived") +
+          note(deepHeader, 1, 3, "derived") +
+          note(directHeader, 2, 1, "direct"),
         stderr: "",
       });
       const outcome = await findDerivedClasses({
@@ -349,7 +379,9 @@ describe("findDerivedClasses — the two bind names", () => {
       exec,
       readFile: readFile({ [file]: "class Direct : public Base {};\n" }),
     });
-    expect(outcome.matches).toEqual([{ className: "Direct", file, line: 1, column: 1, direct: true }]);
+    expect(outcome.matches).toEqual([
+      { className: "Direct", file, line: 1, column: 1, direct: true },
+    ]);
     expect(outcome.failedFiles).toEqual([]);
   });
 
@@ -371,7 +403,9 @@ describe("findDerivedClasses — the two bind names", () => {
       exec,
       readFile: readFile({ [file]: "class Direct : public Base {};\n" }),
     });
-    expect(outcome.matches).toEqual([{ className: "Direct", file, line: 1, column: 1, direct: true }]);
+    expect(outcome.matches).toEqual([
+      { className: "Direct", file, line: 1, column: 1, direct: true },
+    ]);
     expect(outcome.failedFiles).toEqual([]);
   });
 
@@ -446,7 +480,12 @@ describe("findDerivedClasses — the two bind names", () => {
       seenArgs.push(args);
       return { exitCode: 0, stdout: "", stderr: "" };
     };
-    await findDerivedClasses({ projectRoot, qualifiedName: "ns::Base", translationUnits: [tu], exec });
+    await findDerivedClasses({
+      projectRoot,
+      qualifiedName: "ns::Base",
+      translationUnits: [tu],
+      exec,
+    });
     expect(seenArgs).toEqual([
       [
         "-p",
@@ -475,7 +514,12 @@ describe("findDerivedClasses — sweep stats (uncached)", () => {
   it("reports sweep.cache as 'disabled' with totalTus/cachedTus when no cache/fingerprint is supplied", async () => {
     const tu = join(projectRoot, "a.cpp");
     const exec: ClangQueryExecFn = async () => ({ exitCode: 0, stdout: "", stderr: "" });
-    const outcome = await findDerivedClasses({ projectRoot, qualifiedName: "Base", translationUnits: [tu], exec });
+    const outcome = await findDerivedClasses({
+      projectRoot,
+      qualifiedName: "Base",
+      translationUnits: [tu],
+      exec,
+    });
     expect(outcome.sweep).toMatchObject({ cache: "disabled", cachedTus: 0, totalTus: 1 });
     expect(outcome.sweep.elapsedMs).toBeGreaterThanOrEqual(0);
     expect(outcome.incomplete).toBeUndefined();
@@ -552,7 +596,9 @@ describe("findDerivedClasses — time budget and cancellation", () => {
       timeBudgetMs: 30,
       readFile: readFile({ [header]: "class Derived : public Base {};\n" }),
     });
-    expect(outcome.matches).toEqual([{ className: "Derived", file: header, line: 1, column: 1, direct: false }]);
+    expect(outcome.matches).toEqual([
+      { className: "Derived", file: header, line: 1, column: 1, direct: false },
+    ]);
     expect(outcome.failedFiles).toEqual([]);
     expect(outcome.incomplete).toEqual({ sweptTus: 1, totalTus: 2, reason: "time-budget" });
   });
@@ -633,8 +679,22 @@ describe("findDerivedClasses with a SweepCache", () => {
   it("drops the whole projectRoot's cache (every query) when the fingerprint changes", async () => {
     const tu = join(projectRoot, "a.cpp");
     const exec: ClangQueryExecFn = async () => ({ exitCode: 0, stdout: "", stderr: "" });
-    await findDerivedClasses({ projectRoot, qualifiedName: "Base", translationUnits: [tu], exec, cache, fingerprint: "fp1" });
-    await findDerivedClasses({ projectRoot, qualifiedName: "Other", translationUnits: [tu], exec, cache, fingerprint: "fp1" });
+    await findDerivedClasses({
+      projectRoot,
+      qualifiedName: "Base",
+      translationUnits: [tu],
+      exec,
+      cache,
+      fingerprint: "fp1",
+    });
+    await findDerivedClasses({
+      projectRoot,
+      qualifiedName: "Other",
+      translationUnits: [tu],
+      exec,
+      cache,
+      fingerprint: "fp1",
+    });
 
     expect(cache.lookup(projectRoot, "Other", "fp1").size).toBe(1);
     const changed = await findDerivedClasses({
@@ -727,7 +787,14 @@ describe("findDerivedClasses with a SweepCache", () => {
     const tu1 = join(projectRoot, "a.cpp");
     const tu2 = join(projectRoot, "b.cpp");
     const exec: ClangQueryExecFn = async () => ({ exitCode: 0, stdout: "", stderr: "" });
-    await findDerivedClasses({ projectRoot, qualifiedName: "Base", translationUnits: [tu1], exec, cache, fingerprint: "fp1" });
+    await findDerivedClasses({
+      projectRoot,
+      qualifiedName: "Base",
+      translationUnits: [tu1],
+      exec,
+      cache,
+      fingerprint: "fp1",
+    });
     const outcome = await findDerivedClasses({
       projectRoot,
       qualifiedName: "Base",
@@ -746,7 +813,8 @@ describe("findDerivedClasses with a SweepCache", () => {
     const exec: ClangQueryExecFn = async () => ({
       exitCode: 0,
       stdout:
-        `${goodHeader}:1:1: note: "derived" binds here\n` + `${badHeader}:1:1: note: "derived" binds here\n`,
+        `${goodHeader}:1:1: note: "derived" binds here\n` +
+        `${badHeader}:1:1: note: "derived" binds here\n`,
       stderr: "",
     });
     const readFileFn = readFile({ [goodHeader]: "class Derived : public Base {};\n" });
@@ -793,7 +861,11 @@ describe("findDerivedClasses — uniform sweep failure", () => {
   it("names the shared error and the TU count when a complete sweep failed every TU the same way", async () => {
     const tu1 = join(projectRoot, "a.cpp");
     const tu2 = join(projectRoot, "b.cpp");
-    const exec: ClangQueryExecFn = async () => ({ exitCode: 1, stdout: "", stderr: "error: unknown matcher" });
+    const exec: ClangQueryExecFn = async () => ({
+      exitCode: 1,
+      stdout: "",
+      stderr: "error: unknown matcher",
+    });
     const outcome = await findDerivedClasses({
       projectRoot,
       qualifiedName: "Base",
@@ -836,7 +908,12 @@ describe("findDerivedClasses — uniform sweep failure", () => {
       stdout: "",
       stderr: args[2] === tu1 ? "error: unknown matcher" : "fatal error: base.h not found",
     });
-    const outcome = await findDerivedClasses({ projectRoot, qualifiedName: "Base", translationUnits: [tu1, tu2], exec });
+    const outcome = await findDerivedClasses({
+      projectRoot,
+      qualifiedName: "Base",
+      translationUnits: [tu1, tu2],
+      exec,
+    });
     expect(outcome.uniformFailure).toBeUndefined();
     expect(outcome.failedFiles).toHaveLength(2);
   });
@@ -845,7 +922,8 @@ describe("findDerivedClasses — uniform sweep failure", () => {
     const failingTu = join(projectRoot, "a.cpp");
     const hangingTu = join(projectRoot, "b.cpp");
     const exec: ClangQueryExecFn = async (args, _cwd, signal) => {
-      if (args[2] === failingTu) return { exitCode: 1, stdout: "", stderr: "error: unknown matcher" };
+      if (args[2] === failingTu)
+        return { exitCode: 1, stdout: "", stderr: "error: unknown matcher" };
       return new Promise((_resolve, reject) => {
         signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
       });
@@ -866,7 +944,12 @@ describe("findDerivedClasses — uniform sweep failure", () => {
     const exec: ClangQueryExecFn = async () => {
       throw new Error("no translation unit to run");
     };
-    const outcome = await findDerivedClasses({ projectRoot, qualifiedName: "Base", translationUnits: [], exec });
+    const outcome = await findDerivedClasses({
+      projectRoot,
+      qualifiedName: "Base",
+      translationUnits: [],
+      exec,
+    });
     expect(outcome.uniformFailure).toBeUndefined();
     expect(outcome.failedFiles).toEqual([]);
   });
@@ -903,7 +986,9 @@ describe("findDerivedClasses — uniform sweep failure", () => {
     expect(execCalls).toBe(4);
     expect(recovered.uniformFailure).toBeUndefined();
     expect(recovered.failedFiles).toEqual([]);
-    expect(recovered.matches).toEqual([{ className: "Derived", file: header, line: 1, column: 1, direct: false }]);
+    expect(recovered.matches).toEqual([
+      { className: "Derived", file: header, line: 1, column: 1, direct: false },
+    ]);
     expect(recovered.sweep.cachedTus).toBe(0);
   });
 });
@@ -938,13 +1023,17 @@ describe("findDerivedClasses — class name at a bind location", () => {
   });
 
   it("skips a header that spans several lines and starts mid-file", async () => {
-    const source = "int x;\ntemplate <class T,\n          int N = 3>\nstruct Multi<T, N> : Base {};\n";
+    const source =
+      "int x;\ntemplate <class T,\n          int N = 3>\nstruct Multi<T, N> : Base {};\n";
     const outcome = await namesFor(source, 2, 1);
-    expect(outcome.matches).toEqual([expect.objectContaining({ className: "Multi", line: 2, column: 1 })]);
+    expect(outcome.matches).toEqual([
+      expect.objectContaining({ className: "Multi", line: 2, column: 1 }),
+    ]);
   });
 
   it("skips nested angle brackets and a reference non-type parameter", async () => {
-    const source = "template <const VenueProfile& Profile, class U = Vec<Vec<int>>>\nclass Profiled : Base {};\n";
+    const source =
+      "template <const VenueProfile& Profile, class U = Vec<Vec<int>>>\nclass Profiled : Base {};\n";
     const outcome = await namesFor(source, 1, 1);
     expect(outcome.matches.map((m) => m.className)).toEqual(["Profiled"]);
   });
@@ -979,46 +1068,53 @@ describe("findDerivedClasses — class name at a bind location", () => {
     }
 
     it("skips a simple concept constraint", async () => {
-      expect(await nameFor("template <class T> requires Ok<T> struct P<T> : Base {};\n")).toEqual(["P"]);
+      expect(await nameFor("template <class T> requires Ok<T> struct P<T> : Base {};\n")).toEqual([
+        "P",
+      ]);
     });
 
     it("skips a qualified concept with template arguments", async () => {
-      const source = "template <typename T> requires std::convertible_to<T, int> class Widget : Base {};\n";
+      const source =
+        "template <typename T> requires std::convertible_to<T, int> class Widget : Base {};\n";
       expect(await nameFor(source)).toEqual(["Widget"]);
     });
 
     it("does not close the constraint at a `>` inside parentheses", async () => {
-      expect(await nameFor("template <int N> requires (N > 0) && Big<N> struct Sized<N> : Base {};\n")).toEqual([
-        "Sized",
-      ]);
+      expect(
+        await nameFor("template <int N> requires (N > 0) && Big<N> struct Sized<N> : Base {};\n"),
+      ).toEqual(["Sized"]);
     });
 
     it("skips a nested requires-expression with a parameter list and a body", async () => {
-      const source = "template <class T> requires requires (T t) { t.f(); } class Probe : Base {};\n";
+      const source =
+        "template <class T> requires requires (T t) { t.f(); } class Probe : Base {};\n";
       expect(await nameFor(source)).toEqual(["Probe"]);
     });
 
     it("skips a compound requirement with a `>` and a return-type constraint", async () => {
-      const source = "template <class T> requires requires { { T{} > T{} } -> std::same_as<bool>; } struct Cmp : Base {};\n";
+      const source =
+        "template <class T> requires requires { { T{} > T{} } -> std::same_as<bool>; } struct Cmp : Base {};\n";
       expect(await nameFor(source)).toEqual(["Cmp"]);
     });
 
     it("skips a `||`/`!` combination of concepts", async () => {
-      expect(await nameFor("template <class T> requires (!A<T> || B<T>) && C<T> struct Mix : Base {};\n")).toEqual([
-        "Mix",
-      ]);
+      expect(
+        await nameFor(
+          "template <class T> requires (!A<T> || B<T>) && C<T> struct Mix : Base {};\n",
+        ),
+      ).toEqual(["Mix"]);
     });
 
     it("skips an attribute between the constraint and the class key", async () => {
-      expect(await nameFor("template <class T> requires Ok<T> [[deprecated]] class Old : Base {};\n")).toEqual([
-        "Old",
-      ]);
+      expect(
+        await nameFor("template <class T> requires Ok<T> [[deprecated]] class Old : Base {};\n"),
+      ).toEqual(["Old"]);
     });
 
     it("reads the name past an alignas after the class key", async () => {
-      expect(await nameFor("template <class T> requires Ok<T> struct alignas(8) Aligned : Base {};\n")).toEqual([
-        "Aligned",
-      ]);
+      expect(
+        await nameFor("template <class T> requires Ok<T> struct alignas(8) Aligned : Base {};\n"),
+      ).toEqual(["Aligned"]);
     });
 
     it("skips a constraint that spans several lines, with comments", async () => {
@@ -1034,18 +1130,22 @@ describe("findDerivedClasses — class name at a bind location", () => {
     });
 
     it("skips string and character literals in the constraint", async () => {
-      const source = "template <class T> requires Named<T, \"x>y struct\"> && Ch<'>'> struct Lit<T> : Base {};\n";
+      const source =
+        "template <class T> requires Named<T, \"x>y struct\"> && Ch<'>'> struct Lit<T> : Base {};\n";
       expect(await nameFor(source)).toEqual(["Lit"]);
     });
 
     it("is not stopped by a dependent `::template` in the constraint", async () => {
-      expect(await nameFor("template <class T> requires T::template value<int> struct Dep<T> : Base {};\n")).toEqual([
-        "Dep",
-      ]);
+      expect(
+        await nameFor(
+          "template <class T> requires T::template value<int> struct Dep<T> : Base {};\n",
+        ),
+      ).toEqual(["Dep"]);
     });
 
     it("skips a requires clause after each of two nested template headers", async () => {
-      const source = "template <class T> requires A<T> template <class U> requires B<U> struct Inner<T, U> : Base {};\n";
+      const source =
+        "template <class T> requires A<T> template <class U> requires B<U> struct Inner<T, U> : Base {};\n";
       expect(await nameFor(source)).toEqual(["Inner"]);
     });
 
@@ -1056,13 +1156,21 @@ describe("findDerivedClasses — class name at a bind location", () => {
     });
 
     it("reports an extraction failure when no class key follows the constraint", async () => {
-      const outcome = await namesFor("template <class T> requires Ok<T> && Fine<T>\nint x;\n", 1, 1);
+      const outcome = await namesFor(
+        "template <class T> requires Ok<T> && Fine<T>\nint x;\n",
+        1,
+        1,
+      );
       expect(outcome.matches).toEqual([]);
       expect(outcome.failedFiles).toHaveLength(1);
     });
 
     it("reports an extraction failure when a bracket in the constraint never closes", async () => {
-      const outcome = await namesFor("template <class T> requires Ok<T struct P : Base {};\n", 1, 1);
+      const outcome = await namesFor(
+        "template <class T> requires Ok<T struct P : Base {};\n",
+        1,
+        1,
+      );
       expect(outcome.matches).toEqual([]);
       expect(outcome.failedFiles).toHaveLength(1);
     });
@@ -1112,7 +1220,11 @@ describe("findDerivedClasses — class name at a bind location", () => {
     });
 
     it("reports an extraction failure for a column past the end of a non-ASCII line", async () => {
-      const outcome = await namesFor("/* é */\ntemplate <class T> struct P<T*> : Base {};\n", 1, 40);
+      const outcome = await namesFor(
+        "/* é */\ntemplate <class T> struct P<T*> : Base {};\n",
+        1,
+        40,
+      );
       expect(outcome.matches).toEqual([]);
       expect(outcome.failedFiles).toHaveLength(1);
     });
@@ -1143,7 +1255,8 @@ describe("findDerivedClasses — class name at a bind location", () => {
   });
 
   it("does not close the header at a `>` inside a character literal or an escaped quote", async () => {
-    const source = "template <char C = '>', const char* S = \"\\\">\">\nstruct Chars<C, S> : Base {};\n";
+    const source =
+      'template <char C = \'>\', const char* S = "\\">">\nstruct Chars<C, S> : Base {};\n';
     const outcome = await namesFor(source, 1, 1);
     expect(outcome.matches.map((m) => m.className)).toEqual(["Chars"]);
   });
@@ -1154,25 +1267,48 @@ describe("findDerivedClasses — class name at a bind location", () => {
   });
 
   it("does not close the header at a `>` inside a comment", async () => {
-    const source = "template <class T /* > */, // >\n          class U>\nstruct Commented<T, U> : Base {};\n";
+    const source =
+      "template <class T /* > */, // >\n          class U>\nstruct Commented<T, U> : Base {};\n";
     const outcome = await namesFor(source, 1, 1);
     expect(outcome.matches.map((m) => m.className)).toEqual(["Commented"]);
   });
 
   it("reports an extraction failure, not a row, when a literal in the header never closes", async () => {
-    const outcome = await namesFor('template <const char* S = "x>y\nstruct Broken<S> : Base {};\n', 1, 1);
+    const outcome = await namesFor(
+      'template <const char* S = "x>y\nstruct Broken<S> : Base {};\n',
+      1,
+      1,
+    );
     expect(outcome.matches).toEqual([]);
     expect(outcome.failedFiles).toHaveLength(1);
   });
 
   it("finds the name in a CRLF file whose bind is several lines down", async () => {
-    const source = ["int a;", "int b;", "int c;", "int d;", "template <class T,", "          int N>", "struct Crlf<T, N> : Base {};", ""].join("\r\n");
+    const source = [
+      "int a;",
+      "int b;",
+      "int c;",
+      "int d;",
+      "template <class T,",
+      "          int N>",
+      "struct Crlf<T, N> : Base {};",
+      "",
+    ].join("\r\n");
     const outcome = await namesFor(source, 5, 1);
-    expect(outcome.matches).toEqual([expect.objectContaining({ className: "Crlf", line: 5, column: 1 })]);
+    expect(outcome.matches).toEqual([
+      expect.objectContaining({ className: "Crlf", line: 5, column: 1 }),
+    ]);
   });
 
   it("finds the name at a non-zero column in a CRLF file", async () => {
-    const source = ["int a;", "int b;", "int c;", "int d;", "template <class T> struct Primary : Base {};", ""].join("\r\n");
+    const source = [
+      "int a;",
+      "int b;",
+      "int c;",
+      "int d;",
+      "template <class T> struct Primary : Base {};",
+      "",
+    ].join("\r\n");
     const outcome = await namesFor(source, 5, 20);
     expect(outcome.matches.map((m) => m.className)).toEqual(["Primary"]);
   });

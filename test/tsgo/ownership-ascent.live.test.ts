@@ -94,7 +94,12 @@ function under(path: string): string {
   // The same directory spelled with another drive-letter case is still under it: `relative` would call that an
   // escape, and the server spells a URI back the way it was given one.
   const key = pathKey(root);
-  return pathKey(path).startsWith(`${key}/`) ? path.slice(key.length + 1).split("\\").join("/") : path;
+  return pathKey(path).startsWith(`${key}/`)
+    ? path
+        .slice(key.length + 1)
+        .split("\\")
+        .join("/")
+    : path;
 }
 
 const linesOf = (file: string): string[] => readFileSync(file, "utf-8").split(/\r?\n/);
@@ -166,20 +171,27 @@ interface Row {
 function rowOf(entry: unknown): Row {
   const raw = recordOf(entry);
   const file = pathOfUri(raw.uri) ?? pathOfUri(raw.targetUri);
-  const start = rangeStart(raw.range) ?? rangeStart(raw.targetSelectionRange) ?? rangeStart(raw.targetRange);
-  if (file === undefined || start === undefined) return { where: "<unreadable entry>", line: -1, character: undefined };
+  const start =
+    rangeStart(raw.range) ?? rangeStart(raw.targetSelectionRange) ?? rangeStart(raw.targetRange);
+  if (file === undefined || start === undefined)
+    return { where: "<unreadable entry>", line: -1, character: undefined };
   return { where: under(file), line: start.line + 1, character: start.character };
 }
 
 /** The declaration's own identifier span, the only position a type-aware request may be asked at. */
-function subjectPosition(symbols: readonly LspDocumentSymbol[]): { line: number; character: number } {
+function subjectPosition(symbols: readonly LspDocumentSymbol[]): {
+  line: number;
+  character: number;
+} {
   const entry = symbols.find((symbol) => symbol.name === SYMBOL);
   if (entry === undefined) {
     throw new Error(`the outline of "${SHARED}" names no "${SYMBOL}": ${JSON.stringify(symbols)}`);
   }
   const start = entry.selectionRange?.start;
   if (start === undefined) {
-    throw new Error(`the "${SYMBOL}" entry of "${SHARED}" carries no selectionRange: ${JSON.stringify(entry)}`);
+    throw new Error(
+      `the "${SYMBOL}" entry of "${SHARED}" carries no selectionRange: ${JSON.stringify(entry)}`,
+    );
   }
   return start;
 }
@@ -209,18 +221,21 @@ describe("a file its nearest config leaves out, asked of a tsgo that was given n
         // The documents-opened proof is made by opens, and this pin makes none but the
         // disputed file's own. So the workspace is unproven before the open and must still be unproven after it
         // — no anchor was opened, and no proof of a loaded project is being claimed.
-        expect(session.isWorkspaceLoaded(), "the session was asked to load no project before the pin opened one").toBe(
-          false,
-        );
+        expect(
+          session.isWorkspaceLoaded(),
+          "the session was asked to load no project before the pin opened one",
+        ).toBe(false);
 
         // The pin's only open. `documentSymbol` is what hands back the position the question is asked at, and it
         // is the tracked open this shape allows: the file whose assignment is in question, and nothing else.
         const outline = await session.documentSymbol(sharedFile);
-        if (outline.state !== "ok") throw new Error(`tsgo answered "${outline.state}" for "${SHARED}"`);
+        if (outline.state !== "ok")
+          throw new Error(`tsgo answered "${outline.state}" for "${SHARED}"`);
         const position = subjectPosition(outline.symbols);
-        expect(log.opened, `documents opened to outline "${SHARED}": ${JSON.stringify(log.opened)}`).toEqual([
-          { file: sharedFile, languageId: "typescript" },
-        ]);
+        expect(
+          log.opened,
+          `documents opened to outline "${SHARED}": ${JSON.stringify(log.opened)}`,
+        ).toEqual([{ file: sharedFile, languageId: "typescript" }]);
 
         const answer = await session.request<unknown>("textDocument/references", {
           textDocument: textDocumentId(sharedFile),
@@ -236,7 +251,10 @@ describe("a file its nearest config leaves out, asked of a tsgo that was given n
         const sharedRows = rows.filter((row) => row.where === SHARED);
         const consumerRows = rows.filter((row) => row.where === CONSUMER);
         const outsideRows = rows.filter((row) => row.where !== SHARED && row.where !== CONSUMER);
-        expect(outsideRows.map((row) => row.where), evidence(answer, opened)).toEqual([]);
+        expect(
+          outsideRows.map((row) => row.where),
+          evidence(answer, opened),
+        ).toEqual([]);
 
         // (2) The declaration itself is in the answer, which is what `includeDeclaration: true` asks for and the
         // floor beneath which the reply is not an answer about this symbol at all.
@@ -246,7 +264,9 @@ describe("a file its nearest config leaves out, asked of a tsgo that was given n
 
         // (3) Still exactly the one document: no other file was opened while the question was asked, which is the
         // whole reason the record below is about tsgo's assignment and not about this client's anchors.
-        expect(log.opened, evidence(answer, opened)).toEqual([{ file: sharedFile, languageId: "typescript" }]);
+        expect(log.opened, evidence(answer, opened)).toEqual([
+          { file: sharedFile, languageId: "typescript" },
+        ]);
         expect(opened, evidence(answer, opened)).toEqual([SHARED]);
 
         // The three rows the pin exists to look for, with their lines read off the fixture's own text rather
@@ -267,7 +287,10 @@ describe("a file its nearest config leaves out, asked of a tsgo that was given n
         // The exact lines, 1-based as this file states them: 0-based 6 in `nested/shared.ts` and 0-based 4 and 7
         // in `nested/consumer.ts` were what the measured reply carried.
         expect([...sharedLines].sort(byLine), evidence(answer, opened)).toEqual([declarationLine]);
-        expect([...consumerLines].sort(byLine), evidence(answer, opened)).toEqual([bindingLine, useLine]);
+        expect([...consumerLines].sort(byLine), evidence(answer, opened)).toEqual([
+          bindingLine,
+          useLine,
+        ]);
 
         console.info(
           `ascent pin (tsgo ${binary.version}): shared.ts=${yesNo(sharedLines.length)} ` +

@@ -153,6 +153,10 @@ npm run build
 This produces `dist/index.js`. Optionally, `npm run bundle` writes a single self-contained file to
 `dist-bundle/index.js`, which you can copy anywhere Node runs.
 
+To run a local build from a stable place, `npm run deploy` bundles the server and installs it as
+`~/.mcp/mcp-code-nav/index.js`: it refuses a tree with uncommitted changes (`--allow-dirty` overrides, with a warning),
+keeps the previous file as `index.js.bak`, checks the installed copy by an MCP handshake and prints its build identity.
+
 ## Register it in an MCP client
 
 The server speaks MCP over stdio. Point `args` at the downloaded `mcp-code-nav.js`, or at `dist/index.js` of your build.
@@ -313,6 +317,28 @@ for example for a workspace that is slow to index. A timeout also stops that lan
 language starts a fresh one, so a cold re-index follows; a cancelled call leaves the server running.
 A language server's stderr is read continuously and its last 8 KiB are appended to the error of a request that fails
 because the server died or hung; an unexpected server exit is also written to this server's stderr.
+
+## Language-server lifetime and resources
+
+Each language server runs as one child process per root, started on first use. A child that receives no request for
+10 minutes is stopped, and the next call on that root starts a fresh one; clangd's on-disk index under `.cache/clangd`
+is kept, so the restart is cheap, but the fresh child is cold again and the answer says so while it indexes. At most 3
+children per language server (clangd, gopls, TypeScript) run at once: starting one more stops the least recently used
+one that has no request in flight and was not used in the last 30 seconds, and when every one is busy or recent the
+limit is exceeded rather than a call refused; children beyond the limit are stopped 30 seconds after their last use.
+Idle shutdown counts requests, not clangd's own background indexing: a project whose index takes longer than the idle
+window without any request is stopped mid-index and resumes from the on-disk shards on the next call. The memory bound
+takes precedence.
+
+| Variable                      | Meaning                                                              | Default                      |
+| ----------------------------- | -------------------------------------------------------------------- | ---------------------------- |
+| `MCP_CODE_NAV_IDLE_MS`        | idle time before a child is stopped; `0` never stops one             | `600000`                     |
+| `MCP_CODE_NAV_MAX_SESSIONS`   | children per language server; `0` removes the limit                  | `3`                          |
+| `MCP_CODE_NAV_CLANGD_JOBS`    | clangd's `-j` worker count (a positive integer)                      | half the cores, from 1 to 4  |
+
+A value that is not a non-negative integer (a positive one for `MCP_CODE_NAV_CLANGD_JOBS`) is reported on stderr and
+the default is used. clangd also starts with `--pch-storage=disk`; with a compile database its background index runs at
+low priority (`--background-index-priority=low`), and without one there is no background index.
 
 ## Call log and privacy
 

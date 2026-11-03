@@ -1,4 +1,3 @@
-import { resolve } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type { ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";
@@ -20,7 +19,10 @@ import {
   type SweepProgress,
   type UniformSweepFailure,
 } from "../clang-query/find-derived-classes.js";
-import { computeProjectFingerprint, type ProjectFingerprint } from "../clang-query/project-fingerprint.js";
+import {
+  computeProjectFingerprint,
+  type ProjectFingerprint,
+} from "../clang-query/project-fingerprint.js";
 import type { SweepCache } from "../clang-query/sweep-cache.js";
 import {
   inferredFlagsCaveat,
@@ -33,7 +35,12 @@ import { errorResult, partialResult, successResult } from "../mcp-response.js";
 import { pathKey } from "../paths/path-containment.js";
 import { PathEscapeError, resolveWithinAnyRoot } from "../paths/resolve-safe-path.js";
 import { PathInput, PathList } from "./input-limits.js";
-import { CPP_PROJECT_ROOT_DESCRIPTION, isPathResolutionError, pathFixHint, SourceRootsSchema } from "./shared.js";
+import {
+  CPP_PROJECT_ROOT_DESCRIPTION,
+  isPathResolutionError,
+  pathFixHint,
+  SourceRootsSchema,
+} from "./shared.js";
 import { messageOf } from "../error-message.js";
 
 // Identifier segments separated by `::`, optionally a leading `::` (global-namespace-qualified) — the only
@@ -53,7 +60,10 @@ export const CppFindDerivedClassesInput = z.object({
     .string()
     .min(1)
     .max(1024)
-    .regex(QUALIFIED_NAME_PATTERN, "must be a valid C++ qualified name (identifier segments separated by ::)")
+    .regex(
+      QUALIFIED_NAME_PATTERN,
+      "must be a valid C++ qualified name (identifier segments separated by ::)",
+    )
     .describe("Fully-qualified name of the base class or interface, e.g. `ns::IFoo`."),
   derivation: z
     .enum(["transitive", "direct"])
@@ -65,14 +75,12 @@ export const CppFindDerivedClassesInput = z.object({
         "of who must add an override (an abstract one passes it down), so check them with cpp_file_symbols. " +
         "Both views come from one cached sweep; an empty `direct` means none in the swept TUs.",
     ),
-  files: PathList
-    .optional()
-    .describe(
-      "TUs to sweep instead of the whole compile database (a full parallel sweep, tens of seconds on a " +
-        "mid-size project) - absolute, or relative: a relative path is resolved against projectRoot and " +
-        "each sourceRoots entry, and must exist under exactly one of them. Results are cached per process " +
-        "until a source file changes.",
-    ),
+  files: PathList.optional().describe(
+    "TUs to sweep instead of the whole compile database (a full parallel sweep, tens of seconds on a " +
+      "mid-size project) - absolute, or relative: a relative path is resolved against projectRoot and " +
+      "each sourceRoots entry, and must exist under exactly one of them. Results are cached per process " +
+      "until a source file changes.",
+  ),
   sourceRoots: SourceRootsSchema,
   timeBudgetMs: z
     .number()
@@ -117,7 +125,9 @@ type RowCounts = { readonly transitive: number; readonly direct: number };
  * `sweep` plus the roots it was bounded by and the pair: every response that carries `sweep`
  * carries `sourceRoots` and exactly one of the two blind-spot keys.
  */
-type SweepPayload = FindDerivedClassesResult["sweep"] & { readonly sourceRoots: CppSourceRootsBlock } & UncoveredSourcesBlock;
+type SweepPayload = FindDerivedClassesResult["sweep"] & {
+  readonly sourceRoots: CppSourceRootsBlock;
+} & UncoveredSourcesBlock;
 
 /** `derivation` is the first key so a payload can never be read as the other view. */
 type CppFindDerivedClassesPayload = {
@@ -130,7 +140,7 @@ type CppFindDerivedClassesPayload = {
 };
 
 interface ProgressReporter {
-  notify(info: SweepProgress): void;
+  notify: (info: SweepProgress) => void;
   dispose(): void;
 }
 
@@ -142,7 +152,10 @@ interface ProgressReporter {
  * every exit path: the spec forbids notifications after the call completes, and the heartbeat interval
  * would otherwise outlive the request.
  */
-function makeProgressReporter(extra: RunCppFindDerivedClassesExtra, ceilingMs: number): ProgressReporter | undefined {
+function makeProgressReporter(
+  extra: RunCppFindDerivedClassesExtra,
+  ceilingMs: number,
+): ProgressReporter | undefined {
   if (extra.progressToken === undefined || !extra.sendNotification) return undefined;
   const progressToken = extra.progressToken;
   const sendNotification = extra.sendNotification;
@@ -164,15 +177,14 @@ function makeProgressReporter(extra: RunCppFindDerivedClassesExtra, ceilingMs: n
         progressToken,
         progress: lastEmittedProgress,
         total: ceilingMs,
-        message: `${sweptTus}/${totalTus} translation units, ${elapsedMs} ms elapsed`,
+        message: `${String(sweptTus)}/${String(totalTus)} translation units, ${String(elapsedMs)} ms elapsed`,
       },
     }).catch(() => {});
   };
 
-  const heartbeat = setInterval(
-    () => send(last.sweptTus, last.totalTus, Date.now() - startedAt),
-    PROGRESS_HEARTBEAT_MS,
-  );
+  const heartbeat = setInterval(() => {
+    send(last.sweptTus, last.totalTus, Date.now() - startedAt);
+  }, PROGRESS_HEARTBEAT_MS);
 
   return {
     notify: (info) => {
@@ -196,7 +208,9 @@ interface SweepScope {
 }
 
 /** One read of the database serves the derivation, an unscoped sweep's scope and the blind-spot checks. */
-function resolveSweepScope(input: CppFindDerivedClassesInputType): SweepScope | { readonly failure: string } {
+function resolveSweepScope(
+  input: CppFindDerivedClassesInputType,
+): SweepScope | { readonly failure: string } {
   const listing = listDatabase(input.projectRoot);
   const sourceRoots = cppSourceRoots(input.sourceRoots ?? [], () =>
     deriveSourceRoot(input.projectRoot, "tus" in listing ? listing.tus : undefined),
@@ -273,7 +287,9 @@ export async function runCppFindDerivedClasses(
     return successResult(result);
   } catch (e) {
     if (e instanceof CompileDbNotFoundError) {
-      return errorResult(`cpp_find_derived_classes failed: ${await describeMissingCompileDb(e.projectRoot)}`);
+      return errorResult(
+        `cpp_find_derived_classes failed: ${await describeMissingCompileDb(e.projectRoot)}`,
+      );
     }
     return errorResult(`cpp_find_derived_classes failed: ${messageOf(e)}`);
   } finally {
@@ -293,7 +309,10 @@ function listDatabase(projectRoot: string): DatabaseListing {
 }
 
 /** The `files` entries the compile database's own TU list does not compile — `uncoveredSources` filters too much. */
-function unlistedNamedFiles(files: string[] | undefined, db: readonly string[] | undefined): string[] {
+function unlistedNamedFiles(
+  files: string[] | undefined,
+  db: readonly string[] | undefined,
+): string[] {
   if (files === undefined || db === undefined) return [];
   return unlistedTranslationUnits(files, db);
 }
@@ -307,7 +326,9 @@ function sweepPayload(
   db: readonly string[] | undefined,
 ): SweepPayload {
   const cacheReason =
-    outcome.sweep.cache === "disabled" && walk.reason !== undefined ? { cacheReason: walk.reason } : {};
+    outcome.sweep.cache === "disabled" && walk.reason !== undefined
+      ? { cacheReason: walk.reason }
+      : {};
   const block = uncoveredSourcesBlock({
     roots: scope.roots,
     walk,
@@ -345,7 +366,7 @@ function uniformFailureText(
   unlisted: readonly string[],
 ): string {
   const text =
-    `cpp_find_derived_classes failed on all ${failure.failedTus} translation units with the same error, so the ` +
+    `cpp_find_derived_classes failed on all ${String(failure.failedTus)} translation units with the same error, so the ` +
     "empty result is a sweep failure, not an empty hierarchy - check that the clang-query on PATH " +
     `supports this query. Shared error: ${failure.error}` +
     blindSpotSentence(unlisted);
@@ -357,9 +378,7 @@ function uniformFailureText(
 function blindSpotSentence(unlisted: readonly string[]): string {
   if (unlisted.length === 0) return "";
   const list = unlisted.map((file) => `"${file}"`).join(", ");
-  return (
-    ` These files are named in \`files\` but have no compile-database entry; ${inferredFlagsCaveat(true)}: ${list}.`
-  );
+  return ` These files are named in \`files\` but have no compile-database entry; ${inferredFlagsCaveat(true)}: ${list}.`;
 }
 
 /**
@@ -391,8 +410,8 @@ function ceilingText(
   derivation: Derivation,
 ): string {
   return (
-    `cpp_find_derived_classes swept ${incomplete.sweptTus}/${incomplete.totalTus} translation ` +
-    `units within its ${ceilingMs} ms ceiling (${incomplete.reason}), answering ` +
+    `cpp_find_derived_classes swept ${String(incomplete.sweptTus)}/${String(incomplete.totalTus)} translation ` +
+    `units within its ${String(ceilingMs)} ms ceiling (${incomplete.reason}), answering ` +
     `derivation: "${derivation}" — a normally-sized project does not reach it. ` +
     "Pass `files` to scope the sweep, raise `timeBudgetMs`, or call again to resume from the cached " +
     "translation units."

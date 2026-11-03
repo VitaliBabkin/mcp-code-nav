@@ -199,7 +199,9 @@ describe("LspSession.refreshModuleSnapshot", () => {
     await h.session.documentSymbol("/mod/a.go");
     const didOpens = sentTo(h.server, OPEN);
     expect(didOpens).toHaveLength(2);
-    expect(didOpens[1]?.[1]).toMatchObject({ textDocument: { uri: uriOf("/mod/a.go"), text: "package main\n" } });
+    expect(didOpens[1]?.[1]).toMatchObject({
+      textDocument: { uri: uriOf("/mod/a.go"), text: "package main\n" },
+    });
   });
 
   it("reports a changed file it never opened without closing anything it never opened", async () => {
@@ -295,7 +297,12 @@ describe("LspSession.refreshModuleSnapshot", () => {
     // the baseline the failed report abandoned.
     await h.session.documentSymbol("/mod/a.go");
     const beforePush = h.sent();
-    h.setSnapshot(withEntries(atStart, [["/mod/broken.go", "2|2"], ["/mod/late.go", "3|3"]]));
+    h.setSnapshot(
+      withEntries(atStart, [
+        ["/mod/broken.go", "2|2"],
+        ["/mod/late.go", "3|3"],
+      ]),
+    );
 
     expect(await h.session.refreshModuleSnapshot()).toEqual({ kind: "pushed", changedFiles: 1 });
     expect(sequence(h.server, beforePush)).toEqual([WATCHED]);
@@ -371,12 +378,13 @@ describe("LspSession.refreshModuleSnapshot", () => {
     h.setSnapshot(new Map([["/mod/new.go", "2|2"]]));
 
     let settled = 0;
-    const both = Promise.all([h.session.refreshModuleSnapshot(), h.session.refreshModuleSnapshot()]).then(
-      (outcomes) => {
-        settled += 1;
-        return outcomes;
-      },
-    );
+    const both = Promise.all([
+      h.session.refreshModuleSnapshot(),
+      h.session.refreshModuleSnapshot(),
+    ]).then((outcomes) => {
+      settled += 1;
+      return outcomes;
+    });
     await awaitNotification(h.server, WATCHED, beforePush);
     // Both are still waiting on the notification they just made. Unsynchronised, the second check would
     // have diffed against the baseline the first one replaced, answered `unchanged`, and let its caller
@@ -407,18 +415,21 @@ describe("LspSession.refreshModuleSnapshot", () => {
     expect(h.server.methods).toEqual(["initialize", "textDocument/documentSymbol"]);
   });
 
-  itIfCaseInsensitive("matches an open file by path, not by spelling, when the walk spells it differently", async () => {
-    const h = started(new Map([["/MOD/A.GO", "1|1"]]));
-    await h.session.documentSymbol("/mod/a.go");
-    const beforePush = h.sent();
-    h.setSnapshot(new Map([["/MOD/A.GO", "2|2"]]));
+  itIfCaseInsensitive(
+    "matches an open file by path, not by spelling, when the walk spells it differently",
+    async () => {
+      const h = started(new Map([["/MOD/A.GO", "1|1"]]));
+      await h.session.documentSymbol("/mod/a.go");
+      const beforePush = h.sent();
+      h.setSnapshot(new Map([["/MOD/A.GO", "2|2"]]));
 
-    expect(await h.session.refreshModuleSnapshot()).toEqual({ kind: "pushed", changedFiles: 1 });
-    // The release names the document the server was given, which only a path match — not a string
-    // match — could work out from the walk's other spelling.
-    expect(sequence(h.server, beforePush)).toEqual([`${CLOSE} ${shown("/mod/a.go")}`, WATCHED]);
-    expect(watchedEvents(h.server)).toEqual([{ uri: uriOf("/MOD/A.GO"), type: CHANGED }]);
-  });
+      expect(await h.session.refreshModuleSnapshot()).toEqual({ kind: "pushed", changedFiles: 1 });
+      // The release names the document the server was given, which only a path match — not a string
+      // match — could work out from the walk's other spelling.
+      expect(sequence(h.server, beforePush)).toEqual([`${CLOSE} ${shown("/mod/a.go")}`, WATCHED]);
+      expect(watchedEvents(h.server)).toEqual([{ uri: uriOf("/MOD/A.GO"), type: CHANGED }]);
+    },
+  );
 });
 
 describe("the one-file staleness check behind go_file_symbols", () => {

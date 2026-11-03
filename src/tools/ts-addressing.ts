@@ -14,7 +14,12 @@ import type { NamedSymbol } from "./location-naming.js";
  */
 
 /** The entries a dotted `symbol` may descend through. A local's or an object literal's members are not addressable. */
-export const CONTAINER_KINDS: ReadonlySet<string> = new Set(["class", "interface", "enum", "namespace"]);
+export const CONTAINER_KINDS: ReadonlySet<string> = new Set([
+  "class",
+  "interface",
+  "enum",
+  "namespace",
+]);
 
 /** Which meanings an entry can carry. A class, enum and namespace carry both, which is why merging works. */
 const TYPE_MEANINGS = new Set(["class", "interface", "enum", "namespace", "module"]);
@@ -32,7 +37,12 @@ const VALUE_MEANINGS = new Set([
 ]);
 
 /** The unlike kind pairs TypeScript merges into one declaration; like pairs are covered by the overload rule. */
-const MERGES = new Set(["class|interface", "namespace|class", "namespace|function", "namespace|enum"]);
+const MERGES = new Set([
+  "class|interface",
+  "namespace|class",
+  "namespace|function",
+  "namespace|enum",
+]);
 
 /** The prefix that separates two symbols sharing a key. */
 export type TsSelector = "static" | "instance" | "value" | "type" | "namespace";
@@ -49,10 +59,19 @@ export interface TsCandidate {
 
 export type TsAddressOutcome =
   | { readonly kind: "addressed"; readonly subject: TsSubject }
-  | { readonly kind: "shared-key"; readonly symbol: string; readonly candidates: readonly TsCandidate[] }
+  | {
+      readonly kind: "shared-key";
+      readonly symbol: string;
+      readonly candidates: readonly TsCandidate[];
+    }
   | { readonly kind: "not-found"; readonly symbol: string }
   | { readonly kind: "unreadable-span"; readonly symbol: string; readonly entry: LspDocumentSymbol }
-  | { readonly kind: "not-addressable"; readonly symbol: string; readonly through: string; readonly kindName: string };
+  | {
+      readonly kind: "not-addressable";
+      readonly symbol: string;
+      readonly through: string;
+      readonly kindName: string;
+    };
 
 /** One addressed subject: what it is, where its own name is, and how a row carrying it should spell it. */
 export interface TsSubject {
@@ -91,8 +110,10 @@ export interface TsAddressSource {
 function modifierSpan(entry: LspDocumentSymbol, lines: readonly string[]): string {
   const start = entry.range.start;
   const identifier = entry.selectionRange?.start;
-  if (identifier === undefined || start.character === undefined || identifier.line < start.line) return "";
-  if (identifier.line === start.line) return lines[start.line]?.slice(start.character, identifier.character) ?? "";
+  if (identifier === undefined || start.character === undefined || identifier.line < start.line)
+    return "";
+  if (identifier.line === start.line)
+    return lines[start.line]?.slice(start.character, identifier.character) ?? "";
   const first = lines[start.line]?.slice(start.character) ?? "";
   const last = lines[identifier.line]?.slice(0, identifier.character) ?? "";
   return [first, ...lines.slice(start.line + 1, identifier.line), last].join("\n");
@@ -170,9 +191,14 @@ function mergeable(left: string, right: string): boolean {
  * Whether two entries under one key are one declaration: the same kind at the same static-ness (an overload
  * set, a `get`/`set` pair), or a pair of kinds TypeScript merges.
  */
-function oneOfThem(entry: LspDocumentSymbol, other: LspDocumentSymbol, lines: readonly string[]): boolean {
+function oneOfThem(
+  entry: LspDocumentSymbol,
+  other: LspDocumentSymbol,
+  lines: readonly string[],
+): boolean {
   const kind = symbolKindName(entry.kind);
-  if (kind === symbolKindName(other.kind)) return isStaticEntry(entry, lines) === isStaticEntry(other, lines);
+  if (kind === symbolKindName(other.kind))
+    return isStaticEntry(entry, lines) === isStaticEntry(other, lines);
   return mergeable(kind, symbolKindName(other.kind));
 }
 
@@ -186,7 +212,10 @@ function oneOfThem(entry: LspDocumentSymbol, other: LspDocumentSymbol, lines: re
 function isOneSymbol(entries: readonly LspDocumentSymbol[], lines: readonly string[]): boolean {
   for (let index = 0; index < entries.length; index += 1) {
     for (let other = index + 1; other < entries.length; other += 1) {
-      if (!oneOfThem(entries[index] as LspDocumentSymbol, entries[other] as LspDocumentSymbol, lines)) return false;
+      if (
+        !oneOfThem(entries[index] as LspDocumentSymbol, entries[other] as LspDocumentSymbol, lines)
+      )
+        return false;
     }
   }
   return true;
@@ -197,10 +226,21 @@ function isOneSymbol(entries: readonly LspDocumentSymbol[], lines: readonly stri
  * way, meaning when it splits a value from a type. A group that splits neither way has no documented spelling,
  * and saying so is better than picking one of them.
  */
-function candidatesOf(entries: readonly LspDocumentSymbol[], lines: readonly string[]): TsCandidate[] {
-  const read = entries.map((entry) => ({ entry, kind: symbolKindName(entry.kind), static: isStaticEntry(entry, lines) }));
-  const splitsByStatic = read.some(({ static: memberStatic }) => memberStatic) && read.some(({ static: memberStatic }) => !memberStatic);
-  const valueKinds = read.filter(({ kind }) => VALUE_MEANINGS.has(kind) && !TYPE_MEANINGS.has(kind));
+function candidatesOf(
+  entries: readonly LspDocumentSymbol[],
+  lines: readonly string[],
+): TsCandidate[] {
+  const read = entries.map((entry) => ({
+    entry,
+    kind: symbolKindName(entry.kind),
+    static: isStaticEntry(entry, lines),
+  }));
+  const splitsByStatic =
+    read.some(({ static: memberStatic }) => memberStatic) &&
+    read.some(({ static: memberStatic }) => !memberStatic);
+  const valueKinds = read.filter(
+    ({ kind }) => VALUE_MEANINGS.has(kind) && !TYPE_MEANINGS.has(kind),
+  );
   const splitsByMeaning = valueKinds.length > 0 && read.some(({ kind }) => TYPE_MEANINGS.has(kind));
   // An interface is a type and a namespace is a namespace, and TypeScript's reference search widens only through
   // declarations whose meaning intersects: a group of exactly those two
@@ -222,10 +262,10 @@ function candidatesOf(entries: readonly LspDocumentSymbol[], lines: readonly str
           ? "type"
           : "namespace"
         : splitsByMeaning
-        ? TYPE_MEANINGS.has(kind)
-          ? "type"
-          : "value"
-        : undefined,
+          ? TYPE_MEANINGS.has(kind)
+            ? "type"
+            : "value"
+          : undefined,
   }));
 }
 
@@ -316,7 +356,11 @@ function isContainer(entry: LspDocumentSymbol): boolean {
 }
 
 /** Where the block comment opening just before `from` on `line` ends, searching across lines. */
-function afterBlockComment(lines: readonly string[], line: number, from: number): Position | undefined {
+function afterBlockComment(
+  lines: readonly string[],
+  line: number,
+  from: number,
+): Position | undefined {
   let row = line;
   let column = from;
   while (row < lines.length) {
@@ -334,7 +378,10 @@ function afterBlockComment(lines: readonly string[], line: number, from: number)
  * span, and like that one it reads only text between positions the server gave. `undefined` when the span holds
  * anything else, or when the server sent no end for it.
  */
-function spelledIdentifiers(entry: LspDocumentSymbol, lines: readonly string[]): { text: string; position: Position }[] | undefined {
+function spelledIdentifiers(
+  entry: LspDocumentSymbol,
+  lines: readonly string[],
+): { text: string; position: Position }[] | undefined {
   const start = entry.selectionRange?.start;
   const end = entry.selectionRange?.end;
   if (start === undefined || end === undefined) return undefined;
@@ -381,16 +428,29 @@ function spelledIdentifiers(entry: LspDocumentSymbol, lines: readonly string[]):
  * The position a key that ends at `index` of a dotted entry's run is asked at: where the identifier the key's
  * last segment names starts. The first identifier is the entry's own `selectionRange.start`, which needs no read.
  */
-function runPosition(entry: LspDocumentSymbol, parts: readonly string[], index: number, lines: readonly string[]): Position | undefined | "unreadable" {
+function runPosition(
+  entry: LspDocumentSymbol,
+  parts: readonly string[],
+  index: number,
+  lines: readonly string[],
+): Position | undefined | "unreadable" {
   if (index === 0) return selectionOf(entry);
   const spelled = spelledIdentifiers(entry, lines);
   const at = spelled?.[index];
-  const holdsRun = spelled !== undefined && spelled.length === parts.length && spelled.every((id, i) => id.text === parts[i]);
+  const holdsRun =
+    spelled !== undefined &&
+    spelled.length === parts.length &&
+    spelled.every((id, i) => id.text === parts[i]);
   return holdsRun && at !== undefined ? at.position : "unreadable";
 }
 
 /** Whether `segments[from ...]` starts with the first `take` identifiers of an entry's run. */
-function startsWithRun(segments: readonly string[], from: number, take: number, parts: readonly string[]): boolean {
+function startsWithRun(
+  segments: readonly string[],
+  from: number,
+  take: number,
+  parts: readonly string[],
+): boolean {
   for (let offset = 0; offset < take; offset += 1) {
     if (segments[from + offset] !== parts[offset]) return false;
   }
@@ -408,7 +468,11 @@ interface Level {
  * spells, and a key that ends inside its run (`A` against `A.B`) reaches it at that segment. A segment after the
  * entries above it is looked for among their children, which have to be a class, interface, enum or namespace.
  */
-function descend(name: string, outline: readonly LspDocumentSymbol[], lines: readonly string[]): Reach {
+function descend(
+  name: string,
+  outline: readonly LspDocumentSymbol[],
+  lines: readonly string[],
+): Reach {
   const segments = name.split(".");
   const reached: ReachedEntry[] = [];
   let blocked: Reach | undefined;
@@ -439,7 +503,11 @@ function descend(name: string, outline: readonly LspDocumentSymbol[], lines: rea
     const path = segments.slice(0, from + 1).join(".");
     if (matched === 0) blocked = { kind: "blocked", through: path, kindName: "nothing" };
     else if (through > 0 && containers === 0) {
-      blocked = { kind: "blocked", through: path, kindName: symbolKindName(firstThrough?.kind ?? 0) };
+      blocked = {
+        kind: "blocked",
+        through: path,
+        kindName: symbolKindName(firstThrough?.kind ?? 0),
+      };
     }
   }
   if (reached.length > 0) return { kind: "reached", entries: reached };
@@ -451,13 +519,20 @@ function descend(name: string, outline: readonly LspDocumentSymbol[], lines: rea
  * symbol: the question "what declares this name" is answered by the whole set, so listing it guesses nothing.
  * `name` carries no selector prefix; `lines` is the file's text, read only inside a dotted entry's own span.
  */
-export function matchingEntries(name: string, outline: readonly LspDocumentSymbol[], lines: readonly string[]): Reach {
+export function matchingEntries(
+  name: string,
+  outline: readonly LspDocumentSymbol[],
+  lines: readonly string[],
+): Reach {
   const reach = descend(name, outline, lines);
   return reach.kind === "blocked" ? { kind: "reached", entries: [] } : reach;
 }
 
 /** The entries a caller can ask, when some can and some cannot; all of them when none can, so its kind gate speaks. */
-function narrowed(reached: readonly ReachedEntry[], askable: (entry: LspDocumentSymbol) => boolean): readonly ReachedEntry[] {
+function narrowed(
+  reached: readonly ReachedEntry[],
+  askable: (entry: LspDocumentSymbol) => boolean,
+): readonly ReachedEntry[] {
   const kept = reached.filter(({ entry }) => askable(entry));
   return kept.length > 0 ? kept : reached;
 }
@@ -480,21 +555,49 @@ export function addressTsSymbol(
   const { selector, name } = splitSelector(symbol);
   const descent = descend(name, outline, source.lines);
   if (descent.kind === "blocked") {
-    return { kind: "not-addressable", symbol, through: descent.through, kindName: descent.kindName };
+    return {
+      kind: "not-addressable",
+      symbol,
+      through: descent.through,
+      kindName: descent.kindName,
+    };
   }
-  if (descent.kind === "unreadable") return { kind: "unreadable-span", symbol, entry: descent.entry };
-  const reached = selector === undefined && askable !== undefined ? narrowed(descent.entries, askable) : descent.entries;
+  if (descent.kind === "unreadable")
+    return { kind: "unreadable-span", symbol, entry: descent.entry };
+  const reached =
+    selector === undefined && askable !== undefined
+      ? narrowed(descent.entries, askable)
+      : descent.entries;
   if (reached.length === 0) return { kind: "not-found", symbol };
   const candidates = reached.map(({ entry }) => entry);
   const positions = new Map(reached.map(({ entry, position }) => [entry, position]));
   const first = candidates[0] as LspDocumentSymbol;
   if (isOneSymbol(candidates, source.lines)) {
-    return addressed(symbol, name, candidates, first, positions.get(first), source, reached.map(({ position }) => position));
+    return addressed(
+      symbol,
+      name,
+      candidates,
+      first,
+      positions.get(first),
+      source,
+      reached.map(({ position }) => position),
+    );
   }
   const candidatesRead = candidatesOf(candidates, source.lines);
-  const chosen = selector === undefined ? undefined : candidatesRead.find((candidate) => candidate.selector === selector);
-  if (chosen === undefined) return { kind: "shared-key", symbol: name, candidates: candidatesRead };
-  return addressed(symbol, `${selector} ${name}`, [chosen.entry], chosen.entry, positions.get(chosen.entry), source);
+  const chosen =
+    selector === undefined
+      ? undefined
+      : candidatesRead.find((candidate) => candidate.selector === selector);
+  if (selector === undefined || chosen === undefined)
+    return { kind: "shared-key", symbol: name, candidates: candidatesRead };
+  return addressed(
+    symbol,
+    `${selector} ${name}`,
+    [chosen.entry],
+    chosen.entry,
+    positions.get(chosen.entry),
+    source,
+  );
 }
 
 /** The entries an implementations question prefers, in preference order. */
@@ -530,7 +633,9 @@ function preferredEntry(subject: TsSubject): LspDocumentSymbol | undefined {
  */
 export function implementationsSubject(subject: TsSubject): TsSubject {
   const preferred = preferredEntry(subject);
-  return preferred === undefined || preferred === subject.entry ? subject : reaimed(subject, preferred);
+  return preferred === undefined || preferred === subject.entry
+    ? subject
+    : reaimed(subject, preferred);
 }
 
 /** Whether `entry`'s span holds `position`, by line and, when both sides have one, by character. */
@@ -538,13 +643,19 @@ function containsPosition(entry: LspDocumentSymbol, position: LinePosition): boo
   const { start, end } = entry.range;
   const character = position.character;
   if (character === undefined) return position.line >= start.line && position.line <= end.line;
-  const before = position.line < start.line || (position.line === start.line && (start.character ?? 0) > character);
-  const after = position.line > end.line || (position.line === end.line && (end.character ?? 0) < character);
+  const before =
+    position.line < start.line ||
+    (position.line === start.line && (start.character ?? 0) > character);
+  const after =
+    position.line > end.line || (position.line === end.line && (end.character ?? 0) < character);
   return !before && !after;
 }
 
 /** The entries containing `position`, outermost first, descending through children only. */
-function enclosingChain(symbols: readonly LspDocumentSymbol[], position: LinePosition): LspDocumentSymbol[] {
+function enclosingChain(
+  symbols: readonly LspDocumentSymbol[],
+  position: LinePosition,
+): LspDocumentSymbol[] {
   const chain: LspDocumentSymbol[] = [];
   let level = symbols;
   for (;;) {
@@ -587,7 +698,8 @@ export function spellTsRow(
   const subject = chain[depth];
   if (subject === undefined) return unnamed(NO_ENCLOSING_DECLARATION);
   const above = containers.slice(0, depth);
-  const siblings = above.length === 0 ? symbols : childEntries(above[above.length - 1] as LspDocumentSymbol);
+  const siblings =
+    above.length === 0 ? symbols : childEntries(above[above.length - 1] as LspDocumentSymbol);
   const sharing = withKey(siblings, subject.name);
   // A prefix is written only where one separates the pair. Where the collision splits neither by
   // static-ness nor by meaning there is no documented selector, and the row carries the bare dotted path

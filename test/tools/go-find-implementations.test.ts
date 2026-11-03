@@ -33,16 +33,24 @@ function scopeOf(result: Result): Record<string, unknown> {
 
 /** Which of the two exclusive pairs `scope` actually carries. */
 function exclusivesOf(scope: Record<string, unknown>): string[] {
-  return ["environment", "environmentUnavailable", "osArchExcluded", "osArchExcludedUnavailable"].filter(
-    (key) => key in scope,
-  );
+  return [
+    "environment",
+    "environmentUnavailable",
+    "osArchExcluded",
+    "osArchExcludedUnavailable",
+  ].filter((key) => key in scope);
 }
 
 // Windows spells one path in two cases and `pathKey` is what equates them; on a case-sensitive filesystem
 // the case would not be skipped silently but would also not be the thing under test.
 const itIfCaseInsensitive = process.platform === "win32" ? it : it.skip;
 
-function symbol(name: string, kind: number, startLine: number, endLine = startLine): LspDocumentSymbol {
+function symbol(
+  name: string,
+  kind: number,
+  startLine: number,
+  endLine = startLine,
+): LspDocumentSymbol {
   return {
     name,
     kind,
@@ -52,13 +60,20 @@ function symbol(name: string, kind: number, startLine: number, endLine = startLi
 }
 
 /** A declaration gopls reported with no name range, which no type-aware position can be taken from. */
-const NO_SELECTION: LspDocumentSymbol = { name: "Bare", kind: 11, range: { start: { line: 2 }, end: { line: 4 } } };
+const NO_SELECTION: LspDocumentSymbol = {
+  name: "Bare",
+  kind: 11,
+  range: { start: { line: 2 }, end: { line: 4 } },
+};
 
 const STORAGE = symbol("Storage", 11, 13, 17);
 const PG = symbol("PgStorage", 23, 21, 24);
 
 function location(path: string, line: number, character = 4): unknown {
-  return { uri: uriOf(path), range: { start: { line, character }, end: { line, character: character + 5 } } };
+  return {
+    uri: uriOf(path),
+    range: { start: { line, character }, end: { line, character: character + 5 } },
+  };
 }
 
 /** A one-line declaration whose name and member share the line, as LSP reports them. */
@@ -151,9 +166,12 @@ function buildHarness(options: HarnessOptions = {}): Harness {
         await pending.get(path);
         if (options.autoReady && !autoReadied) {
           autoReadied = true;
-          void server
-            .createProgress("tok-auto")
-            .then(() => server.sendProgress("tok-auto", { kind: "end", message: "Finished loading packages." }));
+          void server.createProgress("tok-auto").then(() =>
+            server.sendProgress("tok-auto", {
+              kind: "end",
+              message: "Finished loading packages.",
+            }),
+          );
         }
         return outlines.get(path) ?? [];
       }
@@ -174,7 +192,10 @@ function buildHarness(options: HarnessOptions = {}): Harness {
     readFile: read,
     sleep: async () => {},
   });
-  const config = options.snapshot === undefined ? goplsConfig : { ...goplsConfig, moduleSnapshot: options.snapshot };
+  const config =
+    options.snapshot === undefined
+      ? goplsConfig
+      : { ...goplsConfig, moduleSnapshot: options.snapshot };
   const session = manager.get(resolve(mod), config);
   return {
     tmp,
@@ -300,7 +321,10 @@ describe("runGoFindImplementations", () => {
     await h.run();
 
     const request = h.server.requests.find(([method]) => method === "textDocument/implementation");
-    expect(request?.[1]).toEqual({ textDocument: { uri: uriOf(h.file) }, position: { line: 13, character: 5 } });
+    expect(request?.[1]).toEqual({
+      textDocument: { uri: uriOf(h.file) },
+      position: { line: 13, character: 5 },
+    });
   });
 
   it("names each in-module file through a transient open that it closes again", async () => {
@@ -334,7 +358,12 @@ describe("runGoFindImplementations", () => {
 
       const out = await h.run({ symbol: "Store" });
       expect(payload(out).direction).toBe("interfaces-implemented-by-type");
-      expect(payload(out).resolved).toEqual({ name: "Store", kind: kindName, file: h.file, line: 5 });
+      expect(payload(out).resolved).toEqual({
+        name: "Store",
+        kind: kindName,
+        file: h.file,
+        line: 5,
+      });
       expect(textOf(out)).toContain(`Interfaces implemented by ${kindName} "Store"`);
     }
   });
@@ -368,7 +397,9 @@ describe("runGoFindImplementations", () => {
       },
     ]);
     expect(h.read.mock.calls.every((call) => call[0] !== outside)).toBe(true);
-    expect(h.server.notifications.some(([, params]) => JSON.stringify(params)?.includes("io.go"))).toBe(false);
+    expect(
+      h.server.notifications.some(([, params]) => JSON.stringify(params)?.includes("io.go")),
+    ).toBe(false);
   });
 
   it("reads a LocationLink answer as readily as a Location answer", async () => {
@@ -379,7 +410,9 @@ describe("runGoFindImplementations", () => {
     await h.ready();
 
     const out = await h.run();
-    expect(rowsOf(out)).toEqual([{ name: "PgStorage", kind: "struct", file: pg, line: 22, external: false }]);
+    expect(rowsOf(out)).toEqual([
+      { name: "PgStorage", kind: "struct", file: pg, line: 22, external: false },
+    ]);
   });
 
   it("keeps a row whose name cannot be found in the file, saying why instead of dropping it", async () => {
@@ -407,9 +440,7 @@ describe("runGoFindImplementations", () => {
     const disk = join(h.mod, "disk.go");
     // `type DiskSink struct { saved string }` on one line: the type's range spans the line, the field's
     // sits inside it, and gopls reports the implementer at the type name.
-    h.outline(disk, [
-      ranged("DiskSink", 23, 4, 0, 33, [ranged("saved", 8, 4, 19, 31)]),
-    ]);
+    h.outline(disk, [ranged("DiskSink", 23, 4, 0, 33, [ranged("saved", 8, 4, 19, 31)])]);
     h.answer([location(disk, 4, 5)]);
     await h.ready();
 
@@ -441,7 +472,9 @@ describe("runGoFindImplementations", () => {
     await h.ready();
 
     const out = await h.run();
-    expect(rowsOf(out)).toEqual([{ name: "Wrapped", kind: "struct", file: wrapped, line: 6, external: false }]);
+    expect(rowsOf(out)).toEqual([
+      { name: "Wrapped", kind: "struct", file: wrapped, line: 6, external: false },
+    ]);
   });
 
   it("names in-module rows first and in reported order, when the outline reads finish out of order", async () => {
@@ -455,7 +488,10 @@ describe("runGoFindImplementations", () => {
     await h.ready();
 
     const running = h.run();
-    await waitUntil(() => notes(h.server).includes(`textDocument/didClose ${quick}`), "the fast read to finish");
+    await waitUntil(
+      () => notes(h.server).includes(`textDocument/didClose ${quick}`),
+      "the fast read to finish",
+    );
     releaseLate();
 
     expect(rowsOf(await running).map((row) => row.name)).toEqual(["Late", "Quick"]);
@@ -511,7 +547,9 @@ describe("runGoFindImplementations", () => {
     expect(payload(out).truncated).toBe(11);
     expect(textOf(out)).toContain(`${IMPLEMENTATIONS_LIMIT}-row cap`);
     // The fan-out stopped at the rows that survived the cap, so no dropped file was ever opened.
-    expect(h.server.methods.filter((method) => method === "textDocument/documentSymbol")).toHaveLength(3);
+    expect(
+      h.server.methods.filter((method) => method === "textDocument/documentSymbol"),
+    ).toHaveLength(3);
   });
 
   it("surfaces what the freshness check cost in scope", async () => {
@@ -519,7 +557,10 @@ describe("runGoFindImplementations", () => {
     await h.ready();
     // A real file appearing in the module after the child started is what the walk reports; the answer
     // itself comes from the fake, so only `scope.freshness` is under test here.
-    writeFileSync(join(h.mod, "later.go"), "package mod\n\n// Later appears after the load.\ntype Later struct{}\n");
+    writeFileSync(
+      join(h.mod, "later.go"),
+      "package mod\n\n// Later appears after the load.\ntype Later struct{}\n",
+    );
 
     const out = await h.run();
     expect(payload(out).scope.freshness).toEqual({ kind: "pushed", changedFiles: 1 });
@@ -537,7 +578,11 @@ describe("runGoFindImplementations", () => {
     const out = await h.run();
     const scope = scopeOf(out);
     expect(scope.environment).toEqual(WINDOWS_AMD64);
-    expect(scope.osArchExcluded).toEqual({ count: 1, files: [linuxOnly], namedFileExcluded: false });
+    expect(scope.osArchExcluded).toEqual({
+      count: 1,
+      files: [linuxOnly],
+      namedFileExcluded: false,
+    });
     expect(exclusivesOf(scope)).toEqual(["environment", "osArchExcluded"]);
     expect(textOf(out)).toContain("1 filename-excluded .go file(s) absent from this answer");
 
@@ -564,7 +609,10 @@ describe("runGoFindImplementations", () => {
     await h.ready();
 
     const out = await h.run({ file: windowsOnly });
-    expect(scopeOf(out).osArchExcluded).toMatchObject({ namedFileExcluded: true, files: [windowsOnly] });
+    expect(scopeOf(out).osArchExcluded).toMatchObject({
+      namedFileExcluded: true,
+      files: [windowsOnly],
+    });
   });
 
   it("carries a go.work the answer deliberately does not span", async () => {
@@ -604,7 +652,9 @@ describe("runGoFindImplementations", () => {
   });
 
   it("names why the toolchain could not be asked, in three distinct reasons, and classifies no files without it", async () => {
-    const missing = harness({ go: fakeGo({ env: notStarted("ENOENT", "go: executable file not found") }) });
+    const missing = harness({
+      go: fakeGo({ env: notStarted("ENOENT", "go: executable file not found") }),
+    });
     const nonzero = harness({ go: fakeGo({ env: exited(2, "go: unknown environment variable") }) });
     const unparsable = harness({ go: fakeGo({ env: ran("not json at all") }) });
     for (const h of [missing, nonzero, unparsable]) await h.ready();
@@ -659,23 +709,27 @@ describe("runGoFindImplementations", () => {
     expect(textOf(out)).not.toMatch(/build constraint/);
   });
 
-  itIfCaseInsensitive("reuses the queried file's outline for a row gopls spelled with another drive-letter case", async () => {
-    const h = harness();
-    const recased = h.file.replace(
-      /^([A-Za-z]:)/,
-      (drive) => (drive === drive.toUpperCase() ? drive.toLowerCase() : drive.toUpperCase()),
-    );
-    h.answer([location(recased, 15)]);
-    await h.ready();
+  itIfCaseInsensitive(
+    "reuses the queried file's outline for a row gopls spelled with another drive-letter case",
+    async () => {
+      const h = harness();
+      const recased = h.file.replace(/^([A-Za-z]:)/, (drive) =>
+        drive === drive.toUpperCase() ? drive.toLowerCase() : drive.toUpperCase(),
+      );
+      h.answer([location(recased, 15)]);
+      await h.ready();
 
-    const out = await h.run();
-    expect(rowsOf(out)).toEqual([
-      { name: "Storage", kind: "interface", file: recased, line: 16, external: false },
-    ]);
-    // Two outline requests only — the one that starts the child and the one for the queried file. A raw
-    // string comparison would have asked for the same file a third time under its other spelling.
-    expect(h.server.methods.filter((method) => method === "textDocument/documentSymbol")).toHaveLength(2);
-  });
+      const out = await h.run();
+      expect(rowsOf(out)).toEqual([
+        { name: "Storage", kind: "interface", file: recased, line: 16, external: false },
+      ]);
+      // Two outline requests only — the one that starts the child and the one for the queried file. A raw
+      // string comparison would have asked for the same file a third time under its other spelling.
+      expect(
+        h.server.methods.filter((method) => method === "textDocument/documentSymbol"),
+      ).toHaveLength(2);
+    },
+  );
 
   it("fails at the budget when the initial workspace load was never proven, asking nothing type-aware", async () => {
     const h = harness();
@@ -686,7 +740,9 @@ describe("runGoFindImplementations", () => {
     expect(textOf(out)).toMatch(/initial workspace load/);
     expect(textOf(out)).toContain("40 ms budget");
     expect(h.server.methods).not.toContain("textDocument/implementation");
-    expect(h.server.notifications.filter(([method]) => method === "textDocument/didOpen")).toHaveLength(1);
+    expect(
+      h.server.notifications.filter(([method]) => method === "textDocument/didOpen"),
+    ).toHaveLength(1);
   });
 
   it("names the rows it can and says so when the naming step runs out of the budget", async () => {
@@ -721,7 +777,9 @@ describe("runGoFindImplementations", () => {
     expect(textOf(out)).toMatch(/gopls restarted during the query/);
     expect(textOf(out)).toMatch(/initial workspace load has not been proven/);
     // The retried query really was answered — what is refused is the proof, not the reply.
-    expect(h.server.methods.filter((method) => method === "textDocument/implementation")).toHaveLength(2);
+    expect(
+      h.server.methods.filter((method) => method === "textDocument/implementation"),
+    ).toHaveLength(2);
   }, 10_000);
 
   it("refuses to pick a direction for a func, because gopls cannot tell the two apart", async () => {
@@ -741,16 +799,19 @@ describe("runGoFindImplementations", () => {
     ["variable", 13],
     ["constant", 14],
     ["field", 8],
-  ])("refuses a %s, naming the kind and what does have a direction", async (kindName: string, kind: number) => {
-    const h = harness();
-    h.outline(h.file, [symbol("Decl", kind, 8)]);
-    await h.ready();
+  ])(
+    "refuses a %s, naming the kind and what does have a direction",
+    async (kindName: string, kind: number) => {
+      const h = harness();
+      h.outline(h.file, [symbol("Decl", kind, 8)]);
+      await h.ready();
 
-    const out = await h.run({ symbol: "Decl" });
-    expect(out.isError).toBe(true);
-    expect(textOf(out)).toContain(`is a ${kindName}`);
-    expect(textOf(out)).toMatch(/only named types and interfaces have a direction/);
-  });
+      const out = await h.run({ symbol: "Decl" });
+      expect(out.isError).toBe(true);
+      expect(textOf(out)).toContain(`is a ${kindName}`);
+      expect(textOf(out)).toMatch(/only named types and interfaces have a direction/);
+    },
+  );
 
   it("accepts either receiver spelling for a method, and a bare name for no method at all", async () => {
     for (const spelling of ["(Store).Save", "Store.Save"]) {
@@ -832,7 +893,7 @@ describe("runGoFindImplementations", () => {
   it("keeps the tried spellings of a relative file when the session throws on the way to an answer", async () => {
     const h = harness({
       spawn: () => {
-        throw new Error("Cannot start gopls: \"gopls\" on PATH was not found");
+        throw new Error('Cannot start gopls: "gopls" on PATH was not found');
       },
     });
 

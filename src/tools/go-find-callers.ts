@@ -33,7 +33,12 @@ import {
   reportedLocation,
   unexpectedAnswerText,
 } from "./lsp-locations.js";
-import { OUTSIDE_MODULE_REASON, type NamedRow, nameLocations, namedRow } from "./location-naming.js";
+import {
+  OUTSIDE_MODULE_REASON,
+  type NamedRow,
+  nameLocations,
+  namedRow,
+} from "./location-naming.js";
 import { candidateText, capsText, type Step, withArticle } from "./navigation-text.js";
 import { CALLERS_LIMIT, REFERENCE_SITES_PER_FILE_LIMIT } from "./navigation-limits.js";
 import { messageOf } from "../error-message.js";
@@ -72,11 +77,10 @@ interface CappedCaller extends Located {
 export const GoFindCallersInput = z.object({
   sourceRoots: GoSourceRootsSchema,
   file: GoDeclaringFileSchema,
-  symbol: NameInput
-    .describe(
-      "A function or method: exact name as declared at the top level of `file`; a method takes its receiver " +
-        "(`Concrete.Get` or `(*Concrete).Get`), and a bare `Get` means the package-level `Get`.",
-    ),
+  symbol: NameInput.describe(
+    "A function or method: exact name as declared at the top level of `file`; a method takes its receiver " +
+      "(`Concrete.Get` or `(*Concrete).Get`), and a bare `Get` means the package-level `Get`.",
+  ),
   timeBudgetMs: timeBudgetSchema(60_000),
 });
 
@@ -158,14 +162,14 @@ function preparedItem(
   if (result !== null && result !== undefined && !Array.isArray(result)) {
     return { ok: false, error: unexpectedCallText(symbol, result) };
   }
-  const items = Array.isArray(result) ? result : [];
+  const items: unknown[] = Array.isArray(result) ? result : [];
   if (items.length === 0) return { ok: false, error: noItemText(TOOL, symbol) };
   if (items.length > 1) {
     const lines = items.map(describedItem).join("\n");
     return {
       ok: false,
       error:
-        `${TOOL} failed: gopls offered ${items.length} call-hierarchy items for "${symbol}", and picking one ` +
+        `${TOOL} failed: gopls offered ${String(items.length)} call-hierarchy items for "${symbol}", and picking one ` +
         `would be a guess, so they are listed:\n${lines}`,
     };
   }
@@ -181,9 +185,15 @@ function callSitesOf(value: unknown, symbol: string): Step<CallSite[]> {
   for (const [index, range] of value.entries()) {
     const start = rangeStart(range);
     if (start === undefined) {
-      return { ok: false, error: unexpectedCallText(symbol, value[index], `call site ${index + 1}`) };
+      return {
+        ok: false,
+        error: unexpectedCallText(symbol, value[index], `call site ${String(index + 1)}`),
+      };
     }
-    sites.push({ line: start.line + 1, column: start.character === undefined ? null : start.character + 1 });
+    sites.push({
+      line: start.line + 1,
+      column: start.character === undefined ? null : start.character + 1,
+    });
   }
   return { ok: true, value: sites };
 }
@@ -206,17 +216,20 @@ function callerEntries(
   const entries = Array.isArray(result) ? result : [];
   for (const [index, entry] of entries.entries()) {
     const raw = recordOf(entry);
-    const position = readItem(symbol, moduleRoot, keyOf, raw.from, `entry ${index + 1}`);
+    const position = readItem(symbol, moduleRoot, keyOf, raw.from, `entry ${String(index + 1)}`);
     if (!position.ok) return position;
     const sites = callSitesOf(raw.fromRanges, symbol);
     if (!sites.ok) return sites;
     const location = position.value;
-    const groupKey = `${location.key}:${location.line}:${location.character ?? -1}`;
+    const groupKey = `${location.key}:${String(location.line)}:${String(location.character ?? -1)}`;
     const seen = byKey.get(groupKey);
     if (seen === undefined) byKey.set(groupKey, { location, sites: sites.value });
     else seen.sites.push(...sites.value);
   }
-  return { ok: true, value: inModuleFirst([...byKey.values()], (group) => group.location.external) };
+  return {
+    ok: true,
+    value: inModuleFirst([...byKey.values()], (group) => group.location.external),
+  };
 }
 
 function capCallers(groups: readonly CallerGroup[]): {
@@ -252,37 +265,46 @@ async function buildCallers(
     budget,
     OUTSIDE_MODULE_REASON,
   );
-  return named.map((entry) => ({ ...namedRow(entry), callSites: entry.sites, callSitesTruncated: entry.truncated }));
+  return named.map((entry) => ({
+    ...namedRow(entry),
+    callSites: entry.sites,
+    callSitesTruncated: entry.truncated,
+  }));
 }
 
 function callerText(row: CallerRow): string {
   const name = row.name ?? "<unnamed>";
   const kind = row.kind ?? "?";
   const external = row.external ? " outside the module" : "";
-  const tail = row.callSitesTruncated > 0 ? `, ${row.callSitesTruncated} call site(s) not listed` : "";
-  return `  ${name} (${kind}) ${row.file}:${row.line}${external}${row.reason ? ` - ${row.reason}` : ""}${tail}`;
+  const tail =
+    row.callSitesTruncated > 0 ? `, ${String(row.callSitesTruncated)} call site(s) not listed` : "";
+  return `  ${name} (${kind}) ${row.file}:${String(row.line)}${external}${row.reason ? ` - ${row.reason}` : ""}${tail}`;
 }
 
 function siteText(site: CallSite): string {
-  const column = site.column === null ? "" : `:${site.column}`;
-  return `    called at ${site.line}${column}`;
+  const column = site.column === null ? "" : `:${String(site.column)}`;
+  return `    called at ${String(site.line)}${column}`;
 }
 
 /** The same JSON, phrased once for a reader who will not parse it. */
 function humanSummary(payload: FindCallersPayload): string {
   const { resolved, totalCallers, callers, callersTruncated, scope } = payload;
   const sites = callers.reduce((total, row) => total + row.callSitesTruncated, 0);
-  const listing = callers.map((row) => [callerText(row), ...row.callSites.map(siteText)].join("\n")).join("\n");
+  const listing = callers
+    .map((row) => [callerText(row), ...row.callSites.map(siteText)].join("\n"))
+    .join("\n");
   const tail = capsText([
-    callersTruncated > 0 ? `${callersTruncated} caller(s) dropped by the ${CALLERS_LIMIT}-caller cap` : undefined,
+    callersTruncated > 0
+      ? `${String(callersTruncated)} caller(s) dropped by the ${String(CALLERS_LIMIT)}-caller cap`
+      : undefined,
     sites > 0
-      ? `${sites} call site(s) dropped by the ${REFERENCE_SITES_PER_FILE_LIMIT}-sites-per-caller cap`
+      ? `${String(sites)} call site(s) dropped by the ${String(REFERENCE_SITES_PER_FILE_LIMIT)}-sites-per-caller cap`
       : undefined,
   ]);
   const head =
-    `Callers of ${resolved.kind} "${resolved.name}" (${resolved.file}:${resolved.line}) in module ` +
-    `"${scope.moduleRoot}"${environmentText(scope)} - ${callers.length} caller(s) listed from ` +
-    `${totalCallers} found, visibility: ${scope.visibility}, ` +
+    `Callers of ${resolved.kind} "${resolved.name}" (${resolved.file}:${String(resolved.line)}) in module ` +
+    `"${scope.moduleRoot}"${environmentText(scope)} - ${String(callers.length)} caller(s) listed from ` +
+    `${String(totalCallers)} found, visibility: ${scope.visibility}, ` +
     `freshness: ${freshnessText(scope.freshness)}${tail}.`;
   return `${head}\nlimits: ${scope.limits.join(", ")}${listing === "" ? "" : `\n${listing}`}`;
 }
@@ -328,7 +350,11 @@ export async function runGoFindCallers(
 
     const { capped, callersTruncated, sitesTruncated } = capCallers(groups.value);
     const rows = await buildCallers(session, capped, file, symbols, budget);
-    const scope = await navigationScope(query, "callers", callersTruncated > 0 || sitesTruncated > 0);
+    const scope = await navigationScope(
+      query,
+      "callers",
+      callersTruncated > 0 || sitesTruncated > 0,
+    );
     const payload: FindCallersPayload = {
       resolved: picked.resolved,
       totalCallers: groups.value.length,

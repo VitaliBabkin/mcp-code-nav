@@ -6,7 +6,11 @@ import { clangdConfig, clangdNoDatabaseConfig } from "../lsp/server-config.js";
 import type { LspSessionManager } from "../lsp/session-manager.js";
 import { errorResult, successResult, withSummary } from "../mcp-response.js";
 import type { ResolvedPath } from "../paths/resolve-safe-path.js";
-import { declaredRoots, missingCompileDbHint, resolveCppSourceRoots } from "./cpp-navigation-shared.js";
+import {
+  declaredRoots,
+  missingCompileDbHint,
+  resolveCppSourceRoots,
+} from "./cpp-navigation-shared.js";
 import { PathInput } from "./input-limits.js";
 import type { NavigationLimit } from "./navigation-limits.js";
 import { cppSourceRoots, type CppSourceRootsBlock } from "../clang-query/derived-source-roots.js";
@@ -35,7 +39,9 @@ export const CppFileSymbolsInput = z.object({
     .min(0)
     .max(1)
     .default(1)
-    .describe("0: top-level symbols only. 1 (default): also their immediate children, e.g. a class's methods."),
+    .describe(
+      "0: top-level symbols only. 1 (default): also their immediate children, e.g. a class's methods.",
+    ),
 });
 
 export type CppFileSymbolsInputType = z.infer<typeof CppFileSymbolsInput>;
@@ -46,7 +52,10 @@ const DEGRADED_SUMMARY_HEAD =
   "so a declaration hidden behind a macro or a missing header may be absent or misnamed. ";
 
 /** A default-flags parse that found nothing proves nothing about the file, so it is not an answer. */
-function emptyDegradedParse(missingDb: string, absoluteFile: string): ReturnType<typeof errorResult> {
+function emptyDegradedParse(
+  missingDb: string,
+  absoluteFile: string,
+): ReturnType<typeof errorResult> {
   return errorResult(
     `${missingDb} Without it, a default-flags parse of "${absoluteFile}" found no symbols, which does not show ` +
       "the file is empty.",
@@ -62,7 +71,10 @@ function isDirectory(path: string): boolean {
   }
 }
 
-export async function runCppFileSymbols(sessions: LspSessionManager, input: CppFileSymbolsInputType) {
+export async function runCppFileSymbols(
+  sessions: LspSessionManager,
+  input: CppFileSymbolsInputType,
+) {
   let resolution: ResolvedPath | undefined;
   let sourceRoots: CppSourceRootsBlock | undefined;
   try {
@@ -72,7 +84,10 @@ export async function runCppFileSymbols(sessions: LspSessionManager, input: CppF
 
     // Nothing is derived without a database: the degraded call resolves against projectRoot and what was declared.
     const block = degraded
-      ? cppSourceRoots(declaredRoots(input.sourceRoots), () => ({ kind: "none", reason: "compile-db-unlistable" }))
+      ? cppSourceRoots(declaredRoots(input.sourceRoots), () => ({
+          kind: "none",
+          reason: "compile-db-unlistable",
+        }))
       : resolveCppSourceRoots(input.projectRoot, input.sourceRoots).block;
     sourceRoots = block;
     let absoluteFile: string;
@@ -81,13 +96,20 @@ export async function runCppFileSymbols(sessions: LspSessionManager, input: CppF
       absoluteFile = resolution.absolutePath;
     } catch (e) {
       if (isPathResolutionError(e)) {
-        const fix = pathFixHint(e, { projectRoot: input.projectRoot, file: input.file, sourceRoots: block });
+        const fix = pathFixHint(e, {
+          projectRoot: input.projectRoot,
+          file: input.file,
+          sourceRoots: block,
+        });
         return errorResult(`cpp_file_symbols failed: ${e.message}${fix}`);
       }
       throw e;
     }
 
-    const session = sessions.get(input.projectRoot, degraded ? clangdNoDatabaseConfig : clangdConfig);
+    const session = sessions.get(
+      input.projectRoot,
+      degraded ? clangdNoDatabaseConfig : clangdConfig,
+    );
     const result = await session.documentSymbol(absoluteFile);
     if (result.state === "cold-empty") {
       if (degraded) return emptyDegradedParse(missingDb, absoluteFile);
@@ -96,7 +118,8 @@ export async function runCppFileSymbols(sessions: LspSessionManager, input: CppF
           "project was not yet confirmed warm — this is not confirmed to be a genuinely empty file, retry once the index has warmed up.",
       );
     }
-    const symbols: OutlineSymbol[] = result.state === "ok" ? toOutline(result.symbols, input.depth) : [];
+    const symbols: OutlineSymbol[] =
+      result.state === "ok" ? toOutline(result.symbols, input.depth) : [];
     if (!degraded) {
       // MCP's structuredContent is spec'd as a JSON object, not a bare array — the payload is an array of
       // {...} objects, wrapped here under `symbols` to satisfy that constraint.
@@ -104,7 +127,10 @@ export async function runCppFileSymbols(sessions: LspSessionManager, input: CppF
     }
     if (symbols.length === 0) return emptyDegradedParse(missingDb, absoluteFile);
     const summary = DEGRADED_SUMMARY_HEAD + missingDb;
-    const scope = { projectRoot: input.projectRoot, limits: ["parsed-without-compile-database"] satisfies NavigationLimit[] };
+    const scope = {
+      projectRoot: input.projectRoot,
+      limits: ["parsed-without-compile-database"] satisfies NavigationLimit[],
+    };
     return successResult(withSummary(summary, { symbols, scope }), summary);
   } catch (e) {
     const hint = sourceRoots === undefined ? "" : fileNotFoundHint(e, sourceRoots);

@@ -29,7 +29,7 @@ const SYMBOL_KIND_NAMES: Record<number, string> = {
 };
 
 export function symbolKindName(kind: number): string {
-  return SYMBOL_KIND_NAMES[kind] ?? `unknown(${kind})`;
+  return SYMBOL_KIND_NAMES[kind] ?? `unknown(${String(kind)})`;
 }
 
 /** Raw shape of an LSP `DocumentSymbol` (the hierarchical variant clangd returns), fields this server reads. */
@@ -45,7 +45,10 @@ export interface LspDocumentSymbol {
    * The declaration's own name range. A position for a type-aware request must land inside it: on a
    * Go `type` keyword rather than the identifier, gopls answers `no identifier found`.
    */
-  selectionRange?: { start: { line: number; character: number }; end?: { line: number; character: number } };
+  selectionRange?: {
+    start: { line: number; character: number };
+    end?: { line: number; character: number };
+  };
   children?: LspDocumentSymbol[];
 }
 
@@ -65,7 +68,7 @@ export interface OutlineSymbol {
  * blindly, so a missing `range` fails loudly and by name instead of a bare "Cannot read properties of
  * undefined" a few frames down.
  */
-function assertHierarchical(s: LspDocumentSymbol): void {
+function assertHierarchical(s: { readonly name: string; readonly range?: unknown }): void {
   if (!s.range) {
     throw new Error(
       `the language server returned a flat SymbolInformation entry ("${s.name}") instead of a hierarchical ` +
@@ -116,7 +119,10 @@ export interface FlatSymbol {
   namePosition?: { line: number; character: number };
 }
 
-export function flattenOutline(symbols: LspDocumentSymbol[], parentPath: string[] = []): FlatSymbol[] {
+export function flattenOutline(
+  symbols: LspDocumentSymbol[],
+  parentPath: string[] = [],
+): FlatSymbol[] {
   const out: FlatSymbol[] = [];
   for (const s of symbols) {
     assertHierarchical(s);

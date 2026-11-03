@@ -75,17 +75,15 @@ export type FindSymbolPayload = {
 
 export const GoFindSymbolInput = z.object({
   sourceRoots: GoSourceRootsSchema,
-  symbol: NameInput
-    .describe(
-      "Exact name: a method is `Concrete.Get` or `(*Concrete).Get`, and a bare `Get` means a package-level " +
-        "`Get`, never a method. gopls's fuzzy near-matches are dropped.",
-    ),
-  anchor: PathInput
-    .describe(
-      "Where to search: absolute, or relative - it must exist under exactly one sourceRoots entry. A FILE " +
-        "searches only its top-level declarations; a DIRECTORY searches the whole module through gopls's " +
-        "index of loaded packages. The module is the path's nearest go.mod.",
-    ),
+  symbol: NameInput.describe(
+    "Exact name: a method is `Concrete.Get` or `(*Concrete).Get`, and a bare `Get` means a package-level " +
+      "`Get`, never a method. gopls's fuzzy near-matches are dropped.",
+  ),
+  anchor: PathInput.describe(
+    "Where to search: absolute, or relative - it must exist under exactly one sourceRoots entry. A FILE " +
+      "searches only its top-level declarations; a DIRECTORY searches the whole module through gopls's " +
+      "index of loaded packages. The module is the path's nearest go.mod.",
+  ),
   timeBudgetMs: timeBudgetSchema(60_000),
 });
 
@@ -100,13 +98,22 @@ export interface GoFindSymbolDeps {
 }
 
 /** Which lookup answered, phrased for the two texts that have to name it. */
-function searchedWhere(lookup: GoSymbolLookup, file: string | undefined, moduleRoot: string): string {
-  return lookup === "document-symbol"
+function searchedWhere(
+  lookup: GoSymbolLookup,
+  file: string | undefined,
+  moduleRoot: string,
+): string {
+  return lookup === "document-symbol" && file !== undefined
     ? `the top-level declarations of "${file}"`
     : `the whole module "${moduleRoot}" through gopls's symbol index`;
 }
 
-function noMatchText(symbol: string, lookup: GoSymbolLookup, file: string | undefined, moduleRoot: string): string {
+function noMatchText(
+  symbol: string,
+  lookup: GoSymbolLookup,
+  file: string | undefined,
+  moduleRoot: string,
+): string {
   return (
     `${TOOL} failed: no declaration named "${symbol}" was found in ${searchedWhere(lookup, file, moduleRoot)}. ` +
     "The match is exact, not fuzzy: `(Concrete).Method` and `Concrete.Method` name a method, a bare name " +
@@ -191,13 +198,19 @@ function symbolEntry(
   const entry = recordOf(raw);
   const location = recordOf(entry.location);
   const file = pathOfUri(location.uri) ?? pathOfUri(location.targetUri);
-  const named = rangeStart(location.range) ?? rangeStart(location.targetSelectionRange) ?? rangeStart(location.targetRange);
+  const named =
+    rangeStart(location.range) ??
+    rangeStart(location.targetSelectionRange) ??
+    rangeStart(location.targetRange);
   const name = typeof entry.name === "string" && entry.name !== "" ? entry.name : undefined;
   if (name === undefined || file === undefined || named === undefined) {
     return { ok: false, error: unreadableEntryText(raw, symbol, part) };
   }
   const kind = typeof entry.kind === "number" ? symbolKindName(entry.kind) : "?";
-  const containerName = typeof entry.containerName === "string" && entry.containerName !== "" ? entry.containerName : null;
+  const containerName =
+    typeof entry.containerName === "string" && entry.containerName !== ""
+      ? entry.containerName
+      : null;
   const matched = exactName(name, kind, containerName, declarationKey(symbol));
   if (matched === undefined) return { ok: true, value: undefined };
   const external = escapesRoot(moduleRoot, file);
@@ -209,7 +222,8 @@ function symbolEntry(
       file,
       line: named.line + 1,
       container: external ? null : containerOf(file, moduleRoot),
-      position: named.character === undefined ? null : { line: named.line, character: named.character },
+      position:
+        named.character === undefined ? null : { line: named.line, character: named.character },
       external,
     },
   };
@@ -239,7 +253,7 @@ function moduleDeclarations(
   const entries = Array.isArray(result) ? result : [];
   const rows: DeclarationSource[] = [];
   for (const [index, raw] of entries.entries()) {
-    const read = symbolEntry(raw, moduleRoot, symbol, `entry ${index + 1}`);
+    const read = symbolEntry(raw, moduleRoot, symbol, `entry ${String(index + 1)}`);
     if (!read.ok) return read;
     if (read.value !== undefined) rows.push(read.value);
   }
@@ -259,7 +273,16 @@ function moduleDeclarations(
  */
 function toRow(declaration: DeclarationSource, description: SymbolDescription): DeclarationRow {
   const { name, kind, file, line, container, external } = declaration;
-  return { name, kind, file, line, container, visibility: goVisibility(name), external, ...description };
+  return {
+    name,
+    kind,
+    file,
+    line,
+    container,
+    visibility: goVisibility(name),
+    external,
+    ...description,
+  };
 }
 
 /**
@@ -281,7 +304,12 @@ async function answered(
     ok: true,
     value: {
       declarations: declarations.map((declaration, index) =>
-        toRow(declaration, described.value[index] ?? { descriptionUnavailable: "this server read no hover answer for this row" }),
+        toRow(
+          declaration,
+          described.value[index] ?? {
+            descriptionUnavailable: "this server read no hover answer for this row",
+          },
+        ),
       ),
       scope,
     },
@@ -321,7 +349,10 @@ const GO_MOD = "go.mod";
  */
 async function startTheChild(opened: GoOpened): Promise<void> {
   try {
-    await withinBudget(opened.session.documentSymbolTransient(join(opened.moduleRoot, GO_MOD)), opened.budget);
+    await withinBudget(
+      opened.session.documentSymbolTransient(join(opened.moduleRoot, GO_MOD)),
+      opened.budget,
+    );
   } catch (e) {
     if (e instanceof LanguageServerUnavailableError) throw e;
   }
@@ -356,19 +387,26 @@ async function fromWholeModule(
 }
 
 function declarationText(row: DeclarationRow): string {
-  const inside = row.external ? " outside the module" : ` in package ${row.container}`;
-  const unavailable = row.descriptionUnavailable ? ` - no description: ${row.descriptionUnavailable}` : "";
-  return `  ${row.name} (${row.kind}, ${row.visibility})${inside} at ${row.file}:${row.line}${unavailable}`;
+  const inside =
+    row.external || row.container === null ? " outside the module" : ` in package ${row.container}`;
+  const unavailable = row.descriptionUnavailable
+    ? ` - no description: ${row.descriptionUnavailable}`
+    : "";
+  return `  ${row.name} (${row.kind}, ${row.visibility})${inside} at ${row.file}:${String(row.line)}${unavailable}`;
 }
 
 /** The same JSON, phrased once for a reader who will not parse it. */
 function humanSummary(payload: FindSymbolPayload, symbol: string, anchorPath: string): string {
   const { declarations, scope } = payload;
-  const searched = searchedWhere(scope.lookup, scope.lookup === "document-symbol" ? anchorPath : undefined, scope.moduleRoot);
+  const searched = searchedWhere(
+    scope.lookup,
+    scope.lookup === "document-symbol" ? anchorPath : undefined,
+    scope.moduleRoot,
+  );
   const capped = scope.limits.includes("listing-capped") ? `; ${capText()}` : "";
   const head =
     `Declarations named "${symbol}" (exact match) in ${searched}${environmentText(scope)} - ` +
-    `${declarations.length} declaration(s), freshness: ${freshnessText(scope.freshness)}${capped}.`;
+    `${String(declarations.length)} declaration(s), freshness: ${freshnessText(scope.freshness)}${capped}.`;
   const rows = declarations.map(declarationText).join("\n");
   return `${head}\nlimits: ${scope.limits.join(", ")}\n${rows}`;
 }
@@ -398,7 +436,9 @@ export async function runGoFindSymbol(
     if (!search.ok) return errorResult(search.error);
     return successResult(search.value, humanSummary(search.value, input.symbol, anchorPath));
   } catch (e) {
-    return errorResult(`${TOOL} failed: ${messageOf(e)}${resolutionNote(input.anchor, resolution)}`);
+    return errorResult(
+      `${TOOL} failed: ${messageOf(e)}${resolutionNote(input.anchor, resolution)}`,
+    );
   }
 }
 

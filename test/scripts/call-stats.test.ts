@@ -64,7 +64,19 @@ describe("parseArgs", () => {
 
   it("reads every flag the contract names", () => {
     const parsed = parseArgs(
-      ["--logs", logs, "--since", "2026-09-18", "--until", "2026-09-30", "--transcripts", transcriptsDir(), "--server-name", "other", "--json"],
+      [
+        "--logs",
+        logs,
+        "--since",
+        "2026-09-18",
+        "--until",
+        "2026-09-30",
+        "--transcripts",
+        transcriptsDir(),
+        "--server-name",
+        "other",
+        "--json",
+      ],
       {},
       HOME,
     );
@@ -81,7 +93,11 @@ describe("parseArgs", () => {
   });
 
   it("takes a timestamp with a zone verbatim, since and until alike", () => {
-    const parsed = parseArgs(["--since", "2026-09-30T10:05:03Z", "--until", "2026-09-30T10:05:04.000Z"], {}, HOME);
+    const parsed = parseArgs(
+      ["--since", "2026-09-30T10:05:03Z", "--until", "2026-09-30T10:05:04.000Z"],
+      {},
+      HOME,
+    );
     expect(parsed.window.from).toBe(Date.parse("2026-09-30T10:05:03.000Z"));
     expect(parsed.window.to).toBe(Date.parse("2026-09-30T10:05:04.000Z"));
   });
@@ -116,8 +132,12 @@ describe("defaultLogDir", () => {
     const scratch = join(ABS_ROOT, "scratch");
     expect(defaultLogDir({ MCP_CODE_NAV_CALL_LOG: scratch }, HOME)).toBe(scratch);
     expect(defaultLogDir({}, HOME)).toBe(join(HOME, ".mcp-code-nav", "calls"));
-    expect(defaultLogDir({ MCP_CODE_NAV_CALL_LOG: "off" }, HOME)).toBe(join(HOME, ".mcp-code-nav", "calls"));
-    expect(defaultLogDir({ MCP_CODE_NAV_CALL_LOG: "relative" }, HOME)).toBe(join(HOME, ".mcp-code-nav", "calls"));
+    expect(defaultLogDir({ MCP_CODE_NAV_CALL_LOG: "off" }, HOME)).toBe(
+      join(HOME, ".mcp-code-nav", "calls"),
+    );
+    expect(defaultLogDir({ MCP_CODE_NAV_CALL_LOG: "relative" }, HOME)).toBe(
+      join(HOME, ".mcp-code-nav", "calls"),
+    );
     expect(defaultTranscriptsDir(HOME)).toBe(join(HOME, ".claude", "projects"));
   });
 });
@@ -176,8 +196,17 @@ describe("scanCallLog", () => {
   it("skips a blank line silently and counts a part-written one as malformed", async () => {
     const dir = await mkdtemp(join(tmpdir(), "call-stats-"));
     try {
-      const good = JSON.stringify({ v: 1, type: "close", run: "r9", ts: "2026-09-30T10:00:00.000Z", dropped: 1 });
-      await writeFile(join(dir, "calls-20260930T100000-1.jsonl"), `{"v":1,"type":"ca\n\n${good}\n\n`);
+      const good = JSON.stringify({
+        v: 1,
+        type: "close",
+        run: "r9",
+        ts: "2026-09-30T10:00:00.000Z",
+        dropped: 1,
+      });
+      await writeFile(
+        join(dir, "calls-20260930T100000-1.jsonl"),
+        `{"v":1,"type":"ca\n\n${good}\n\n`,
+      );
       const scan = await scanCallLog(dir, { from: null, to: null });
       expect(scan.malformed).toBe(1);
       expect(scan.closeLines).toBe(1);
@@ -205,8 +234,15 @@ describe("scanCallLog", () => {
   });
 
   it("bounds calls by the window, keeping the ones whose stamp it cannot read only when unbounded", async () => {
-    const bounded = await scanCallLog(logs, { from: Date.parse("2026-09-30T10:05:03.000Z"), to: null });
-    expect(bounded.calls.map((call) => `${call.run}:${call.seq}`)).toEqual(["r2:3", "r2:4", "r2:5"]);
+    const bounded = await scanCallLog(logs, {
+      from: Date.parse("2026-09-30T10:05:03.000Z"),
+      to: null,
+    });
+    expect(bounded.calls.map((call) => `${call.run}:${call.seq}`)).toEqual([
+      "r2:3",
+      "r2:4",
+      "r2:5",
+    ]);
     const oneDay = await scanCallLog(logs, {
       from: Date.parse("2026-09-30T00:00:00.000Z"),
       to: Date.parse("2026-09-30T00:00:00.000Z") + 86_399_999,
@@ -252,7 +288,9 @@ describe("summarizeLog", () => {
     ]);
     const qwen = log.byClient.find((group) => group.key === "qwen-code")!;
     expect(qwen.calls).toBe(5);
-    expect([...qwen.clients.values()]).toEqual([{ name: "qwen-cli-mcp-client-mcp-code-nav", version: "0.0.1", calls: 5 }]);
+    expect([...qwen.clients.values()]).toEqual([
+      { name: "qwen-cli-mcp-client-mcp-code-nav", version: "0.0.1", calls: 5 },
+    ]);
   });
 
   it("counts the `limits` codes, the builds, and lists the class it could not place by its head", async () => {
@@ -266,7 +304,9 @@ describe("summarizeLog", () => {
       { build: "0.1.0+2.g35469a6", calls: 5 },
       { build: "0.1.0+3.gabcdef0", calls: 5 },
     ]);
-    expect(log.heads).toEqual([{ tool: "cpp_find_symbol", head: "nothing here matches 42", count: 1 }]);
+    expect(log.heads).toEqual([
+      { tool: "cpp_find_symbol", head: "nothing here matches 42", count: 1 },
+    ]);
   });
 });
 
@@ -281,28 +321,209 @@ describe("renderText, the log section golden", () => {
       "skipped   1 malformed, 1 unsupported version, 1 duplicate run+seq, 0 unreadable files",
     ]);
     expect(section(text, "by tool")).toEqual([
-      ["cpp_file_symbols", "3", "2", "1", "0", "0", "0", "0", "1", "10", "20", "1/3 33.3%", "1/2 50.0%", "0/3 0.0%", "100"],
-      ["cpp_find_symbol", "2", "0", "1", "0", "0", "1", "0", "1", "0", "30", "—", "—", "0/2 0.0%", "0"],
-      ["go_file_symbols", "2", "2", "0", "0", "0", "0", "0", "0", "80", "120", "1/2 50.0%", "0/2 0.0%", "1/2 50.0%", "200"],
-      ["go_find_callers", "2", "0", "0", "1", "0", "0", "1", "1", "2", "9", "1/1 100.0%", "—", "0/2 0.0%", "0"],
-      ["go_find_implementations", "1", "0", "0", "0", "1", "0", "0", "1", "1", "1", "—", "—", "0/1 0.0%", "0"],
+      [
+        "cpp_file_symbols",
+        "3",
+        "2",
+        "1",
+        "0",
+        "0",
+        "0",
+        "0",
+        "1",
+        "10",
+        "20",
+        "1/3 33.3%",
+        "1/2 50.0%",
+        "0/3 0.0%",
+        "100",
+      ],
+      [
+        "cpp_find_symbol",
+        "2",
+        "0",
+        "1",
+        "0",
+        "0",
+        "1",
+        "0",
+        "1",
+        "0",
+        "30",
+        "—",
+        "—",
+        "0/2 0.0%",
+        "0",
+      ],
+      [
+        "go_file_symbols",
+        "2",
+        "2",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "80",
+        "120",
+        "1/2 50.0%",
+        "0/2 0.0%",
+        "1/2 50.0%",
+        "200",
+      ],
+      [
+        "go_find_callers",
+        "2",
+        "0",
+        "0",
+        "1",
+        "0",
+        "0",
+        "1",
+        "1",
+        "2",
+        "9",
+        "1/1 100.0%",
+        "—",
+        "0/2 0.0%",
+        "0",
+      ],
+      [
+        "go_find_implementations",
+        "1",
+        "0",
+        "0",
+        "0",
+        "1",
+        "0",
+        "0",
+        "1",
+        "1",
+        "1",
+        "—",
+        "—",
+        "0/1 0.0%",
+        "0",
+      ],
     ]);
     expect(section(text, "by client family")).toEqual([
-      ["claude-code", "5", "2", "2", "0", "0", "1", "0", "2", "10", "30", "1/3 33.3%", "1/2 50.0%", "0/5 0.0%", "96"],
-      ["qwen-code", "5", "2", "0", "1", "1", "0", "1", "2", "9", "120", "2/3 66.7%", "0/2 0.0%", "1/5 20.0%", "60"],
+      [
+        "claude-code",
+        "5",
+        "2",
+        "2",
+        "0",
+        "0",
+        "1",
+        "0",
+        "2",
+        "10",
+        "30",
+        "1/3 33.3%",
+        "1/2 50.0%",
+        "0/5 0.0%",
+        "96",
+      ],
+      [
+        "qwen-code",
+        "5",
+        "2",
+        "0",
+        "1",
+        "1",
+        "0",
+        "1",
+        "2",
+        "9",
+        "120",
+        "2/3 66.7%",
+        "0/2 0.0%",
+        "1/5 20.0%",
+        "60",
+      ],
     ]);
     expect(section(text, "by project")).toEqual([
-      ["D:\\build", "4", "2", "1", "0", "0", "1", "0", "1", "10", "30", "1/2 50.0%", "1/2 50.0%", "0/4 0.0%", "70"],
-      ["D:\\repo\\backend", "4", "1", "0", "1", "1", "0", "1", "2", "2", "120", "2/2 100.0%", "0/1 0.0%", "0/4 0.0%", "0"],
-      ["(no project)", "1", "1", "0", "0", "0", "0", "0", "0", "80", "80", "0/1 0.0%", "0/1 0.0%", "1/1 100.0%", "300"],
-      ["D:\\repo", "1", "0", "1", "0", "0", "0", "0", "1", "4", "4", "0/1 0.0%", "—", "0/1 0.0%", "96"],
+      [
+        "D:\\build",
+        "4",
+        "2",
+        "1",
+        "0",
+        "0",
+        "1",
+        "0",
+        "1",
+        "10",
+        "30",
+        "1/2 50.0%",
+        "1/2 50.0%",
+        "0/4 0.0%",
+        "70",
+      ],
+      [
+        "D:\\repo\\backend",
+        "4",
+        "1",
+        "0",
+        "1",
+        "1",
+        "0",
+        "1",
+        "2",
+        "2",
+        "120",
+        "2/2 100.0%",
+        "0/1 0.0%",
+        "0/4 0.0%",
+        "0",
+      ],
+      [
+        "(no project)",
+        "1",
+        "1",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "80",
+        "80",
+        "0/1 0.0%",
+        "0/1 0.0%",
+        "1/1 100.0%",
+        "300",
+      ],
+      [
+        "D:\\repo",
+        "1",
+        "0",
+        "1",
+        "0",
+        "0",
+        "0",
+        "0",
+        "1",
+        "4",
+        "4",
+        "0/1 0.0%",
+        "—",
+        "0/1 0.0%",
+        "96",
+      ],
     ]);
     expect(section(text, "limits by code")).toEqual([
       ["compile-database-only", "1"],
       ["index-building", "1"],
       ["listing-capped", "1"],
     ]);
-    expect(section(text, "failures by error class (failure = error + partial + protocol-error; cancelled and abandoned sit in the aborted column, apart)")).toEqual([
+    expect(
+      section(
+        text,
+        "failures by error class (failure = error + partial + protocol-error; cancelled and abandoned sit in the aborted column, apart)",
+      ),
+    ).toEqual([
       ["tool", "cpp_file_symbols", "compile-db-missing", "1"],
       ["tool", "cpp_find_symbol", "other", "1"],
       ["tool", "go_find_callers", "not-ready", "1"],
@@ -316,9 +537,12 @@ describe("renderText, the log section golden", () => {
       ["project", "D:\\repo\\backend", "tool-unknown", "1"],
       ["project", "D:\\repo", "compile-db-missing", "1"],
     ]);
-    expect(section(text, 'unclassified heads, class "other" (top 20 — grow the anchor table from these)')).toEqual([
-      ["1", "cpp_find_symbol", "nothing here matches 42"],
-    ]);
+    expect(
+      section(
+        text,
+        'unclassified heads, class "other" (top 20 — grow the anchor table from these)',
+      ),
+    ).toEqual([["1", "cpp_find_symbol", "nothing here matches 42"]]);
     expect(text).toContain("a call killed with no transport close");
     expect(text).toContain("pass --transcripts");
   });
@@ -335,11 +559,23 @@ describe("jsonReport", () => {
     const report = await buildReport(options());
     const shape = JSON.parse(jsonReport(report)) as Record<string, never>;
     const logsShape = (shape["logs"] ?? {}) as Record<string, unknown>;
-    const byClient = logsShape["byClient"] as { key: string; clients: { name: string; version: string }[] }[];
-    expect(byClient.map((group) => group.clients[0]?.name)).toContain("qwen-cli-mcp-client-mcp-code-nav");
+    const byClient = logsShape["byClient"] as {
+      key: string;
+      clients: { name: string; version: string }[];
+    }[];
+    expect(byClient.map((group) => group.clients[0]?.name)).toContain(
+      "qwen-cli-mcp-client-mcp-code-nav",
+    );
     expect(shape["notCounted"]).toBeInstanceOf(Array);
     expect(shape["transcripts"]).toBeNull();
     const lines = logsShape["lines"] as Record<string, number>;
-    expect(lines).toMatchObject({ calls: 10, closeLines: 1, dropped: 2, malformed: 1, unsupportedVersion: 1, duplicates: 1 });
+    expect(lines).toMatchObject({
+      calls: 10,
+      closeLines: 1,
+      dropped: 2,
+      malformed: 1,
+      unsupportedVersion: 1,
+      duplicates: 1,
+    });
   });
 });

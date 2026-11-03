@@ -3,10 +3,23 @@ import { join } from "node:path";
 import { afterEach, describe, expect } from "vitest";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { pathKey } from "../../src/paths/path-containment.js";
-import { runTsFindImplementations, type TsFindImplementationsPayload } from "../../src/tools/ts-find-implementations.js";
-import { runTsFindReferences, type TsFindReferencesPayload } from "../../src/tools/ts-find-references.js";
+import {
+  runTsFindImplementations,
+  type TsFindImplementationsPayload,
+} from "../../src/tools/ts-find-implementations.js";
+import {
+  runTsFindReferences,
+  type TsFindReferencesPayload,
+} from "../../src/tools/ts-find-references.js";
 import { runTsFindSymbol, type TsFindSymbolPayload } from "../../src/tools/ts-find-symbol.js";
-import { CALL_BUDGET_MS, fixtures, itIfTsgoAvailable, payloadOf, recordAnswer, textOf } from "../helpers/tsgo-live.js";
+import {
+  CALL_BUDGET_MS,
+  fixtures,
+  itIfTsgoAvailable,
+  payloadOf,
+  recordAnswer,
+  textOf,
+} from "../helpers/tsgo-live.js";
 
 /**
  * Live against the real TypeScript 7 native server, over
@@ -51,7 +64,12 @@ function columnOf(file: string, line: string, token: string): number {
 }
 
 function symbolAnswer(manager: LspSessionManager, symbol: string, anchor: string) {
-  return runTsFindSymbol(manager, { sourceRoots: [workspaceRoot], symbol, anchor, timeBudgetMs: CALL_BUDGET_MS });
+  return runTsFindSymbol(manager, {
+    sourceRoots: [workspaceRoot],
+    symbol,
+    anchor,
+    timeBudgetMs: CALL_BUDGET_MS,
+  });
 }
 
 function referencesAnswer(manager: LspSessionManager, file: string, symbol: string) {
@@ -67,7 +85,9 @@ function referencesAnswer(manager: LspSessionManager, file: string, symbol: stri
 /** `file:line:column` of every listed site, in the order the answer carries them. */
 function sitesOf(answer: TsFindReferencesPayload): string[] {
   return answer.files.flatMap((group) =>
-    group.sites.map((site) => `${pathKey(group.file).split(/[\\/]/).pop()}:${site.line}:${site.column}`),
+    group.sites.map(
+      (site) => `${pathKey(group.file).split(/[\\/]/).pop()}:${site.line}:${site.column}`,
+    ),
   );
 }
 
@@ -80,17 +100,25 @@ describe("a dotted namespace declaration is addressable", () => {
         ["A.B.f", "export function f", "function"],
         ["P.Q.R.x", "export const x", "variable"],
       ] as const) {
-        const byFile = payloadOf<TsFindSymbolPayload>(await symbolAnswer(manager, symbol, dottedFile), "ts_find_symbol");
+        const byFile = payloadOf<TsFindSymbolPayload>(
+          await symbolAnswer(manager, symbol, dottedFile),
+          "ts_find_symbol",
+        );
         recordAnswer(`dotted-symbol-file-${symbol}`, byFile);
-        expect(byFile.declarations.map((row) => [row.name, row.kind, row.line]), symbol).toEqual([
-          [symbol, kind, lineOf(dottedFile, needle)],
-        ]);
+        expect(
+          byFile.declarations.map((row) => [row.name, row.kind, row.line]),
+          symbol,
+        ).toEqual([[symbol, kind, lineOf(dottedFile, needle)]]);
 
-        const byDirectory = payloadOf<TsFindSymbolPayload>(await symbolAnswer(manager, symbol, workspaceRoot), "ts_find_symbol");
+        const byDirectory = payloadOf<TsFindSymbolPayload>(
+          await symbolAnswer(manager, symbol, workspaceRoot),
+          "ts_find_symbol",
+        );
         recordAnswer(`dotted-symbol-dir-${symbol}`, byDirectory);
-        expect(byDirectory.declarations.map((row) => [row.name, row.kind, row.line]), symbol).toEqual([
-          [symbol, kind, lineOf(dottedFile, needle)],
-        ]);
+        expect(
+          byDirectory.declarations.map((row) => [row.name, row.kind, row.line]),
+          symbol,
+        ).toEqual([[symbol, kind, lineOf(dottedFile, needle)]]);
         expect(byDirectory.declarations[0]).not.toHaveProperty("pathUnverified");
       }
     },
@@ -101,12 +129,22 @@ describe("a dotted namespace declaration is addressable", () => {
     "ts_find_symbol addresses the namespace itself at the identifier the last segment names",
     async () => {
       const manager = freshManager();
-      const whole = payloadOf<TsFindSymbolPayload>(await symbolAnswer(manager, "A.B", dottedFile), "ts_find_symbol");
+      const whole = payloadOf<TsFindSymbolPayload>(
+        await symbolAnswer(manager, "A.B", dottedFile),
+        "ts_find_symbol",
+      );
       recordAnswer("dotted-symbol-file-A.B", whole);
-      expect(whole.declarations.map((row) => [row.name, row.kind, row.line])).toEqual([["A.B", "namespace", 1]]);
-      const prefix = payloadOf<TsFindSymbolPayload>(await symbolAnswer(manager, "A", dottedFile), "ts_find_symbol");
+      expect(whole.declarations.map((row) => [row.name, row.kind, row.line])).toEqual([
+        ["A.B", "namespace", 1],
+      ]);
+      const prefix = payloadOf<TsFindSymbolPayload>(
+        await symbolAnswer(manager, "A", dottedFile),
+        "ts_find_symbol",
+      );
       recordAnswer("dotted-symbol-file-A", prefix);
-      expect(prefix.declarations.map((row) => [row.name, row.kind, row.line])).toEqual([["A", "namespace", 1]]);
+      expect(prefix.declarations.map((row) => [row.name, row.kind, row.line])).toEqual([
+        ["A", "namespace", 1],
+      ]);
     },
     CALL_BUDGET_MS + 30_000,
   );
@@ -120,11 +158,15 @@ describe("a dotted namespace declaration is addressable", () => {
         ["A.B", "export namespace A.B"],
         ["P.Q", "export namespace P.Q.R"],
       ] as const) {
-        const answer = payloadOf<TsFindSymbolPayload>(await symbolAnswer(manager, symbol, workspaceRoot), "ts_find_symbol");
+        const answer = payloadOf<TsFindSymbolPayload>(
+          await symbolAnswer(manager, symbol, workspaceRoot),
+          "ts_find_symbol",
+        );
         recordAnswer(`dotted-symbol-dir-prefix-${symbol}`, answer);
-        expect(answer.declarations.map((row) => [row.name, row.kind, row.line]), symbol).toEqual([
-          [symbol, "namespace", lineOf(dottedFile, needle)],
-        ]);
+        expect(
+          answer.declarations.map((row) => [row.name, row.kind, row.line]),
+          symbol,
+        ).toEqual([[symbol, "namespace", lineOf(dottedFile, needle)]]);
         expect(answer.declarations[0], symbol).not.toHaveProperty("pathUnverified");
       }
     },
@@ -136,23 +178,36 @@ describe("a dotted namespace declaration is addressable", () => {
     async () => {
       const manager = freshManager();
       const useLine = "export const n = A.B.f();";
-      const member = payloadOf<TsFindReferencesPayload>(await referencesAnswer(manager, dottedFile, "A.B.f"), "ts_find_references");
+      const member = payloadOf<TsFindReferencesPayload>(
+        await referencesAnswer(manager, dottedFile, "A.B.f"),
+        "ts_find_references",
+      );
       recordAnswer("dotted-refs-A.B.f", member);
-      expect(sitesOf(member)).toEqual([`use.ts:${lineOf(useFile, useLine)}:${columnOf(useFile, useLine, "f(")}`]);
+      expect(sitesOf(member)).toEqual([
+        `use.ts:${lineOf(useFile, useLine)}:${columnOf(useFile, useLine, "f(")}`,
+      ]);
 
-      const second = payloadOf<TsFindReferencesPayload>(await referencesAnswer(manager, dottedFile, "A.B"), "ts_find_references");
+      const second = payloadOf<TsFindReferencesPayload>(
+        await referencesAnswer(manager, dottedFile, "A.B"),
+        "ts_find_references",
+      );
       recordAnswer("dotted-refs-A.B", second);
       // Asked at `B`: the `B` qualifier in `A.B.f()` and nothing that names only `A`.
       expect(sitesOf(second), JSON.stringify(second.files)).toEqual([
         `use.ts:${lineOf(useFile, useLine)}:${columnOf(useFile, useLine, "B.")}`,
       ]);
 
-      const first = payloadOf<TsFindReferencesPayload>(await referencesAnswer(manager, dottedFile, "A"), "ts_find_references");
+      const first = payloadOf<TsFindReferencesPayload>(
+        await referencesAnswer(manager, dottedFile, "A"),
+        "ts_find_references",
+      );
       recordAnswer("dotted-refs-A", first);
       expect(sitesOf(first), JSON.stringify(first.files)).toContain(
         `use.ts:${lineOf(useFile, useLine)}:${columnOf(useFile, useLine, "A.")}`,
       );
-      expect(sitesOf(first)).not.toContain(`use.ts:${lineOf(useFile, useLine)}:${columnOf(useFile, useLine, "B.")}`);
+      expect(sitesOf(first)).not.toContain(
+        `use.ts:${lineOf(useFile, useLine)}:${columnOf(useFile, useLine, "B.")}`,
+      );
     },
     CALL_BUDGET_MS + 30_000,
   );
@@ -166,7 +221,10 @@ describe("an interface beside a namespace of one name", () => {
       const typeUse = "export const v: I";
       const qualifierUse = "export const y = I.x;";
 
-      const asType = payloadOf<TsFindReferencesPayload>(await referencesAnswer(manager, mergedFile, "type I"), "ts_find_references");
+      const asType = payloadOf<TsFindReferencesPayload>(
+        await referencesAnswer(manager, mergedFile, "type I"),
+        "ts_find_references",
+      );
       recordAnswer("merged-refs-type-I", asType);
       const asNamespace = payloadOf<TsFindReferencesPayload>(
         await referencesAnswer(manager, mergedFile, "namespace I"),
@@ -208,7 +266,10 @@ describe("an interface beside a namespace of one name", () => {
       );
       expect(implementations.resolved.kind).toBe("interface");
 
-      const rows = payloadOf<TsFindSymbolPayload>(await symbolAnswer(manager, "I", workspaceRoot), "ts_find_symbol");
+      const rows = payloadOf<TsFindSymbolPayload>(
+        await symbolAnswer(manager, "I", workspaceRoot),
+        "ts_find_symbol",
+      );
       expect(rows.declarations.map((row) => row.kind).sort()).toEqual(["interface", "namespace"]);
     },
     CALL_BUDGET_MS + 30_000,

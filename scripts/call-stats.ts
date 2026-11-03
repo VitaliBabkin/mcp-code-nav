@@ -90,8 +90,6 @@ const ArgSchema = z
   .partial()
   .strict();
 
-type Flags = z.infer<typeof ArgSchema>;
-
 /* ----------------------------------------------------------------- arguments */
 
 /**
@@ -99,13 +97,21 @@ type Flags = z.infer<typeof ArgSchema>;
  * instead of its first millisecond. A timestamp must carry a zone, because every stamp it is compared
  * against is UTC.
  */
-export function parseArgs(argv: readonly string[], env: NodeJS.ProcessEnv, home: string): StatsOptions {
+export function parseArgs(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv,
+  home: string,
+): StatsOptions {
   const read = ArgSchema.safeParse(readFlags(argv));
-  if (!read.success) throw new Error(`bad stats arguments: ${describeIssues(read.error)}\n${USAGE}`);
+  if (!read.success)
+    throw new Error(`bad stats arguments: ${describeIssues(read.error)}\n${USAGE}`);
   const flags = read.data;
   return {
     logs: resolve(flags.logs ?? defaultLogDir(env, home)),
-    transcripts: flags.transcripts === undefined ? undefined : resolve(flags.transcripts || defaultTranscriptsDir(home)),
+    transcripts:
+      flags.transcripts === undefined
+        ? undefined
+        : resolve(flags.transcripts || defaultTranscriptsDir(home)),
     serverName: flags.serverName ?? DEFAULT_SERVER_NAME,
     window: { from: instant(flags.since, "since", false), to: instant(flags.until, "until", true) },
     json: flags.json === true,
@@ -150,17 +156,26 @@ function readFlags(argv: readonly string[]): Record<string, string | true> {
   return flags;
 }
 
-function instant(value: string | undefined, bound: "since" | "until", endOfDay: boolean): number | null {
+function instant(
+  value: string | undefined,
+  bound: "since" | "until",
+  endOfDay: boolean,
+): number | null {
   if (value === undefined) return null;
   const parsed = Date.parse(value);
   if (Number.isNaN(parsed) || !isStamped(value)) {
-    throw new Error(`--${bound} "${value}" is not YYYY-MM-DD or a timestamp with a zone, like 2026-09-18T00:00:00Z`);
+    throw new Error(
+      `--${bound} "${value}" is not YYYY-MM-DD or a timestamp with a zone, like 2026-09-18T00:00:00Z`,
+    );
   }
   return endOfDay && DATE_ONLY.test(value) ? parsed + DAY_MS : parsed;
 }
 
 function isStamped(value: string): boolean {
-  return DATE_ONLY.test(value) || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:?\d{2})$/.test(value);
+  return (
+    DATE_ONLY.test(value) ||
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:?\d{2})$/.test(value)
+  );
 }
 
 function camel(name: string): string {
@@ -252,7 +267,7 @@ function readLogLine(line: string, scan: LogScan, seen: Set<string>, window: Win
     return;
   }
   const call = read.data;
-  const key = `${call.run}\u0000${call.seq}`;
+  const key = `${call.run}\u0000${String(call.seq)}`;
   if (seen.has(key)) {
     scan.duplicates++;
     return;
@@ -328,7 +343,9 @@ export function summarizeLog(scan: LogScan): LogStats {
     byProject: sortedGroups(projects),
     limits: sortCounts(limits),
     heads: [...heads.values()]
-      .sort((a, b) => b.count - a.count || a.tool.localeCompare(b.tool) || a.head.localeCompare(b.head))
+      .sort(
+        (a, b) => b.count - a.count || a.tool.localeCompare(b.tool) || a.head.localeCompare(b.head),
+      )
       .slice(0, HEAD_ROWS),
     builds: [...builds.entries()]
       .map(([build, calls]) => ({ build, calls }))
@@ -361,7 +378,9 @@ function addCall(group: Group, call: CallLine, client?: { name: string; version:
 
 function clientIdentity(run: RunLine | undefined): { name: string; version: string } | undefined {
   const client = run?.client;
-  return client === null || client === undefined || client.name === "" ? undefined : { name: client.name, version: client.version };
+  return client === null || client === undefined || client.name === ""
+    ? undefined
+    : { name: client.name, version: client.version };
 }
 
 /* -------------------------------------------------------------- transcripts */
@@ -440,7 +459,7 @@ export function parseTranscript(jsonl: string, serverName: string): TranscriptCa
     if (record === undefined) continue;
     const blocks = contentBlocks(asRecord(record["message"])?.["content"]);
     if (blocks.length === 0) continue;
-    const stamp = Date.parse(String(record["timestamp"] ?? ""));
+    const stamp = Date.parse(scalarText(record["timestamp"]));
     for (const block of blocks) {
       const item = asRecord(block);
       if (item === undefined) continue;
@@ -461,7 +480,12 @@ export function parseTranscript(jsonl: string, serverName: string): TranscriptCa
   return calls;
 }
 
-function openCall(item: Record<string, unknown>, prefix: string, stamp: number, at: number): TranscriptCall | undefined {
+function openCall(
+  item: Record<string, unknown>,
+  prefix: string,
+  stamp: number,
+  at: number,
+): TranscriptCall | undefined {
   const id = typeof item["id"] === "string" ? item["id"] : "";
   if (id === "") return undefined;
   const name = typeof item["name"] === "string" ? item["name"] : "";
@@ -492,7 +516,7 @@ function settleCall(
   stamp: number,
   at: number,
 ): void {
-  const call = open.get(String(item["tool_use_id"] ?? ""));
+  const call = open.get(scalarText(item["tool_use_id"]));
   if (call === undefined) return;
   open.delete(call.id);
   call.endMs = stamp;
@@ -516,6 +540,13 @@ function settleCall(
 
 function contentBlocks(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+/** The text of a JSON scalar as `String` gives it; a missing field or a container has no text. */
+function scalarText(value: unknown): string {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+    ? String(value)
+    : "";
 }
 
 function resultText(value: unknown): string {
@@ -586,7 +617,8 @@ function claimOldest(
 /** Did this call start at or after the moment the other one was answered? */
 function reactsTo(before: TranscriptCall, after: TranscriptCall): boolean {
   if (before.resultPos === null || after.usePos <= before.resultPos) return false;
-  if (before.endMs === null || Number.isNaN(before.endMs) || Number.isNaN(after.startMs)) return false;
+  if (before.endMs === null || Number.isNaN(before.endMs) || Number.isNaN(after.startMs))
+    return false;
   return after.startMs >= before.endMs;
 }
 
@@ -626,12 +658,21 @@ function differingKeys(before: Record<string, unknown>, after: Record<string, un
 /** Keys sorted at every depth, so arguments that differ only in order count as identical. */
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? String(value);
-  const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
+  // JSON.stringify returns no text for undefined (a missing key), which must still compare as "undefined".
+  if (value === undefined) return "undefined";
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
   return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(",")}}`;
 }
 
-export type FallbackHit = { tool: string; identifier: string; kind: "grep" | "shell" | "lsp-symbol"; afterOk: boolean };
+export type FallbackHit = {
+  tool: string;
+  identifier: string;
+  kind: "grep" | "shell" | "lsp-symbol";
+  afterOk: boolean;
+};
 export type NavHit = { tool: string; afterOk: boolean };
 
 /**
@@ -679,8 +720,13 @@ function eventsAfter(calls: readonly TranscriptCall[], pos: number): TranscriptC
 
 function fallbackKind(call: TranscriptCall, word: RegExp): FallbackHit["kind"] | undefined {
   if (call.tool === "Grep" && word.test(textInput(call, "pattern"))) return "grep";
-  if ((call.tool === "Bash" || call.tool === "PowerShell") && isSearchCommand(call, word)) return "shell";
-  if (call.tool === "LSP" && textInput(call, "operation") === "workspaceSymbol" && word.test(textInput(call, "query"))) {
+  if ((call.tool === "Bash" || call.tool === "PowerShell") && isSearchCommand(call, word))
+    return "shell";
+  if (
+    call.tool === "LSP" &&
+    textInput(call, "operation") === "workspaceSymbol" &&
+    word.test(textInput(call, "query"))
+  ) {
     return "lsp-symbol";
   }
   return undefined;
@@ -755,7 +801,14 @@ export async function summarizeTranscripts(
   serverName: string,
   window: Window,
 ): Promise<TranscriptStats> {
-  const stats: TranscriptStats = { groups: [], mainFiles: 0, subagentFiles: 0, ours: [], unreadable: 0, readError: null };
+  const stats: TranscriptStats = {
+    groups: [],
+    mainFiles: 0,
+    subagentFiles: 0,
+    ours: [],
+    unreadable: 0,
+    readError: null,
+  };
   const groups = new Map<string, TranscriptGroup>();
   for (const file of scan.files) {
     const text = await readFile(file.path, "utf8").catch((error: unknown) => {
@@ -825,7 +878,11 @@ function tallyFile(
   return true;
 }
 
-function transcriptGroup(groups: Map<string, TranscriptGroup>, kind: string, tool: string): TranscriptGroup {
+function transcriptGroup(
+  groups: Map<string, TranscriptGroup>,
+  kind: string,
+  tool: string,
+): TranscriptGroup {
   const key = `${kind}\u0000${tool}`;
   const found = groups.get(key);
   if (found !== undefined) return found;
@@ -879,9 +936,12 @@ export type Report = {
 export async function buildReport(options: StatsOptions): Promise<Report> {
   const logs = await scanCallLog(options.logs, options.window);
   const log = summarizeLog(logs);
-  const transcripts = options.transcripts === undefined ? null : await scanTranscripts(options.transcripts);
+  const transcripts =
+    options.transcripts === undefined ? null : await scanTranscripts(options.transcripts);
   const transcript =
-    transcripts === null ? null : await summarizeTranscripts(transcripts, options.serverName, options.window);
+    transcripts === null
+      ? null
+      : await summarizeTranscripts(transcripts, options.serverName, options.window);
   return {
     options,
     logs,
@@ -912,14 +972,20 @@ function coverageOf(logs: LogScan, transcript: TranscriptStats): Coverage {
   const bounds: Window = { from, to };
   const rows = new Map<string, CoverageRow>();
   for (const call of logs.calls) {
-    if (clientFamily(logs.runs.get(call.run)) === "claude-code" && inWindow(Date.parse(call.ts), bounds)) {
+    if (
+      clientFamily(logs.runs.get(call.run)) === "claude-code" &&
+      inWindow(Date.parse(call.ts), bounds)
+    ) {
       coverageRow(rows, call.tool).log++;
     }
   }
   for (const ref of counted) {
     if (inWindow(ref.startMs, bounds)) coverageRow(rows, ref.tool).transcript++;
   }
-  return { window: `${stamp(from)} .. ${stamp(to)}`, rows: [...rows.values()].sort((a, b) => a.tool.localeCompare(b.tool)) };
+  return {
+    window: `${stamp(from)} .. ${stamp(to)}`,
+    rows: [...rows.values()].sort((a, b) => a.tool.localeCompare(b.tool)),
+  };
 }
 
 function coverageRow(rows: Map<string, CoverageRow>, tool: string): CoverageRow {
@@ -954,7 +1020,9 @@ export function renderText(report: Report): string {
   lines.push(...logLines(report.logs, report.log));
   lines.push(...classLines(report.log));
   if (report.transcripts !== null && report.transcript !== null) {
-    lines.push(...transcriptLines(report.options.serverName, report.transcripts, report.transcript));
+    lines.push(
+      ...transcriptLines(report.options.serverName, report.transcripts, report.transcript),
+    );
   }
   if (report.coverage !== null) lines.push(...coverageLines(report.coverage));
   lines.push(...footer(report.options.transcripts !== undefined));
@@ -965,8 +1033,8 @@ function logLines(scan: LogScan, log: LogStats): string[] {
   const header = [
     "",
     `logs       ${scan.dir}`,
-    `files ${scan.files}, calls ${scan.calls.length}, run headers ${scan.runs.size}, close lines ${scan.closeLines} (${scan.dropped} dropped)`,
-    `skipped   ${scan.malformed} malformed, ${scan.unsupportedVersion} unsupported version, ${scan.duplicates} duplicate run+seq, ${scan.unreadable} unreadable files`,
+    `files ${String(scan.files)}, calls ${String(scan.calls.length)}, run headers ${String(scan.runs.size)}, close lines ${String(scan.closeLines)} (${String(scan.dropped)} dropped)`,
+    `skipped   ${String(scan.malformed)} malformed, ${String(scan.unsupportedVersion)} unsupported version, ${String(scan.duplicates)} duplicate run+seq, ${String(scan.unreadable)} unreadable files`,
   ];
   if (scan.readError !== null) header.push(`note      ${scan.readError}`);
   return [
@@ -982,14 +1050,31 @@ function logLines(scan: LogScan, log: LogStats): string[] {
     ...table(GROUP_HEADERS, log.byProject.map(groupRow)),
     "",
     "limits by code",
-    ...table(["code", "calls"], [...log.limits].map(([code, calls]) => [code, String(calls)])),
+    ...table(
+      ["code", "calls"],
+      [...log.limits].map(([code, calls]) => [code, String(calls)]),
+    ),
     "",
     "calls by build (the run header's build, so an error-text change is attributable)",
-    ...table(["build", "calls"], log.builds.map((row) => [row.build, String(row.calls)])),
+    ...table(
+      ["build", "calls"],
+      log.builds.map((row) => [row.build, String(row.calls)]),
+    ),
   ];
 }
 
-const GROUP_HEADERS = ["key", "calls", ...OUTCOMES, "failures", "p50ms", "p95ms", "cold", "empty", "capped", "medBytes"];
+const GROUP_HEADERS = [
+  "key",
+  "calls",
+  ...OUTCOMES,
+  "failures",
+  "p50ms",
+  "p95ms",
+  "cold",
+  "empty",
+  "capped",
+  "medBytes",
+];
 
 function groupRow(group: Group): string[] {
   return [
@@ -1014,7 +1099,8 @@ function classLines(log: LogStats): string[] {
     ["project", log.byProject],
   ] as const) {
     for (const group of groups) {
-      for (const [errorClass, count] of sortCounts(group.classes)) rows.push([scope, group.key, errorClass, String(count)]);
+      for (const [errorClass, count] of sortCounts(group.classes))
+        rows.push([scope, group.key, errorClass, String(count)]);
     }
   }
   return [
@@ -1022,25 +1108,42 @@ function classLines(log: LogStats): string[] {
     "failures by error class (failure = error + partial + protocol-error; cancelled and abandoned sit in the aborted column, apart)",
     ...table(["scope", "key", "class", "count"], rows),
     "",
-    `unclassified heads, class "other" (top ${HEAD_ROWS} — grow the anchor table from these)`,
-    ...table(["count", "tool", "head"], log.heads.map((row) => [String(row.count), row.tool, row.head])),
+    `unclassified heads, class "other" (top ${String(HEAD_ROWS)} — grow the anchor table from these)`,
+    ...table(
+      ["count", "tool", "head"],
+      log.heads.map((row) => [String(row.count), row.tool, row.head]),
+    ),
   ];
 }
 
-function transcriptLines(serverName: string, scan: TranscriptScan, stats: TranscriptStats): string[] {
+function transcriptLines(
+  serverName: string,
+  scan: TranscriptScan,
+  stats: TranscriptStats,
+): string[] {
   const rows = stats.groups.map(transcriptRow);
   return [
     "",
-    `transcripts ${scan.dir} (server ${serverName}; ${stats.mainFiles} main and ${stats.subagentFiles} subagent files with our calls, ${stats.unreadable} unreadable)`,
+    `transcripts ${scan.dir} (server ${serverName}; ${String(stats.mainFiles)} main and ${String(stats.subagentFiles)} subagent files with our calls, ${String(stats.unreadable)} unreadable)`,
     ...table(TRANSCRIPT_HEADERS, rows),
     "",
     "retry changedKeys",
-    ...table(["key", "count"], [...changedKeys(stats.groups)].map(([key, count]) => [key, String(count)])),
+    ...table(
+      ["key", "count"],
+      [...changedKeys(stats.groups)].map(([key, count]) => [key, String(count)]),
+    ),
     "",
     "failure classes per tool (transcript)",
     ...table(
       ["kind", "tool", "class", "count"],
-      stats.groups.flatMap((group) => [...sortCounts(group.classes)].map(([errorClass, count]) => [group.kind, group.tool, errorClass, String(count)])),
+      stats.groups.flatMap((group) =>
+        [...sortCounts(group.classes)].map(([errorClass, count]) => [
+          group.kind,
+          group.tool,
+          errorClass,
+          String(count),
+        ]),
+      ),
     ),
     "",
     `retry% divides by answered failures; the two p50/p95 columns are what the client observed between its tool_use and its tool_result, never the server's own ms.`,
@@ -1074,8 +1177,8 @@ function transcriptRow(group: TranscriptGroup): string[] {
     display(percentile(group.latency, 0.5)),
     display(percentile(group.latency, 0.95)),
     share(group.retries, group.failedCalls),
-    `${group.changed}/${group.retries}`,
-    `${group.recovered}/${group.retries}`,
+    `${String(group.changed)}/${String(group.retries)}`,
+    `${String(group.recovered)}/${String(group.retries)}`,
     String(group.fallbackAfterOk),
     String(group.fallbackAfterError),
     String(group.nav),
@@ -1132,7 +1235,10 @@ function bump(counts: Map<string, number>, key: string, by = 1): void {
   counts.set(key, (counts.get(key) ?? 0) + by);
 }
 
-function bumpClient(clients: Map<string, { name: string; version: string; calls: number }>, client: { name: string; version: string }): void {
+function bumpClient(
+  clients: Map<string, { name: string; version: string; calls: number }>,
+  client: { name: string; version: string },
+): void {
   const key = `${client.name}\t${client.version}`;
   const found = clients.get(key);
   if (found !== undefined) found.calls++;
@@ -1174,14 +1280,16 @@ function table(headers: string[], rows: string[][]): string[] {
   );
   const line = (cells: string[]): string =>
     cells
-      .map((cell, index) => (index === cells.length - 1 ? cell : cell.padEnd(widths[index] ?? cell.length)))
+      .map((cell, index) =>
+        index === cells.length - 1 ? cell : cell.padEnd(widths[index] ?? cell.length),
+      )
       .join("  ");
   return [line(headers), ...rows.map(line)];
 }
 
 function share(part: number, whole: number): string {
   if (whole === 0) return "—";
-  return `${part}/${whole} ${((part / whole) * 100).toFixed(1)}%`;
+  return `${String(part)}/${String(whole)} ${((part / whole) * 100).toFixed(1)}%`;
 }
 
 function display(value: number | null): string {
@@ -1291,7 +1399,9 @@ function jsonGroup(group: Group): Record<string, unknown> {
     capped: { capped: group.capped, of: group.calls },
     limits: Object.fromEntries(sortCounts(group.limits)),
     medianTextBytes: percentile(group.bytes, 0.5),
-    clients: [...group.clients.values()].sort((a, b) => b.calls - a.calls || a.name.localeCompare(b.name)),
+    clients: [...group.clients.values()].sort(
+      (a, b) => b.calls - a.calls || a.name.localeCompare(b.name),
+    ),
   };
 }
 
@@ -1312,7 +1422,11 @@ function jsonTranscriptGroup(group: TranscriptGroup): Record<string, unknown> {
       recovered: group.recovered,
       changedKeys: Object.fromEntries(group.changedKeys),
     },
-    fallback: { afterOk: group.fallbackAfterOk, afterError: group.fallbackAfterError, lspNav: group.nav },
+    fallback: {
+      afterOk: group.fallbackAfterOk,
+      afterError: group.fallbackAfterError,
+      lspNav: group.nav,
+    },
   };
 }
 
@@ -1333,7 +1447,8 @@ function renderOrJson(report: Report): string {
   return report.options.json ? jsonReport(report) : renderText(report);
 }
 
-const invokedDirectly = process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const invokedDirectly =
+  process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (invokedDirectly) {
   process.exitCode = await main(process.argv.slice(2));

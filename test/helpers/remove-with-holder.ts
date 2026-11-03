@@ -53,15 +53,22 @@ public static class Rm {
 const LOOKUP_TIMEOUT_MS = 20_000;
 
 /** What one PowerShell run printed; injectable so a test can feed the lookup output a real run would not. */
-export type PowerShellRun = (script: string, env: NodeJS.ProcessEnv) => { stdout: string; stderr: string };
+export type PowerShellRun = (
+  script: string,
+  env: NodeJS.ProcessEnv,
+) => { stdout: string; stderr: string };
 
 const runPowerShell: PowerShellRun = (script, env) => {
   const encoded = Buffer.from(script, "utf16le").toString("base64");
-  const child = spawnSync("powershell", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded], {
-    encoding: "utf8",
-    env,
-    timeout: LOOKUP_TIMEOUT_MS,
-  });
+  const child = spawnSync(
+    "powershell",
+    ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+    {
+      encoding: "utf8",
+      env,
+      timeout: LOOKUP_TIMEOUT_MS,
+    },
+  );
   if (child.error !== undefined) throw child.error;
   return { stdout: child.stdout, stderr: child.stderr };
 };
@@ -75,7 +82,8 @@ const SUCCESS_SENTINEL = "OK:";
  * else, and on any failure of the lookup itself, it throws - the caller decides how a failed lookup is worded.
  */
 export function holdersOf(path: string, run: PowerShellRun = runPowerShell): string {
-  if (process.platform !== "win32") throw new Error("the holder lookup uses the Windows Restart Manager");
+  if (process.platform !== "win32")
+    throw new Error("the holder lookup uses the Windows Restart Manager");
   const { stdout, stderr } = run(RESTART_MANAGER_SCRIPT, { ...process.env, HOLDER_PATH: path });
   const out = stdout.trim();
   if (!out.startsWith(SUCCESS_SENTINEL)) {
@@ -105,7 +113,9 @@ export function removeFileNamingHolder(
     remove(path, options);
   } catch (error) {
     const original = error instanceof Error ? error.message : String(error);
-    const wrapped = new Error(`${original}\n${holderLine(path, deps.holders ?? holdersOf)}`, { cause: error });
+    const wrapped = new Error(`${original}\n${holderLine(path, deps.holders ?? holdersOf)}`, {
+      cause: error,
+    });
     throw Object.assign(wrapped, carried(error));
   }
 }
@@ -126,5 +136,7 @@ function holderLine(path: string, holders: (path: string) => string): string {
 function carried(error: unknown): Record<string, unknown> {
   if (typeof error !== "object" || error === null) return {};
   const source = error as Record<string, unknown>;
-  return Object.fromEntries(["code", "errno", "path"].filter((key) => key in source).map((key) => [key, source[key]]));
+  return Object.fromEntries(
+    ["code", "errno", "path"].filter((key) => key in source).map((key) => [key, source[key]]),
+  );
 }

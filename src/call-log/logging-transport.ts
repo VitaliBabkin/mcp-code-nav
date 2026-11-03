@@ -1,6 +1,9 @@
 /** The transport decorator that records one line per `tools/call`, beside the SDK rather than around its callbacks. */
 import { randomUUID } from "node:crypto";
-import type { Transport, TransportSendOptions } from "@modelcontextprotocol/sdk/shared/transport.js";
+import type {
+  Transport,
+  TransportSendOptions,
+} from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
   isJSONRPCErrorResponse,
   isJSONRPCNotification,
@@ -12,7 +15,13 @@ import {
 import { z } from "zod";
 import { newCallAnnotations, withCallAnnotations, type CallAnnotations } from "./annotations.js";
 import { CallRecord } from "./record.js";
-import { pickArgs, summarizeCall, withinRecordCap, type CallSummary, type LoggedArgValue } from "./summarize-result.js";
+import {
+  pickArgs,
+  summarizeCall,
+  withinRecordCap,
+  type CallSummary,
+  type LoggedArgValue,
+} from "./summarize-result.js";
 import type { CallLog } from "./writer.js";
 
 /** What is constant for the process and cannot be read off a message. */
@@ -30,7 +39,9 @@ const CancelledParams = z.object({ requestId: z.union([z.string(), z.number()]) 
 
 const InitializeParams = z.object({
   protocolVersion: z.string().optional(),
-  clientInfo: z.object({ name: z.string(), version: z.string(), title: z.string().optional() }).optional(),
+  clientInfo: z
+    .object({ name: z.string(), version: z.string(), title: z.string().optional() })
+    .optional(),
 });
 
 type PendingCall = {
@@ -103,9 +114,13 @@ class CallLogTransport implements Transport {
     private readonly log: CallLog,
     private readonly meta: CallLogMeta,
   ) {
-    inner.onclose = () => this.handleClosed();
+    inner.onclose = () => {
+      this.handleClosed();
+    };
     inner.onerror = (error) => this.onerror?.(error);
-    inner.onmessage = (message, extra) => this.handleMessage(message, extra);
+    inner.onmessage = (message, extra) => {
+      this.handleMessage(message, extra);
+    };
   }
 
   get sessionId(): string | undefined {
@@ -146,7 +161,10 @@ class CallLogTransport implements Transport {
   private handleMessage(message: JSONRPCMessage, extra?: MessageExtraInfo): void {
     const handler = this.onmessage;
     if (handler === undefined) return;
-    if (!this.tapped) return handler(message, extra);
+    if (!this.tapped) {
+      handler(message, extra);
+      return;
+    }
     let call: PendingCall | undefined;
     try {
       call = this.observe(message);
@@ -155,8 +173,13 @@ class CallLogTransport implements Transport {
     }
     // Two facts no response carries are noted by the language-server layer while the SDK's handler runs, so
     // they have to land in this call's bag and nowhere else.
-    if (call === undefined) return handler(message, extra);
-    withCallAnnotations(call.annotations, () => handler(message, extra));
+    if (call === undefined) {
+      handler(message, extra);
+      return;
+    }
+    withCallAnnotations(call.annotations, () => {
+      handler(message, extra);
+    });
   }
 
   private observe(message: JSONRPCMessage): PendingCall | undefined {
@@ -192,7 +215,9 @@ class CallLogTransport implements Transport {
         : {
             name: info.name.slice(0, CLIENT_FIELD_MAX_CHARS),
             version: info.version.slice(0, CLIENT_FIELD_MAX_CHARS),
-            ...(info.title === undefined ? {} : { title: info.title.slice(0, CLIENT_FIELD_MAX_CHARS) }),
+            ...(info.title === undefined
+              ? {}
+              : { title: info.title.slice(0, CLIENT_FIELD_MAX_CHARS) }),
           };
     this.protocol ??= read.data.protocolVersion ?? null;
   }
@@ -220,7 +245,11 @@ class CallLogTransport implements Transport {
   }
 
   /** The one place a line reaches the log, so the run header is always the line before the first call. */
-  private record(call: PendingCall, summary: CallSummary, aborted?: "cancelled" | "abandoned"): void {
+  private record(
+    call: PendingCall,
+    summary: CallSummary,
+    aborted?: "cancelled" | "abandoned",
+  ): void {
     if (!this.tapped) return;
     this.writeHeader();
     this.sequence++;

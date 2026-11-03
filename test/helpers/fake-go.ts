@@ -50,7 +50,7 @@ export function spawnFailed(code: string, stderr = code, stdout = ""): GoExecRes
 }
 
 /** The binary was not there: the one spawn failure whose remedy is stated by name. */
-export function notOnPath(stderr = 'spawn go ENOENT'): GoExecResult {
+export function notOnPath(stderr = "spawn go ENOENT"): GoExecResult {
   return spawnFailed("ENOENT", stderr);
 }
 
@@ -59,7 +59,11 @@ export const notStarted = spawnFailed;
 
 /** The call outgrew the pipe buffer: it ran, and still answered nothing usable. */
 export function maxBufferExceeded(stdout = "{"): GoExecResult {
-  return spawnFailed("ERR_CHILD_PROCESS_STDIO_MAXBUFFER", "stdout maxBuffer length exceeded", stdout);
+  return spawnFailed(
+    "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+    "stdout maxBuffer length exceeded",
+    stdout,
+  );
 }
 
 /** Killed before it answered — by this server's timeout or by anything else. */

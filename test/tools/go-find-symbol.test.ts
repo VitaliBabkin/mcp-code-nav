@@ -53,7 +53,13 @@ const METHOD = symbol("(*Store).Get", 6, 30, 34);
  * `location.range` is the declaration's identifier span — `normaliseKey` at line 31 arrives as line 30,
  * characters 5 to 17 — so that range is both the row's line and the position its hover is asked at.
  */
-function indexed(path: string, name: string, kind: number, line: number, containerName?: string): unknown {
+function indexed(
+  path: string,
+  name: string,
+  kind: number,
+  line: number,
+  containerName?: string,
+): unknown {
   return {
     name,
     kind,
@@ -166,7 +172,12 @@ describe("runGoFindSymbol", () => {
 
   it("answers a file anchor from that file's outline, with the description read from the name itself", async () => {
     const h = harness();
-    h.hovers({ [h.file]: hover("type Storage interface {\n\tGet(id string) ([]byte, error)\n}", "Storage is the blob store.") });
+    h.hovers({
+      [h.file]: hover(
+        "type Storage interface {\n\tGet(id string) ([]byte, error)\n}",
+        "Storage is the blob store.",
+      ),
+    });
     await h.ready();
 
     const out = await h.run();
@@ -192,7 +203,9 @@ describe("runGoFindSymbol", () => {
         limits: ["one-module", "one-file", "one-port"],
       },
     });
-    expect(textOf(out)).toContain('Declarations named "Storage" (exact match) in the top-level declarations of');
+    expect(textOf(out)).toContain(
+      'Declarations named "Storage" (exact match) in the top-level declarations of',
+    );
     expect(textOf(out)).toContain("1 declaration(s)");
     expect(textOf(out)).toContain("limits: one-module, one-file, one-port");
   });
@@ -222,17 +235,20 @@ describe("runGoFindSymbol", () => {
     expect(limitsOf(module)).toEqual(["one-module", "one-port"]);
   });
 
-  it.each(["Store.Get", "(*Store).Get"])("asks gopls's matcher for the name it indexes, asked as %s", async (asked: string) => {
-    const h = harness();
-    h.index([indexed(h.file, "(*Store).Get", 6, 30)]);
-    await h.ready();
+  it.each(["Store.Get", "(*Store).Get"])(
+    "asks gopls's matcher for the name it indexes, asked as %s",
+    async (asked: string) => {
+      const h = harness();
+      h.index([indexed(h.file, "(*Store).Get", 6, 30)]);
+      await h.ready();
 
-    // Either receiver spelling is a search for the identifier gopls keys the method under; the receiver is
-    // applied by the exact-name filter, which is where both spellings land on one declaration key.
-    const out = await h.run({ symbol: asked, anchor: h.mod });
-    expect(requestFor(h.server, SYMBOL_METHOD)).toEqual({ query: "Get" });
-    expect(rowsOf(out, asked)[0]).toMatchObject({ name: "(*Store).Get", kind: "method" });
-  });
+      // Either receiver spelling is a search for the identifier gopls keys the method under; the receiver is
+      // applied by the exact-name filter, which is where both spellings land on one declaration key.
+      const out = await h.run({ symbol: asked, anchor: h.mod });
+      expect(requestFor(h.server, SYMBOL_METHOD)).toEqual({ query: "Get" });
+      expect(rowsOf(out, asked)[0]).toMatchObject({ name: "(*Store).Get", kind: "method" });
+    },
+  );
 
   it("drops the near-matches a fuzzy index offers beside the exact name", async () => {
     const h = harness();
@@ -252,17 +268,20 @@ describe("runGoFindSymbol", () => {
     expect(rows[0]).toMatchObject({ name: "Get", file: other, line: 17, kind: "function" });
   });
 
-  it.each(["Store.Get", "(*Store).Get"])("accepts both method spellings asked as %s", async (asked: string) => {
-    const h = harness();
-    const a = join(h.mod, "a.go");
-    const b = join(h.mod, "b.go");
-    h.index([indexed(b, "Store.Get", 6, 20), indexed(a, "(*Store).Get", 6, 10)]);
-    await h.ready();
+  it.each(["Store.Get", "(*Store).Get"])(
+    "accepts both method spellings asked as %s",
+    async (asked: string) => {
+      const h = harness();
+      const a = join(h.mod, "a.go");
+      const b = join(h.mod, "b.go");
+      h.index([indexed(b, "Store.Get", 6, 20), indexed(a, "(*Store).Get", 6, 10)]);
+      await h.ready();
 
-    const out = await h.run({ symbol: asked, anchor: h.mod });
-    expect(out.isError, textOf(out)).toBeFalsy();
-    expect(rowsOf(out, asked).map((row) => row.name)).toEqual(["(*Store).Get", "Store.Get"]);
-  });
+      const out = await h.run({ symbol: asked, anchor: h.mod });
+      expect(out.isError, textOf(out)).toBeFalsy();
+      expect(rowsOf(out, asked).map((row) => row.name)).toEqual(["(*Store).Get", "Store.Get"]);
+    },
+  );
 
   it("composes a bare member name with gopls's own receiver and reports it as a method", async () => {
     const h = harness();
@@ -287,7 +306,11 @@ describe("runGoFindSymbol", () => {
     await h.ready();
 
     const out = await h.run({ symbol: "Errorf", anchor: h.mod });
-    expect(rowsOf(out, "Errorf")[0]).toMatchObject({ name: "Errorf", kind: "function", container: "." });
+    expect(rowsOf(out, "Errorf")[0]).toMatchObject({
+      name: "Errorf",
+      kind: "function",
+      container: ".",
+    });
   });
 
   it("names the same declaration in two packages as two rows with two containers", async () => {
@@ -296,14 +319,27 @@ describe("runGoFindSymbol", () => {
     const rootFile = join(h.mod, "load.go");
     const subFile = join(h.mod, "sub", "load.go");
     h.index([named(subFile, "LoadValue", 12, 8), named(rootFile, "LoadValue", 12, 5)]);
-    h.hovers({ [rootFile]: hover("func LoadValue() int"), [subFile]: hover("func LoadValue() string") });
+    h.hovers({
+      [rootFile]: hover("func LoadValue() int"),
+      [subFile]: hover("func LoadValue() string"),
+    });
     await h.ready();
 
     const out = await h.run({ symbol: "LoadValue", anchor: h.mod });
     const rows = rowsOf(out, "LoadValue");
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ file: rootFile, container: ".", external: false, signature: "func LoadValue() int" });
-    expect(rows[1]).toMatchObject({ file: subFile, container: "sub", external: false, signature: "func LoadValue() string" });
+    expect(rows[0]).toMatchObject({
+      file: rootFile,
+      container: ".",
+      external: false,
+      signature: "func LoadValue() int",
+    });
+    expect(rows[1]).toMatchObject({
+      file: subFile,
+      container: "sub",
+      external: false,
+      signature: "func LoadValue() string",
+    });
     expect(requestFor(h.server, HOVER_METHOD)).toMatchObject({
       textDocument: { uri: uriOf(rootFile) },
       position: { line: 5, character: 6 },
@@ -332,16 +368,19 @@ describe("runGoFindSymbol", () => {
     ["hidden.ping", "package-private"],
     ["Gauge", "exported"],
     ["gauge", "package-private"],
-  ])("reads the visibility of the file row %s as %s, from its own name", async (name: string, visibility: string) => {
-    const h = harness();
-    h.outline(h.file, [symbol(name, name.includes(".") ? 6 : 23, 10, 14)]);
-    await h.ready();
+  ])(
+    "reads the visibility of the file row %s as %s, from its own name",
+    async (name: string, visibility: string) => {
+      const h = harness();
+      h.outline(h.file, [symbol(name, name.includes(".") ? 6 : 23, 10, 14)]);
+      await h.ready();
 
-    const out = await h.run({ symbol: name });
-    expect(rowsOf(out, name)[0]).toMatchObject({ visibility });
-    expect(scopeOf(out)).not.toHaveProperty("visibility");
-    expect(limitsOf(out)).not.toContain("exported-symbol-importers-invisible");
-  });
+      const out = await h.run({ symbol: name });
+      expect(rowsOf(out, name)[0]).toMatchObject({ visibility });
+      expect(scopeOf(out)).not.toHaveProperty("visibility");
+      expect(limitsOf(out)).not.toContain("exported-symbol-importers-invisible");
+    },
+  );
 
   it("reads the visibility of a workspace row from the member name gopls spelled", async () => {
     const h = harness();
@@ -365,7 +404,12 @@ describe("runGoFindSymbol", () => {
     for (const asked of ["hidden.Ping", "(*hidden).Ping"]) {
       const out = await h.run({ symbol: asked, anchor: h.mod });
       const [row] = rowsOf(out, asked);
-      expect(row).toMatchObject({ name: "hidden.Ping", kind: "method", visibility: "exported", container: "." });
+      expect(row).toMatchObject({
+        name: "hidden.Ping",
+        kind: "method",
+        visibility: "exported",
+        container: ".",
+      });
     }
 
     const lower = await h.run({ symbol: "(*hidden).ping", anchor: h.mod });
@@ -382,7 +426,11 @@ describe("runGoFindSymbol", () => {
     const second = join(h.mod, "second.go");
     // Neither file was named by the caller and neither is open in the session: gopls answers a hover
     // about a document it holds, so a search that named these rows has to hold them open to describe them.
-    h.index([named(first, "LoadValue", 12, 4), named(first, "LoadValue", 12, 9), named(second, "LoadValue", 12, 3)]);
+    h.index([
+      named(first, "LoadValue", 12, 4),
+      named(first, "LoadValue", 12, 9),
+      named(second, "LoadValue", 12, 3),
+    ]);
     h.hovers({
       [first]: hover("func LoadValue() int"),
       [second]: hover("func LoadValue() string"),
@@ -427,7 +475,12 @@ describe("runGoFindSymbol", () => {
     const out = await h.run({ symbol: "Get", anchor: h.mod });
     const rows = rowsOf(out, "Get");
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ file: inside, external: false, container: ".", signature: "func Get() int" });
+    expect(rows[0]).toMatchObject({
+      file: inside,
+      external: false,
+      container: ".",
+      signature: "func Get() int",
+    });
     expect(rows[1]).toEqual({
       name: "Get",
       kind: "function",
@@ -481,7 +534,10 @@ describe("runGoFindSymbol", () => {
     const out = await h.run({ symbol: "Trim", anchor: h.mod });
     const rows = rowsOf(out, "Trim");
     expect(rows).toHaveLength(5);
-    expect(rows[0]).toMatchObject({ signature: "func Trim(s string) string", documentation: "Trim cuts both ends." });
+    expect(rows[0]).toMatchObject({
+      signature: "func Trim(s string) string",
+      documentation: "Trim cuts both ends.",
+    });
     expect(reason(rows[1])).toMatch(/refused the hover: no identifier found/);
     expect(reason(rows[2])).toMatch(/hover answer carried nothing/);
     expect(reason(rows[3])).toMatch(/carried a number/);
@@ -501,7 +557,10 @@ describe("runGoFindSymbol", () => {
       textDocument: { uri: uriOf(h.file) },
       position: { line: 13, character: 5 },
     });
-    expect(rowsOf(out, "Storage")[0]).toMatchObject({ line: 14, signature: "type Storage interface {}" });
+    expect(rowsOf(out, "Storage")[0]).toMatchObject({
+      line: 14,
+      signature: "type Storage interface {}",
+    });
   });
 
   it("never guesses a hover position: an answer naming none for the identifier keeps the row, not the read", async () => {
@@ -524,7 +583,9 @@ describe("runGoFindSymbol", () => {
     const h = harness();
     // The file anchor keeps the rule untouched: there the outline's `range.start` is the `type`
     // keyword, so a row without `selectionRange` is reported and never asked about.
-    h.outline(h.file, [{ name: "Bare", kind: 11, range: { start: { line: 2 }, end: { line: 4 } } }]);
+    h.outline(h.file, [
+      { name: "Bare", kind: 11, range: { start: { line: 2 }, end: { line: 4 } } },
+    ]);
     await h.ready();
 
     const out = await h.run({ symbol: "Bare" });
@@ -537,17 +598,23 @@ describe("runGoFindSymbol", () => {
 
   it("reads a signature only out of a code block, and prose only as documentation", async () => {
     const h = harness();
-    h.query.answer(HOVER_METHOD, { contents: [{ language: "go", value: "func Trim(s string) string" }] });
+    h.query.answer(HOVER_METHOD, {
+      contents: [{ language: "go", value: "func Trim(s string) string" }],
+    });
     await h.ready();
 
     const coded = await h.run();
     expect(rowsOf(coded, "Storage")[0]).toMatchObject({ signature: "func Trim(s string) string" });
     expect(rowsOf(coded, "Storage")[0]).not.toHaveProperty("descriptionUnavailable");
 
-    h.query.answer(HOVER_METHOD, { contents: "An untagged sentence gopls chose to send as prose." });
+    h.query.answer(HOVER_METHOD, {
+      contents: "An untagged sentence gopls chose to send as prose.",
+    });
     const prose = await h.run();
     expect(rowsOf(prose, "Storage")[0]).not.toHaveProperty("signature");
-    expect(rowsOf(prose, "Storage")[0]).toMatchObject({ documentation: "An untagged sentence gopls chose to send as prose." });
+    expect(rowsOf(prose, "Storage")[0]).toMatchObject({
+      documentation: "An untagged sentence gopls chose to send as prose.",
+    });
   });
 
   it("reads the signature out of a go fence inside a markdown answer, and the prose beside it as documentation", async () => {
@@ -556,7 +623,8 @@ describe("runGoFindSymbol", () => {
     h.query.answer(HOVER_METHOD, {
       contents: {
         kind: "markdown",
-        value: "```go\nfunc (m *Memory) Read(id string) ([]byte, error)\n```\n\nRead returns what is stored.",
+        value:
+          "```go\nfunc (m *Memory) Read(id string) ([]byte, error)\n```\n\nRead returns what is stored.",
       },
     });
     await h.ready();
@@ -572,7 +640,11 @@ describe("runGoFindSymbol", () => {
     const h = harness();
     h.outline(h.file, [symbol("(*Memory).Read", 6, 19, 25)]);
     h.query.answer(HOVER_METHOD, {
-      contents: { kind: "markdown", value: "```\ntype Memory struct{ data map[string][]byte }\n```\n\nMemory keeps values in a map." },
+      contents: {
+        kind: "markdown",
+        value:
+          "```\ntype Memory struct{ data map[string][]byte }\n```\n\nMemory keeps values in a map.",
+      },
     });
     await h.ready();
 
@@ -641,7 +713,9 @@ describe("runGoFindSymbol", () => {
 
     const out = await h.run({ symbol: "Absent" });
     expect(out.isError).toBe(true);
-    expect(textOf(out)).toContain(`no declaration named "Absent" was found in the top-level declarations of "${h.file}"`);
+    expect(textOf(out)).toContain(
+      `no declaration named "Absent" was found in the top-level declarations of "${h.file}"`,
+    );
     expect(textOf(out)).toContain("The match is exact, not fuzzy");
     // A name with no answer here never spent the readiness wait, let alone a search or a hover.
     expect(h.server.methods).not.toContain(SYMBOL_METHOD);
@@ -719,7 +793,9 @@ describe("runGoFindSymbol", () => {
 
     const out = await runUntilBudgetExpires(() => h.run({ anchor: h.mod, timeBudgetMs: 40 }), 40);
     expect(out.isError).toBeFalsy();
-    expect(reason(rowsOf(out, "Storage")[0])).toMatch(/hover never arrived inside this call's 40 ms budget/);
+    expect(reason(rowsOf(out, "Storage")[0])).toMatch(
+      /hover never arrived inside this call's 40 ms budget/,
+    );
   });
 
   it("refuses an answer from a server that restarted while the search was in flight", async () => {
@@ -759,7 +835,9 @@ describe("runGoFindSymbol", () => {
   });
 
   it("drops one-port with the environment it describes, and keeps the bounds it can still state", async () => {
-    const h = harness({ go: fakeGo({ env: notStarted("ENOENT", "go: executable file not found") }) });
+    const h = harness({
+      go: fakeGo({ env: notStarted("ENOENT", "go: executable file not found") }),
+    });
     await h.ready();
 
     const out = await h.run();
@@ -779,17 +857,20 @@ describe("runGoFindSymbol", () => {
     expect(scopeOf(out)).toMatchObject({ osArchExcluded: { count: 1 } });
   });
 
-  it.each(["file", "directory"])("reports gopls's own unavailability at once for a %s anchor", async (kind: string) => {
-    const h = harness({ spawn: missingGoplsSpawn() });
-    const anchor = kind === "file" ? h.file : h.mod;
+  it.each(["file", "directory"])(
+    "reports gopls's own unavailability at once for a %s anchor",
+    async (kind: string) => {
+      const h = harness({ spawn: missingGoplsSpawn() });
+      const anchor = kind === "file" ? h.file : h.mod;
 
-    const out = await h.run({ anchor });
-    expect(out.isError).toBe(true);
-    expect(textOf(out)).toContain("Cannot start gopls");
-    expect(textOf(out)).toContain("MCP_CODE_NAV_GOPLS");
-    expect(textOf(out)).not.toMatch(/budget/);
-    expect(h.server.methods).toEqual([]);
-  });
+      const out = await h.run({ anchor });
+      expect(out.isError).toBe(true);
+      expect(textOf(out)).toContain("Cannot start gopls");
+      expect(textOf(out)).toContain("MCP_CODE_NAV_GOPLS");
+      expect(textOf(out)).not.toMatch(/budget/);
+      expect(h.server.methods).toEqual([]);
+    },
+  );
 
   it("roots gopls at the module and asks only the methods its config allows", async () => {
     const h = harness();

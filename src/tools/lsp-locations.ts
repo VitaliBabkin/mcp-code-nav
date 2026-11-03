@@ -5,7 +5,7 @@
 
 import { fileURLToPath } from "node:url";
 import { escapesRoot, pathKey } from "../paths/path-containment.js";
-import { type Step, withArticle } from "./navigation-text.js";
+import { jsonText, type Step, withArticle } from "./navigation-text.js";
 
 export type Position = { readonly line: number; readonly character: number };
 
@@ -32,7 +32,9 @@ export interface Located {
 
 /** Names which fields to look at; asserts nothing about their types, which is what the checks below are for. */
 export function recordOf(value: unknown): Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null ? (value as Readonly<Record<string, unknown>>) : {};
+  return typeof value === "object" && value !== null
+    ? (value as Readonly<Record<string, unknown>>)
+    : {};
 }
 
 export function rangeStart(range: unknown): LinePosition | undefined {
@@ -89,7 +91,10 @@ export function locationKeyFactory(): (file: string) => string {
 
 /** The kept items of one listing, in the order a cap may drop them from: in-module ahead of external. */
 export function inModuleFirst<T>(items: readonly T[], isExternal: (item: T) => boolean): T[] {
-  return [...items.filter((item) => !isExternal(item)), ...items.filter((item) => isExternal(item))];
+  return [
+    ...items.filter((item) => !isExternal(item)),
+    ...items.filter((item) => isExternal(item)),
+  ];
 }
 
 /** Ordering for two positions, comparing the character only when both sides carry one. */
@@ -143,7 +148,7 @@ export function unexpectedAnswerText(
   return (
     `${tool} failed: ${server} answered the ${shape.noun} for "${symbol}" with ${what} this server cannot ` +
     `read, so the answer cannot be reported without possibly dropping ${shape.dropped}. It expects ` +
-    `${shape.expects} entries: ${JSON.stringify(received)?.slice(0, 300) ?? String(received)}`
+    `${shape.expects} entries: ${jsonText(received)?.slice(0, 300) ?? String(received)}`
   );
 }
 
@@ -160,18 +165,29 @@ export function toReported(
 ): Step<ReportedLocation[]> {
   if (result === null || result === undefined) return { ok: true, value: [] };
   if (!Array.isArray(result)) {
-    return { ok: false, error: unexpectedAnswerText(server, tool, result, symbol, undefined, LOCATION_ANSWER) };
+    return {
+      ok: false,
+      error: unexpectedAnswerText(server, tool, result, symbol, undefined, LOCATION_ANSWER),
+    };
   }
   const rows: ReportedLocation[] = [];
   const keyOf = locationKeyFactory();
   for (const [index, entry] of result.entries()) {
     const raw = recordOf(entry);
     const file = pathOfUri(raw.uri) ?? pathOfUri(raw.targetUri);
-    const start = rangeStart(raw.range) ?? rangeStart(raw.targetSelectionRange) ?? rangeStart(raw.targetRange);
+    const start =
+      rangeStart(raw.range) ?? rangeStart(raw.targetSelectionRange) ?? rangeStart(raw.targetRange);
     if (file === undefined || start === undefined) {
       return {
         ok: false,
-        error: unexpectedAnswerText(server, tool, result[index], symbol, `entry ${index + 1}`, LOCATION_ANSWER),
+        error: unexpectedAnswerText(
+          server,
+          tool,
+          result[index],
+          symbol,
+          `entry ${String(index + 1)}`,
+          LOCATION_ANSWER,
+        ),
       };
     }
     rows.push(reportedLocation(file, start, outside, keyOf(file)));

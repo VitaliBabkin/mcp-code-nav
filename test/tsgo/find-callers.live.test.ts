@@ -43,7 +43,8 @@ const managers: LspSessionManager[] = [];
 
 /** One manager per case, kept so `afterEach` disposes what a throwing assertion never reached. */
 function freshManager(log?: TsgoProcessLog): LspSessionManager {
-  const manager = log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
+  const manager =
+    log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
   managers.push(manager);
   return manager;
 }
@@ -52,8 +53,18 @@ afterEach(() => {
   while (managers.length > 0) managers.pop()?.disposeAll();
 });
 
-function ask(manager: LspSessionManager, roots: string[], file: string, symbol: string): Promise<Result> {
-  return runTsFindCallers(manager, { sourceRoots: roots, file, symbol, timeBudgetMs: CALL_BUDGET_MS });
+function ask(
+  manager: LspSessionManager,
+  roots: string[],
+  file: string,
+  symbol: string,
+): Promise<Result> {
+  return runTsFindCallers(manager, {
+    sourceRoots: roots,
+    file,
+    symbol,
+    timeBudgetMs: CALL_BUDGET_MS,
+  });
 }
 
 function payload(result: Result): TsFindCallersPayload {
@@ -106,12 +117,18 @@ function under(root: string, path: string | null | undefined): string {
 
 /** Every kept site as `<file>:<site line>:<column>`, in report order: what the server actually credited. */
 function sitesOf(answer: TsFindCallersPayload): string[] {
-  return answer.callers.flatMap((row) => row.callSites.map((site) => `${under(workspaceRoot, row.file)}:${site.line}:${site.column ?? "-"}`));
+  return answer.callers.flatMap((row) =>
+    row.callSites.map(
+      (site) => `${under(workspaceRoot, row.file)}:${site.line}:${site.column ?? "-"}`,
+    ),
+  );
 }
 
 /** Every kept row as `<name>@<its line>`, which is what a failure has to show to be actionable. */
 function rows(answer: TsFindCallersPayload): string[] {
-  return answer.callers.map((row) => `${row.name ?? "<unnamed>"}@${row.line}${row.reason ? ` (${row.reason})` : ""}`);
+  return answer.callers.map(
+    (row) => `${row.name ?? "<unnamed>"}@${row.line}${row.reason ? ` (${row.reason})` : ""}`,
+  );
 }
 
 function rowNamed(answer: TsFindCallersPayload, name: string): TsCallerRow | undefined {
@@ -123,8 +140,13 @@ function siteLines(answer: TsFindCallersPayload, name: string): number[] {
   return (rowNamed(answer, name)?.callSites ?? []).map((site) => site.line);
 }
 
-function requireProjects(scope: TsNavigationScope): { count: number; configs: readonly string[]; failed: readonly { config: string; reason: string }[] } {
-  if (!("projects" in scope)) throw new Error(`no project map was reported: ${scope.projectsUnavailable}`);
+function requireProjects(scope: TsNavigationScope): {
+  count: number;
+  configs: readonly string[];
+  failed: readonly { config: string; reason: string }[];
+} {
+  if (!("projects" in scope))
+    throw new Error(`no project map was reported: ${scope.projectsUnavailable}`);
   return scope.projects;
 }
 
@@ -168,7 +190,9 @@ describe("ts_find_callers against the real tsgo", () => {
           expect(answer.resolved.name).toBe("Direct.handle");
           expect(answer.resolved.kind).toBe("method");
           expect(samePath(answer.resolved.file, handlerFile)).toBe(true);
-          expect(answer.resolved.line).toBe(lineAfter(handlerFile, "export class Direct", "handle(job: string)"));
+          expect(answer.resolved.line).toBe(
+            lineAfter(handlerFile, "export class Direct", "handle(job: string)"),
+          );
 
           // the measured server behaviour: the call made through a `Handler` value is credited to the implementing method beside the
           // one made on the concrete class. Both are here, at the token tsgo puts a property-access call at —
@@ -179,9 +203,12 @@ describe("ts_find_callers against the real tsgo", () => {
           const registerLine = lineOf(usesFile, "return [1].map(new Direct().handle)");
           const boundLine = lineOf(usesFile, "return new Direct().handle.bind(null)");
           const indirectLine = lineOf(usesFile, 'return picked("c")');
-          const handleColumn = (line: number): number => columnOf(usesFile, linesOf(usesFile)[line - 1] ?? "", "handle");
+          const handleColumn = (line: number): number =>
+            columnOf(usesFile, linesOf(usesFile)[line - 1] ?? "", "handle");
           expect(
-            answer.callers.flatMap((row) => row.callSites.map((site) => `${site.line}:${site.column}`)).sort(),
+            answer.callers
+              .flatMap((row) => row.callSites.map((site) => `${site.line}:${site.column}`))
+              .sort(),
             JSON.stringify(rows(answer)),
           ).toEqual(
             [
@@ -205,7 +232,9 @@ describe("ts_find_callers against the real tsgo", () => {
           }
           // `directCall` has a JSDoc above it, so tsgo's item range starts on the comment: the row is still named,
           // and it reports the declaration's own line, not the comment's.
-          expect(rowNamed(answer, "directCall")?.line).toBe(lineOf(usesFile, "export function directCall"));
+          expect(rowNamed(answer, "directCall")?.line).toBe(
+            lineOf(usesFile, "export function directCall"),
+          );
           expect(siteLines(answer, "directCall")).toEqual([directLine]);
           expect(siteLines(answer, "interfaceCall")).toEqual([throughLine]);
           expect(siteLines(answer, "register")).toEqual([registerLine]);
@@ -215,7 +244,9 @@ describe("ts_find_callers against the real tsgo", () => {
           // credited is the extraction above it, credited to the SOURCE FILE because no callable encloses it — and
           // that row's reason says so rather than reads as a naming failure.
           expect(rowNamed(answer, "functionValueCall")).toBeUndefined();
-          expect(answer.callers.flatMap((row) => row.callSites.map((site) => site.line))).not.toContain(indirectLine);
+          expect(
+            answer.callers.flatMap((row) => row.callSites.map((site) => site.line)),
+          ).not.toContain(indirectLine);
           const moduleScope = answer.callers.filter((row) => row.name === null);
           expect(moduleScope, JSON.stringify(rows(answer))).toHaveLength(1);
           expect(moduleScope[0]?.kind).toBeNull();
@@ -261,7 +292,9 @@ describe("ts_find_callers against the real tsgo", () => {
           kind: null,
           reason: "at module scope; no declaration encloses this site",
         });
-        expect(row?.callSites.map((site) => site.line)).toEqual([lineOf(scriptFile, "export const stored")]);
+        expect(row?.callSites.map((site) => site.line)).toEqual([
+          lineOf(scriptFile, "export const stored"),
+        ]);
       } finally {
         manager.disposeAll();
       }
@@ -282,7 +315,9 @@ describe("ts_find_callers against the real tsgo", () => {
         expect(answer.resolved.kind).toBe("variable");
         const arrowLine = lineOf(usesFile, 'return runJob("d")');
         expect(
-          answer.callers.flatMap((row) => row.callSites.map((site) => `${site.line}:${site.column}`)),
+          answer.callers.flatMap((row) =>
+            row.callSites.map((site) => `${site.line}:${site.column}`),
+          ),
           JSON.stringify(rows(answer)),
         ).toEqual([`${arrowLine}:${columnOf(usesFile, 'return runJob("d")', "runJob")}`]);
         expect(answer.totalCallers).toBe(1);
@@ -290,7 +325,11 @@ describe("ts_find_callers against the real tsgo", () => {
         // access — so TypeScript's rule does not credit it, and this row is absent. A `Direct`-type member
         // mentioned the same way IS credited (the case above), which is what makes the pair the boundary.
         expect(rowNamed(answer, "passJobBare")).toBeUndefined();
-        expect(answer.callers.some((row) => row.callSites.some((site) => site.line === lineOf(usesFile, "return [1].map(runJob)")))).toBe(false);
+        expect(
+          answer.callers.some((row) =>
+            row.callSites.some((site) => site.line === lineOf(usesFile, "return [1].map(runJob)")),
+          ),
+        ).toBe(false);
         recordAnswer("callers-runJob", answer.callers);
         expect(rowNamed(answer, "arrowCall")).toMatchObject({
           kind: "function",
@@ -327,7 +366,11 @@ describe("ts_find_callers against the real tsgo", () => {
         // The refusal costs the outline and the one request that IS the gate. No incoming-calls request follows
         // it, and no references request either - the substitution the text refuses, checked against what this
         // client actually sent rather than against what the case hopes.
-        expect(log.methods).toEqual(["initialize", "textDocument/documentSymbol", "textDocument/prepareCallHierarchy"]);
+        expect(log.methods).toEqual([
+          "initialize",
+          "textDocument/documentSymbol",
+          "textDocument/prepareCallHierarchy",
+        ]);
       } finally {
         manager.disposeAll();
       }
@@ -343,7 +386,10 @@ describe("ts_find_callers against the real tsgo", () => {
       const { dir, copied } = copyFixture(workspaceRoot);
       const manager = freshManager();
       try {
-        writeFileSync(join(copied, "src", "uses.ts"), 'export const NOTHING_HERE = "no call of runJob in this fixture";\n');
+        writeFileSync(
+          join(copied, "src", "uses.ts"),
+          'export const NOTHING_HERE = "no call of runJob in this fixture";\n',
+        );
 
         const result = await ask(manager, [copied], join(copied, "src", "handler.ts"), "runJob");
         expect(result.isError, textOf(result)).toBeFalsy();

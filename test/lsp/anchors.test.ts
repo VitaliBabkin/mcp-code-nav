@@ -1,4 +1,11 @@
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -25,7 +32,11 @@ import {
  * `false` however many documents it opened.
  */
 
-const BINARY: TsgoBinary = { executable: "C:/fake/lib/tsc.exe", version: "7.0.2", source: "global" };
+const BINARY: TsgoBinary = {
+  executable: "C:/fake/lib/tsc.exe",
+  version: "7.0.2",
+  source: "global",
+};
 
 const TSGO = tsgoConfig(BINARY);
 
@@ -52,9 +63,11 @@ function openedDocuments(server: FakeServer): OpenedDocument[] {
   return server.notifications.flatMap(([method, params]) => {
     if (method !== OPEN) return [];
     const path = pathOfDocumentId(params);
-    if (path === undefined) throw new Error("a textDocument/didOpen notification named no document");
-    const { languageId, version, text } = (params as { textDocument: Omit<OpenedDocument, "path"> & { uri: string } })
-      .textDocument;
+    if (path === undefined)
+      throw new Error("a textDocument/didOpen notification named no document");
+    const { languageId, version, text } = (
+      params as { textDocument: Omit<OpenedDocument, "path"> & { uri: string } }
+    ).textDocument;
     return [{ path, languageId, version, text }];
   });
 }
@@ -68,8 +81,10 @@ function sequence(server: FakeServer, from = 0): string[] {
 }
 
 /** An `initialize` result stating one server, and an empty answer for every other request. */
-const answersServerInfo = (serverInfo: unknown) => (method: string): unknown =>
-  method === "initialize" ? { serverInfo } : [];
+const answersServerInfo =
+  (serverInfo: unknown) =>
+  (method: string): unknown =>
+    method === "initialize" ? { serverInfo } : [];
 
 describe("LspSession.openAnchors", () => {
   let tmp: string;
@@ -103,12 +118,28 @@ describe("LspSession.openAnchors", () => {
     // One process answers TypeScript and JavaScript, so the id a document is opened under is a property of
     // the file: a `.tsx` opened as `typescript` is parsed without JSX, which is a wrong answer about the file.
     expect(openedDocuments(server)).toEqual([
-      { path: shown(tsx), languageId: "typescriptreact", version: 1, text: "export const tsx = 1;\n" },
+      {
+        path: shown(tsx),
+        languageId: "typescriptreact",
+        version: 1,
+        text: "export const tsx = 1;\n",
+      },
       { path: shown(ts), languageId: "typescript", version: 1, text: "export const ts = 1;\n" },
-      { path: shown(jsx), languageId: "javascriptreact", version: 1, text: "export const jsx = 1;\n" },
+      {
+        path: shown(jsx),
+        languageId: "javascriptreact",
+        version: 1,
+        text: "export const jsx = 1;\n",
+      },
       { path: shown(js), languageId: "javascript", version: 1, text: "export const js = 1;\n" },
     ]);
-    expect(server.notifications.map(([method]) => method)).toEqual(["initialized", OPEN, OPEN, OPEN, OPEN]);
+    expect(server.notifications.map(([method]) => method)).toEqual([
+      "initialized",
+      OPEN,
+      OPEN,
+      OPEN,
+      OPEN,
+    ]);
   });
 
   it("holds the documents it opened, so a second call for the same anchors sends nothing", async () => {
@@ -181,7 +212,9 @@ describe("LspSession.openAnchors", () => {
 
   it("reports the server version the process that answers stated for itself", async () => {
     const app = source("app.ts", "export const app = 1;\n");
-    const server = fakeServer({ respond: answersServerInfo({ name: "typescript-go", version: "7.0.2" }) });
+    const server = fakeServer({
+      respond: answersServerInfo({ name: "typescript-go", version: "7.0.2" }),
+    });
     const session = sessionOver(server, { root: tmp, config: TSGO, readFile });
 
     expect(session.serverInfo()).toBeUndefined();
@@ -203,8 +236,12 @@ describe("LspSession.openAnchors", () => {
 
   it("answers for the process that is live now, after the session was disposed and used again", async () => {
     const app = source("app.ts", "export const app = 1;\n");
-    const first = fakeServer({ respond: answersServerInfo({ name: "typescript-go", version: "7.0.2" }) });
-    const second = fakeServer({ respond: answersServerInfo({ name: "typescript-go", version: "7.1.0" }) });
+    const first = fakeServer({
+      respond: answersServerInfo({ name: "typescript-go", version: "7.0.2" }),
+    });
+    const second = fakeServer({
+      respond: answersServerInfo({ name: "typescript-go", version: "7.1.0" }),
+    });
     let started = 0;
     const session = new LspSession({
       root: tmp,
@@ -280,7 +317,9 @@ describe("LspSession.openAnchors", () => {
       alive: () => alive,
       respond: (method) => {
         if (!alive) throw new Error("connection got disposed");
-        return method === "initialize" ? { serverInfo: { name: "typescript-go", version: "7.0.2" } } : [];
+        return method === "initialize"
+          ? { serverInfo: { name: "typescript-go", version: "7.0.2" } }
+          : [];
       },
       // Another caller's request lands while this one is still writing its first anchor: the child dies and
       // the session replaces it to answer that call, so the loop below keeps opening documents onto a process
@@ -300,7 +339,8 @@ describe("LspSession.openAnchors", () => {
       readFile,
       sleep: async () => {},
     });
-    replace = () => session.request("textDocument/documentSymbol", { textDocument: { uri: uriOf(b) } });
+    replace = () =>
+      session.request("textDocument/documentSymbol", { textDocument: { uri: uriOf(b) } });
 
     // The mid-loop half: the mark is that the documents were opened ON THE PROCESS THAT ANSWERS, so a
     // loop that was interrupted by a replacement holds some documents on a dead child and none on the live one.

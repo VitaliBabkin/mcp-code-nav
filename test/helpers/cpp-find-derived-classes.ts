@@ -13,7 +13,10 @@ export const cleanExec: ClangQueryExecFn = async () => ({ exitCode: 0, stdout: "
  */
 export function registeredDescription(): string {
   const registerTool = vi.fn();
-  registerCppFindDerivedClasses({ registerTool } as unknown as McpServer, { exec: cleanExec, cache: new SweepCache() });
+  registerCppFindDerivedClasses({ registerTool } as unknown as McpServer, {
+    exec: cleanExec,
+    cache: new SweepCache(),
+  });
   const config = registerTool.mock.calls[0]?.[1] as { description?: string };
   return config.description ?? "";
 }

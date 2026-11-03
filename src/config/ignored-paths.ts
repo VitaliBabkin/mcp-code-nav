@@ -23,10 +23,14 @@ function countOf(text: string, char: string): number {
 function limitViolation(pattern: string): string | undefined {
   const L = IGNORED_PATH_LIMITS;
   if (pattern.includes("\0")) return "must not contain NUL";
-  if (countOf(pattern, "*") > L.maxStars) return `may contain at most ${L.maxStars} '*' characters`;
-  if (countOf(pattern, "{") > L.maxBraces) return `may contain at most ${L.maxBraces} '{' characters`;
-  if (/\{[^}]*\.\./.test(pattern)) return "must not use a numeric or alphabetic range inside braces";
-  if (countOf(pattern, "(") > L.maxExtglobParens) return `may contain at most ${L.maxExtglobParens} '(' characters`;
+  if (countOf(pattern, "*") > L.maxStars)
+    return `may contain at most ${String(L.maxStars)} '*' characters`;
+  if (countOf(pattern, "{") > L.maxBraces)
+    return `may contain at most ${String(L.maxBraces)} '{' characters`;
+  if (/\{[^}]*\.\./.test(pattern))
+    return "must not use a numeric or alphabetic range inside braces";
+  if (countOf(pattern, "(") > L.maxExtglobParens)
+    return `may contain at most ${String(L.maxExtglobParens)} '(' characters`;
   return undefined;
 }
 
@@ -36,7 +40,8 @@ const PatternSchema = z
   .max(IGNORED_PATH_LIMITS.maxPatternLength)
   .superRefine((pattern, ctx) => {
     const violation = limitViolation(pattern);
-    if (violation !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `ignoredPaths pattern ${violation}` });
+    if (violation !== undefined)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `ignoredPaths pattern ${violation}` });
   });
 
 const ConfigSchema = z.object({

@@ -32,13 +32,17 @@ function textOf(answer: Answer): string {
 }
 
 /** The head `CompileDbNotFoundError.message` is, which every hinted variant keeps byte-identical. */
-const headAt = (projectRoot: string): string => `compile_commands.json not found or unreadable at "${projectRoot}"`;
+const headAt = (projectRoot: string): string =>
+  `compile_commands.json not found or unreadable at "${projectRoot}"`;
 
 /** A C++ project root holding a compile database and whatever sources the case names. */
 function cppRoot(files: Record<string, string> = { "a.cpp": "class Foo {};\n" }): string {
   const root = tempRoot("err-cpp");
   for (const [name, body] of Object.entries(files)) writeFileSync(join(root, name), body);
-  writeFileSync(join(root, "compile_commands.json"), JSON.stringify([{ directory: root, file: "a.cpp" }]));
+  writeFileSync(
+    join(root, "compile_commands.json"),
+    JSON.stringify([{ directory: root, file: "a.cpp" }]),
+  );
   return root;
 }
 
@@ -97,7 +101,12 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
     const sessions = new LspSessionManager({ sleep: async () => {} });
     const sweep = { cache: new SweepCache() };
 
-    const cases: readonly { readonly variant: string; readonly root: string; readonly prefix: string; readonly text: string }[] = [
+    const cases: readonly {
+      readonly variant: string;
+      readonly root: string;
+      readonly prefix: string;
+      readonly text: string;
+    }[] = [
       {
         variant: "none",
         root: empty,
@@ -126,29 +135,40 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
         variant: "candidates, the sweep",
         root: repo,
         prefix: "cpp_find_derived_classes failed: ",
-        text: textOf(await runCppFindDerivedClasses(sweep, { projectRoot: repo, qualifiedName: "Base" })),
+        text: textOf(
+          await runCppFindDerivedClasses(sweep, { projectRoot: repo, qualifiedName: "Base" }),
+        ),
       },
       {
         variant: "present but unreadable, the sweep",
         root: unreadable,
         prefix: "cpp_find_derived_classes failed: ",
-        text: textOf(await runCppFindDerivedClasses(sweep, { projectRoot: unreadable, qualifiedName: "Base" })),
+        text: textOf(
+          await runCppFindDerivedClasses(sweep, { projectRoot: unreadable, qualifiedName: "Base" }),
+        ),
       },
       {
         variant: "root could not be listed",
         root: notADirectory,
         prefix: "cpp_find_callers failed: ",
-        text: textOf(await runCppFindCallers(sessions, { projectRoot: notADirectory, name: "Foo" })),
+        text: textOf(
+          await runCppFindCallers(sessions, { projectRoot: notADirectory, name: "Foo" }),
+        ),
       },
     ];
 
     for (const one of cases) {
       const tail = one.text.slice(one.prefix.length + headAt(one.root).length);
-      expect(classifyError(one.text).errorClass, `${one.variant}: ${one.text}`).toBe("compile-db-missing");
+      expect(classifyError(one.text).errorClass, `${one.variant}: ${one.text}`).toBe(
+        "compile-db-missing",
+      );
       // The head stays byte-identical and is a verbatim prefix of every variant, with or without the tool's
       // own name in front of it — which is what the anchor matches on, and what a consumer matching the head
       // still matches.
-      expect(one.text.startsWith(one.prefix + headAt(one.root)), `${one.variant}: ${one.text}`).toBe(true);
+      expect(
+        one.text.startsWith(one.prefix + headAt(one.root)),
+        `${one.variant}: ${one.text}`,
+      ).toBe(true);
       expect(tail.startsWith(". "), `${one.variant}: ${one.text}`).toBe(true);
     }
     // The four variants, plus the one text a search that could not read the root is allowed to state.
@@ -162,13 +182,21 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
       `${cases[0]!.prefix}${headAt(empty)}. No directory under it holds one (searched 1 directories to depth 3). ` +
         "projectRoot must be the directory that holds compile_commands.json, from a native build on this host.",
     );
-    expect(cases[1]!.text).toBe(`${cases[1]!.prefix}${headAt(absent)}. That directory does not exist.`);
+    expect(cases[1]!.text).toBe(
+      `${cases[1]!.prefix}${headAt(absent)}. That directory does not exist.`,
+    );
     expect(cases[2]!.text).toBe(
       `${cases[2]!.prefix}${headAt(repo)}. Directories under it that hold a compile_commands.json, ` +
         `nearest first: "${join(repo, "build")}". Pass one of them as projectRoot.`,
     );
-    expect(cases[3]!.text).toBe(`${cases[3]!.prefix}${headAt(unreadable)}. The file is present but could not be read.`);
-    expect(cases[6]!.text.startsWith(`${cases[6]!.prefix}${headAt(notADirectory)}. That directory's own listing could not be read (`)).toBe(true);
+    expect(cases[3]!.text).toBe(
+      `${cases[3]!.prefix}${headAt(unreadable)}. The file is present but could not be read.`,
+    );
+    expect(
+      cases[6]!.text.startsWith(
+        `${cases[6]!.prefix}${headAt(notADirectory)}. That directory's own listing could not be read (`,
+      ),
+    ).toBe(true);
     // Which errno said so is platform-specific; what the text must never do is claim nothing holds one. The
     // sibling `build` beside the file holds a database naming no directory of this host.
     expect(
@@ -197,7 +225,11 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
   it("path-escape, from the resolver that refuses it before any disk access", async () => {
     const root = cppRoot();
     const sessions = sessionsFor(fakeProcessByFile(() => []));
-    const out = runCppFileSymbols(sessions, { projectRoot: root, file: "../outside.cpp", depth: 1 });
+    const out = runCppFileSymbols(sessions, {
+      projectRoot: root,
+      file: "../outside.cpp",
+      depth: 1,
+    });
 
     await expect(classOf(out)).resolves.toBe("path-escape");
   });
@@ -220,7 +252,10 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
 
   it("path-ignored, from the config check that runs before the file is opened", async () => {
     const root = cppRoot();
-    writeFileSync(join(root, "mcp-code-nav.config.json"), JSON.stringify({ ignoredPaths: ["a.cpp"] }));
+    writeFileSync(
+      join(root, "mcp-code-nav.config.json"),
+      JSON.stringify({ ignoredPaths: ["a.cpp"] }),
+    );
     const sessions = sessionsFor(fakeProcessByFile(() => []));
     const out = runCppFileSymbols(sessions, { projectRoot: root, file: "a.cpp", depth: 1 });
 
@@ -247,15 +282,25 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
   it("symbol-not-found, from the outline search that came up empty", async () => {
     const root = cppRoot();
     const sessions = sessionsFor(fakeProcessByFile(() => [symAt("Foo", 5, 0, 6)]));
-    const out = runCppFindSymbol(sessions, { projectRoot: root, name: "Bar", file: join(root, "a.cpp") });
+    const out = runCppFindSymbol(sessions, {
+      projectRoot: root,
+      name: "Bar",
+      file: join(root, "a.cpp"),
+    });
 
     await expect(classOf(out)).resolves.toBe("symbol-not-found");
   });
 
   it("symbol-ambiguous, from the same search that found two of them", async () => {
     const root = cppRoot();
-    const sessions = sessionsFor(fakeProcessByFile(() => [symAt("Foo", 5, 0, 6), symAt("Foo", 5, 9, 6)]));
-    const out = runCppFindSymbol(sessions, { projectRoot: root, name: "Foo", file: join(root, "a.cpp") });
+    const sessions = sessionsFor(
+      fakeProcessByFile(() => [symAt("Foo", 5, 0, 6), symAt("Foo", 5, 9, 6)]),
+    );
+    const out = runCppFindSymbol(sessions, {
+      projectRoot: root,
+      name: "Foo",
+      file: join(root, "a.cpp"),
+    });
 
     await expect(classOf(out)).resolves.toBe("symbol-ambiguous");
   });
@@ -300,8 +345,15 @@ describe("what the sweep emits, from the clang-query seam", () => {
 
   it("sweep-failed, when every translation unit failed the same way", async () => {
     const root = sweepRoot(["a.cpp"]);
-    const failing: ClangQueryExecFn = async () => ({ exitCode: 1, stdout: "", stderr: "error: no such matcher" });
-    const out = runCppFindDerivedClasses({ exec: failing, cache: new SweepCache() }, { projectRoot: root, qualifiedName: "Base" });
+    const failing: ClangQueryExecFn = async () => ({
+      exitCode: 1,
+      stdout: "",
+      stderr: "error: no such matcher",
+    });
+    const out = runCppFindDerivedClasses(
+      { exec: failing, cache: new SweepCache() },
+      { projectRoot: root, qualifiedName: "Base" },
+    );
 
     await expect(classOf(out)).resolves.toBe("sweep-failed");
   });
@@ -329,7 +381,12 @@ describe("what the Go tools and a dead server emit", () => {
     const file = join(root, "a.go");
     writeFileSync(file, "package main\n");
     const sessions = new LspSessionManager({ sleep: async () => {} });
-    const out = runGoFileSymbols(sessions, { sourceRoots: [root], file, depth: 1, timeBudgetMs: 60_000 });
+    const out = runGoFileSymbols(sessions, {
+      sourceRoots: [root],
+      file,
+      depth: 1,
+      timeBudgetMs: 60_000,
+    });
 
     await expect(classOf(out)).resolves.toBe("no-module");
   });
@@ -341,7 +398,9 @@ describe("what the Go tools and a dead server emit", () => {
     );
 
     expect(classifyError(failure.message).errorClass).toBe("server-unavailable");
-    expect(classifyError(`cpp_file_symbols failed: ${failure.message}`).errorClass).toBe("server-unavailable");
+    expect(classifyError(`cpp_file_symbols failed: ${failure.message}`).errorClass).toBe(
+      "server-unavailable",
+    );
   });
 
   it("session-lost, for both the dead child and the one that was replaced mid-query", () => {
@@ -376,34 +435,43 @@ describe("the table's order is what keeps the more specific cause", () => {
 
   it("says compile-db-missing, not a bare not-found, for a database that is not there", () => {
     expect(
-      classifyError('cpp_file_symbols failed: compile_commands.json not found or unreadable at "D:\\repo"').errorClass,
+      classifyError(
+        'cpp_file_symbols failed: compile_commands.json not found or unreadable at "D:\\repo"',
+      ).errorClass,
     ).toBe("compile-db-missing");
   });
 
   it("says server-unavailable, not tool-unknown, for a binary that is not on PATH", () => {
-    expect(classifyError('Cannot start clangd: "clangd" on PATH was not found (ENOENT)').errorClass).toBe(
-      "server-unavailable",
-    );
+    expect(
+      classifyError('Cannot start clangd: "clangd" on PATH was not found (ENOENT)').errorClass,
+    ).toBe("server-unavailable");
     expect(classifyError("Tool cpp_nothing not found").errorClass).toBe("tool-unknown");
   });
 
   it("folds a quoted path or name and every digit run out of the head", () => {
-    expect(classifyError('cpp_find_symbol failed: no symbol "Widget" found in "D:\\src\\a.cpp".').errorHead).toBe(
-      'cpp_find_symbol failed: no symbol "…" found in "…".',
-    );
     expect(
-      classifyError("cpp_find_derived_classes swept 3/9 translation units within its 5000 ms ceiling").errorHead,
+      classifyError('cpp_find_symbol failed: no symbol "Widget" found in "D:\\src\\a.cpp".')
+        .errorHead,
+    ).toBe('cpp_find_symbol failed: no symbol "…" found in "…".');
+    expect(
+      classifyError(
+        "cpp_find_derived_classes swept 3/9 translation units within its 5000 ms ceiling",
+      ).errorHead,
     ).toBe("cpp_find_derived_classes swept #/# translation units within its # ms ceiling");
   });
 
   it("folds an unquoted absolute path too, and leaves a bare name alone", () => {
-    expect(classifyError("cpp_file_symbols failed: D:\\tmp\\build\\compile_commands.json is not valid JSON").errorHead).toBe(
-      "cpp_file_symbols failed: … is not valid JSON",
+    expect(
+      classifyError(
+        "cpp_file_symbols failed: D:\\tmp\\build\\compile_commands.json is not valid JSON",
+      ).errorHead,
+    ).toBe("cpp_file_symbols failed: … is not valid JSON");
+    expect(
+      classifyError("gopls looked in D:/mod/storage/store.go and answered nothing").errorHead,
+    ).toBe("gopls looked in … and answered nothing");
+    expect(classifyError("read /tmp/build/x/a.cpp after 3 attempts").errorHead).toBe(
+      "read … after # attempts",
     );
-    expect(classifyError("gopls looked in D:/mod/storage/store.go and answered nothing").errorHead).toBe(
-      "gopls looked in … and answered nothing",
-    );
-    expect(classifyError("read /tmp/build/x/a.cpp after 3 attempts").errorHead).toBe("read … after # attempts");
     // The tool name in the SDK's own text is the fact worth grouping by, and a single slash is not a path.
     expect(classifyError("MCP error -32602: Tool cpp_find_symbols not found").errorHead).toBe(
       "MCP error -#: Tool cpp_find_symbols not found",
@@ -420,7 +488,9 @@ describe("the table's order is what keeps the more specific cause", () => {
     const heavy = `${"/".repeat(4000)}x`;
 
     expect(classifyError(heavy).errorHead.length).toBeLessThanOrEqual(80);
-    expect(classifyError(`${heavy} ${heavy} ${heavy} is not valid JSON`).errorHead.length).toBeLessThanOrEqual(80);
+    expect(
+      classifyError(`${heavy} ${heavy} ${heavy} is not valid JSON`).errorHead.length,
+    ).toBeLessThanOrEqual(80);
   });
 
   it("keeps the head to 80 characters and survives an empty text", () => {

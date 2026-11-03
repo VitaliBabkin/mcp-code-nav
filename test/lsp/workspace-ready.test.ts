@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { clangdConfig, goplsConfig, type LanguageServerConfig } from "../../src/lsp/server-config.js";
+import {
+  clangdConfig,
+  goplsConfig,
+  type LanguageServerConfig,
+} from "../../src/lsp/server-config.js";
 import { LspSession } from "../../src/lsp/session.js";
 import { fakeServer } from "../helpers/fake-lsp.js";
 
@@ -32,8 +36,12 @@ describe("awaitWorkspaceReady", () => {
     const ready = session.awaitWorkspaceReady(1000);
     expect(await server.createProgress("tok-1")).toBeNull();
     expect(server.progressTokens).toEqual(["tok-1"]);
-    expect(server.sendProgress("tok-1", { kind: "begin", title: "Setting up workspace" })).toBe(true);
-    expect(server.sendProgress("tok-1", { kind: "end", message: "Finished loading packages." })).toBe(true);
+    expect(server.sendProgress("tok-1", { kind: "begin", title: "Setting up workspace" })).toBe(
+      true,
+    );
+    expect(
+      server.sendProgress("tok-1", { kind: "end", message: "Finished loading packages." }),
+    ).toBe(true);
     expect(await ready).toBe("ready");
   });
 

@@ -31,7 +31,10 @@ export const CALL_ERROR_CLASSES: readonly string[] = [
  * Each anchor is a phrase its own producer emits — not a paraphrase — which is what makes a reworded error
  * fail a test instead of drifting into `other`.
  */
-const ERROR_CLASS_TABLE: readonly { readonly errorClass: string; readonly anchors: readonly RegExp[] }[] = [
+const ERROR_CLASS_TABLE: readonly {
+  readonly errorClass: string;
+  readonly anchors: readonly RegExp[];
+}[] = [
   { errorClass: "compile-db-missing", anchors: [/compile_commands\.json not found or unreadable/] },
   { errorClass: "compile-db-invalid", anchors: [/compile_commands\.json is not valid JSON/] },
   {
@@ -43,17 +46,26 @@ const ERROR_CLASS_TABLE: readonly { readonly errorClass: string; readonly anchor
     ],
   },
   { errorClass: "tool-unknown", anchors: [/Tool \S+ not found/] },
-  { errorClass: "path-escape", anchors: [/escapes every declared root/, /outside every declared source/] },
+  {
+    errorClass: "path-escape",
+    anchors: [/escapes every declared root/, /outside every declared source/],
+  },
   { errorClass: "path-ambiguous", anchors: [/exists under more than one declared root/] },
   { errorClass: "path-ignored", anchors: [/is pre-excluded by this project's/] },
   // The locator text echoes npm's stderr, which can itself say `no such file or directory`, so it is matched
   // before the class that phrase belongs to.
-  { errorClass: "server-unavailable", anchors: [/Cannot start (clangd|gopls|tsgo):/, /failed to spawn /] },
+  {
+    errorClass: "server-unavailable",
+    anchors: [/Cannot start (clangd|gopls|tsgo):/, /failed to spawn /],
+  },
   {
     errorClass: "file-not-found",
     anchors: [/no such file or directory/, /does not exist, so nothing was searched/],
   },
-  { errorClass: "no-module", anchors: [/is not inside a Go module/, /is not inside an npm package/] },
+  {
+    errorClass: "no-module",
+    anchors: [/is not inside a Go module/, /is not inside an npm package/],
+  },
   {
     errorClass: "session-lost",
     anchors: [/has no live process to notify/, /restarted during the query about/],
@@ -82,7 +94,10 @@ const ERROR_CLASS_TABLE: readonly { readonly errorClass: string; readonly anchor
     ],
   },
   { errorClass: "sweep-failed", anchors: [/translation units with the same error/] },
-  { errorClass: "budget-exceeded", anchors: [/\d+ ms budget/, /\d+ ms ceiling/, /ran out of the call's/] },
+  {
+    errorClass: "budget-exceeded",
+    anchors: [/\d+ ms budget/, /\d+ ms ceiling/, /ran out of the call's/],
+  },
   {
     errorClass: "symbol-ambiguous",
     anchors: [
@@ -131,7 +146,9 @@ function errorHead(text: string): string {
   return firstLine
     .slice(0, HEAD_SCAN_CHARS)
     .replaceAll(/"[^"]*"/g, `"…"`)
-    .replaceAll(/([A-Za-z]:[\\/]|(?<!\w)\/)[^\s"'`]*/g, (path: string) => (isRootedPath(path) ? "…" : path))
+    .replaceAll(/([A-Za-z]:[\\/]|(?<!\w)\/)[^\s"'`]*/g, (path: string) =>
+      isRootedPath(path) ? "…" : path,
+    )
     .replaceAll(/\d+/g, "#")
     .slice(0, HEAD_MAX_CHARS);
 }

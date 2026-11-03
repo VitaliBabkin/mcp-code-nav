@@ -5,11 +5,15 @@ const realpath = vi.hoisted(() => vi.fn<(path: string) => string>());
 
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
-  const native = Object.assign((path: string) => realpath(path), { native: (path: string) => realpath(path) });
+  const native = Object.assign((path: string) => realpath(path), {
+    native: (path: string) => realpath(path),
+  });
   return { ...actual, realpathSync: native };
 });
 
-const { PathEscapeError, resolveWithinAnyRoot } = await import("../../src/paths/resolve-safe-path.js");
+const { PathEscapeError, resolveWithinAnyRoot } = await import(
+  "../../src/paths/resolve-safe-path.js"
+);
 
 function errno(code: string): NodeJS.ErrnoException {
   return Object.assign(new Error(code), { code });
@@ -55,11 +59,14 @@ describe("resolveWithinAnyRoot when the real path cannot be established", () => 
     expect(() => resolveWithinAnyRoot([root], "src/a.cpp", () => true)).toThrow(PathEscapeError);
   });
 
-  it.each(["ENOENT", "ENOTDIR"])("still resolves a missing leaf (%s) under the real root", (code) => {
-    realpath.mockImplementation((path) => {
-      if (path === file) throw errno(code);
-      return path;
-    });
-    expect(resolveWithinAnyRoot([root], "src/a.cpp", () => true).absolutePath).toBe(file);
-  });
+  it.each(["ENOENT", "ENOTDIR"])(
+    "still resolves a missing leaf (%s) under the real root",
+    (code) => {
+      realpath.mockImplementation((path) => {
+        if (path === file) throw errno(code);
+        return path;
+      });
+      expect(resolveWithinAnyRoot([root], "src/a.cpp", () => true).absolutePath).toBe(file);
+    },
+  );
 });

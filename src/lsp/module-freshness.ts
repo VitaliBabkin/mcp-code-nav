@@ -25,7 +25,10 @@ export interface SnapshotDiff {
   readonly deleted: string[];
 }
 
-export function diffSnapshots(previous: ReadonlyMap<string, string>, current: ReadonlyMap<string, string>): SnapshotDiff {
+export function diffSnapshots(
+  previous: ReadonlyMap<string, string>,
+  current: ReadonlyMap<string, string>,
+): SnapshotDiff {
   const created: string[] = [];
   const changed: string[] = [];
   for (const [path, stamp] of current) {
@@ -123,7 +126,9 @@ export class ModuleFreshness {
    */
   private missingSnapshot(fallback: string): string {
     const stated = this.deps.reasonForMissingSnapshot?.();
-    return stated === undefined ? fallback : `${stated} — this session was disposed and the next call reloads it`;
+    return stated === undefined
+      ? fallback
+      : `${stated} — this session was disposed and the next call reloads it`;
   }
 
   /**

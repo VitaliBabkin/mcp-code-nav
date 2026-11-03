@@ -26,7 +26,13 @@ import { type Budget, withinBudget } from "./budget.js";
 import type { BoundaryTest, ReportedLocation } from "./lsp-locations.js";
 import type { RowSpeller } from "./location-naming.js";
 import type { NavigationLimit } from "./navigation-limits.js";
-import { candidateText, containerOf, freshnessText, type Step, withArticle } from "./navigation-text.js";
+import {
+  candidateText,
+  containerOf,
+  freshnessText,
+  type Step,
+  withArticle,
+} from "./navigation-text.js";
 import {
   addressTsSymbol,
   spellTsRow,
@@ -34,7 +40,12 @@ import {
   type TsCandidate,
   type TsSubject,
 } from "./ts-addressing.js";
-import { resolveTsTarget, type HumanSummary, type TsTarget, type TsTargetDeps } from "./ts-shared.js";
+import {
+  resolveTsTarget,
+  type HumanSummary,
+  type TsTarget,
+  type TsTargetDeps,
+} from "./ts-shared.js";
 import { messageOf } from "../error-message.js";
 
 /** How many configs, and how many uncovered sources, one `scope` block may name; the counts beside them stay exact. */
@@ -42,7 +53,9 @@ const TS_SCOPE_LIST_LIMIT = 20;
 
 /** Whether `projects` names every project it counts, which is all a derived number in the sentence may use. */
 function projectsNamed(projects: TsProjectsBlock): boolean {
-  return projects.configs.length + projects.failed.length + projects.subsumed.length === projects.count;
+  return (
+    projects.configs.length + projects.failed.length + projects.subsumed.length === projects.count
+  );
 }
 
 /** A list that reaches the cap is twenty named, not twenty total; the `+` says which the reader is seeing. */
@@ -134,7 +147,9 @@ export interface TsUncoveredBlock {
 }
 
 /** Exactly one of these two blocks is on every TS answer: what loaded, or why that is not known. */
-export type TsScopeProjects = { readonly projects: TsProjectsBlock } | { readonly projectsUnavailable: string };
+export type TsScopeProjects =
+  | { readonly projects: TsProjectsBlock }
+  | { readonly projectsUnavailable: string };
 
 /** Exactly one of these two: the sources no project includes, or why the set cannot be proved. */
 export type TsScopeUncovered =
@@ -193,7 +208,10 @@ export interface TsScopeSource extends TsWorkspaceOpen, TsMapFacts {
 }
 
 /** What a type-aware request needs to answer for the process that was proved. */
-export type TsRequestQuery = Pick<TsQuery, "session" | "budget" | "workspaceRoot" | "anchorsProvenOn">;
+export type TsRequestQuery = Pick<
+  TsQuery,
+  "session" | "budget" | "workspaceRoot" | "anchorsProvenOn"
+>;
 
 /** What the project map left this call with: what to anchor, what refused to list, and what nothing lists. */
 export interface TsMapFacts {
@@ -314,9 +332,14 @@ function withoutMap(reason: string): TsMapFacts {
   };
 }
 
-export function tsBudgetText(tool: string, budget: Budget, what: string, workspaceRoot: string): string {
+export function tsBudgetText(
+  tool: string,
+  budget: Budget,
+  what: string,
+  workspaceRoot: string,
+): string {
   return (
-    `${tool} failed: tsgo did not ${what} within this call's ${budget.ceilingMs} ms budget. The workspace at ` +
+    `${tool} failed: tsgo did not ${what} within this call's ${String(budget.ceilingMs)} ms budget. The workspace at ` +
     `"${workspaceRoot}" may still be loading its projects; raise timeBudgetMs or call again, and do not read ` +
     "this as an empty answer."
   );
@@ -325,7 +348,7 @@ export function tsBudgetText(tool: string, budget: Budget, what: string, workspa
 /** A map build is a queue of compiler runs, and abandoning one mid-queue would throw the work away twice. */
 export function listingBudgetText(tool: string, budget: Budget, workspaceRoot: string): string {
   return (
-    `${tool} failed: this call's ${budget.ceilingMs} ms budget ran out while the workspace ` +
+    `${tool} failed: this call's ${String(budget.ceilingMs)} ms budget ran out while the workspace ` +
     `"${workspaceRoot}" was being listed project by project. Those listings keep running, so the next call ` +
     "waits on the same map rather than starting a second pass; raise timeBudgetMs or call again."
   );
@@ -346,7 +369,7 @@ export function tsReadinessText(
 ): string {
   if (outcome === "restarted") return tsRestartedText(tool, symbol, workspaceRoot);
   return (
-    `${tool} failed: this server could not prove within its ${budget.ceilingMs} ms budget that the documents ` +
+    `${tool} failed: this server could not prove within its ${String(budget.ceilingMs)} ms budget that the documents ` +
     `this answer depends on — every project anchor and "${symbol}"'s own file — were opened on the process ` +
     `answering for the workspace "${workspaceRoot}", so a type-aware answer is not being returned. Raise ` +
     "timeBudgetMs or call again: a session whose anchors are open answers without waiting."
@@ -363,7 +386,12 @@ export function tsRestartedText(tool: string, symbol: string, workspaceRoot: str
 }
 
 /** Why the file a symbol is addressed in could not be addressed at all. */
-export function unreadableSourceText(tool: string, file: string, symbol: string, message: string): string {
+export function unreadableSourceText(
+  tool: string,
+  file: string,
+  symbol: string,
+  message: string,
+): string {
   return (
     `${tool} failed: "${file}" could not be read (${message}). A TS \`symbol\` is addressed against the ` +
     `file's own text as well as its outline, because a static member and a type beside a value are told ` +
@@ -375,7 +403,7 @@ export function unreadableSourceText(tool: string, file: string, symbol: string,
 function notFoundText(tool: string, symbol: string, file: string): string {
   return (
     `${tool} failed: "${file}" declares nothing named "${symbol}". \`symbol\` is a top-level name in the ` +
-    'file, or a dotted path descending through a class, interface, enum or namespace (`ExecDriver.run`, ' +
+    "file, or a dotted path descending through a class, interface, enum or namespace (`ExecDriver.run`, " +
     "`Ns.Inner.x`); an import binding matches like a variable and the checker follows the alias. A local, " +
     "or an object literal's member, is not addressable."
   );
@@ -386,14 +414,19 @@ function selectorSpelling(symbol: string, candidate: TsCandidate): string {
   return candidate.selector === undefined ? symbol : `${candidate.selector} ${symbol}`;
 }
 
-function sharedKeyText(tool: string, symbol: string, file: string, candidates: readonly TsCandidate[]): string {
+function sharedKeyText(
+  tool: string,
+  symbol: string,
+  file: string,
+  candidates: readonly TsCandidate[],
+): string {
   const lines = candidates.map(
     (candidate) =>
       candidateText(selectorSpelling(symbol, candidate), candidate.kind, file, candidate.line) +
       (candidate.selector === undefined ? " - no documented prefix separates these" : ""),
   );
   return (
-    `${tool} failed: "${symbol}" names ${candidates.length} declarations in "${file}" that TypeScript does ` +
+    `${tool} failed: "${symbol}" names ${String(candidates.length)} declarations in "${file}" that TypeScript does ` +
     "not merge into one, so this server will not pick between them. Select one with a prefix - `static`, " +
     "`instance`, `value`, `type` or `namespace`:\n" +
     lines.join("\n")
@@ -409,8 +442,17 @@ export function unreadableSpanText(tool: string, file: string, entry: LspDocumen
   );
 }
 
-export function notAddressableText(tool: string, symbol: string, file: string, through: string, kindName: string): string {
-  const why = kindName === "nothing" ? "no entry in this file carries that path" : `it is ${withArticle(kindName)}`;
+export function notAddressableText(
+  tool: string,
+  symbol: string,
+  file: string,
+  through: string,
+  kindName: string,
+): string {
+  const why =
+    kindName === "nothing"
+      ? "no entry in this file carries that path"
+      : `it is ${withArticle(kindName)}`;
   return (
     `${tool} failed: "${symbol}" cannot be addressed in "${file}": "${through}" is not a class, interface, ` +
     `enum or namespace (${why}), and only those four hold addressable members. Locals and object-literal ` +
@@ -418,14 +460,23 @@ export function notAddressableText(tool: string, symbol: string, file: string, t
   );
 }
 
-function subjectOf(tool: string, symbol: string, file: string, outcome: TsAddressOutcome): Step<TsSubject> {
+function subjectOf(
+  tool: string,
+  symbol: string,
+  file: string,
+  outcome: TsAddressOutcome,
+): Step<TsSubject> {
   if (outcome.kind === "addressed") return { ok: true, value: outcome.subject };
   if (outcome.kind === "not-found") return { ok: false, error: notFoundText(tool, symbol, file) };
   if (outcome.kind === "shared-key") {
     return { ok: false, error: sharedKeyText(tool, outcome.symbol, file, outcome.candidates) };
   }
-  if (outcome.kind === "unreadable-span") return { ok: false, error: unreadableSpanText(tool, file, outcome.entry) };
-  return { ok: false, error: notAddressableText(tool, symbol, file, outcome.through, outcome.kindName) };
+  if (outcome.kind === "unreadable-span")
+    return { ok: false, error: unreadableSpanText(tool, file, outcome.entry) };
+  return {
+    ok: false,
+    error: notAddressableText(tool, symbol, file, outcome.through, outcome.kindName),
+  };
 }
 
 /**
@@ -443,20 +494,25 @@ export function tsResolvedOf(subject: TsSubject): TsResolvedSymbol {
  * the outline alone: static-ness and the value-or-type meaning of a name are decided by the modifiers
  * beside its declaration, which only the text carries.
  */
-async function addressSubject(
+function addressSubject(
   tool: string,
   symbol: string,
   opened: TsOpened,
   outline: readonly LspDocumentSymbol[],
   askable?: (entry: LspDocumentSymbol) => boolean,
-): Promise<Step<TsSubject>> {
+): Step<TsSubject> {
   let text: string;
   try {
     text = readFileSync(opened.file, "utf-8");
   } catch (e) {
     return { ok: false, error: unreadableSourceText(tool, opened.file, symbol, messageOf(e)) };
   }
-  const outcome = addressTsSymbol(symbol, outline, { file: opened.file, lines: text.split(/\r?\n/) }, askable);
+  const outcome = addressTsSymbol(
+    symbol,
+    outline,
+    { file: opened.file, lines: text.split(/\r?\n/) },
+    askable,
+  );
   return subjectOf(tool, symbol, opened.file, outcome);
 }
 
@@ -478,14 +534,24 @@ async function loadProjectMap(
   // the process it was proved against, the map is rebuilt on every call here: one `--listFilesOnly`
   // per project per call, on top of the reload, already priced at "slow, never stale".
   const paths = opened.session.moduleSnapshotPaths() ?? workspaceWalkedPaths(opened.workspaceRoot);
-  if (paths === undefined) return { ok: true, value: withoutMap(noSnapshotReason(opened.workspaceRoot)) };
+  if (paths === undefined)
+    return { ok: true, value: withoutMap(noSnapshotReason(opened.workspaceRoot)) };
   const built = await withinBudget(
-    cachedProjectMap(opened.workspaceRoot, paths, opened.binary, opened.session.generation(), exec ?? defaultTsExec),
+    cachedProjectMap(
+      opened.workspaceRoot,
+      paths,
+      opened.binary,
+      opened.session.generation(),
+      exec ?? defaultTsExec,
+    ),
     opened.budget,
   );
-  if (built === undefined) return { ok: false, error: listingBudgetText(tool, opened.budget, opened.workspaceRoot) };
+  if (built === undefined)
+    return { ok: false, error: listingBudgetText(tool, opened.budget, opened.workspaceRoot) };
   if (built.kind === "unavailable") return { ok: true, value: withoutMap(built.reason) };
-  const anchors = built.projects.flatMap((project) => (project.anchor === null ? [] : [project.anchor]));
+  const anchors = built.projects.flatMap((project) =>
+    project.anchor === null ? [] : [project.anchor],
+  );
   return {
     ok: true,
     value: {
@@ -507,7 +573,11 @@ async function loadProjectMap(
  * manifest, or changed a file of the config closure changes the project set. A content edit changes neither,
  * which is what keeps a warm call cheap.
  */
-function mapIsStale(session: LspSession, workspaceRoot: string, freshness: FreshnessOutcome): boolean {
+function mapIsStale(
+  session: LspSession,
+  workspaceRoot: string,
+  freshness: FreshnessOutcome,
+): boolean {
   if (freshness.kind === "reloaded") return true;
   if (freshness.kind !== "pushed") return false;
   const diff = session.snapshotDiff();
@@ -537,7 +607,7 @@ export async function openTsQuery(
   const opened = await openWorkspace(target.value);
   const outline = await readTsOutline(tool, opened);
   if (!outline.ok) return outline;
-  const subject = await addressSubject(tool, input.symbol, opened, outline.value, askable);
+  const subject = addressSubject(tool, input.symbol, opened, outline.value, askable);
   if (!subject.ok) return subject;
   const anchored = await anchorProjects(tool, opened, deps.exec, input.symbol, [opened.file]);
   if (!anchored.ok) return anchored;
@@ -553,6 +623,9 @@ export async function openTsQuery(
     },
   };
 }
+
+/** How often a proof is remade because its child was replaced underneath it before the call gives up. */
+const MAX_ANCHOR_ATTEMPTS = 3;
 
 /** What `anchorProjects` proved: the map the anchors came from, and the spawn they were opened on. */
 export interface TsAnchored {
@@ -580,39 +653,66 @@ export async function anchorProjects(
   symbol: string,
   named: readonly string[],
 ): Promise<Step<TsAnchored>> {
-  // Starting the process waits for `initialize`, which a silent tsgo never answers: the wait is part of the call.
-  const started = await withinBudget(opened.session.openAnchorsOn([]).then(() => true), opened.budget);
-  if (started === undefined) {
-    return { ok: false, error: tsBudgetText(tool, opened.budget, "start", opened.workspaceRoot) };
+  // A child retired or replaced while the map was listed or the anchors opened leaves anchors computed against
+  // a baseline the answering process never took; the whole proof is made again on the new child, never patched.
+  for (let attempt = 0; attempt < MAX_ANCHOR_ATTEMPTS; attempt++) {
+    // Starting the process waits for `initialize`, which a silent tsgo never answers: the wait is part of the call.
+    const started = await withinBudget(
+      opened.session.openAnchorsOn([]).then(() => true),
+      opened.budget,
+    );
+    if (started === undefined) {
+      return { ok: false, error: tsBudgetText(tool, opened.budget, "start", opened.workspaceRoot) };
+    }
+    const generation = opened.session.generation();
+    const mapped = await loadProjectMap(tool, opened, exec);
+    if (!mapped.ok) return mapped;
+    const files = [...mapped.value.anchors, ...named];
+    // Nothing to open proves nothing, and a workspace-wide search over a server that loaded no project
+    // answers a silent `[]` : refused with what the map did find, not waited out.
+    if (files.length === 0) {
+      return { ok: false, error: noAnchorText(tool, symbol, opened.workspaceRoot, mapped.value) };
+    }
+    const opening = await withinBudget(
+      opened.session.openAnchorsOn(files).then((serial) => ({ serial })),
+      opened.budget,
+    );
+    if (opening === undefined) {
+      return {
+        ok: false,
+        error: tsBudgetText(tool, opened.budget, "open the project anchors", opened.workspaceRoot),
+      };
+    }
+    if (opened.session.generation() !== generation) continue;
+    const provenOn = opening.serial;
+    // A process replaced halfway through the opens holds only some of the documents, so the answer would be an
+    // empty from a server that never loaded what the question covers.
+    if (provenOn === undefined) {
+      return {
+        ok: false,
+        error: tsReadinessText(tool, opened.budget, symbol, opened.workspaceRoot, "restarted"),
+      };
+    }
+    const ready = await proveDocumentsOpen(tool, opened, symbol);
+    if (!ready.ok) return ready;
+    return { ok: true, value: { mapped: mapped.value, anchorsProvenOn: provenOn } };
   }
-  const mapped = await loadProjectMap(tool, opened, exec);
-  if (!mapped.ok) return mapped;
-  const files = [...mapped.value.anchors, ...named];
-  // Nothing to open proves nothing, and a workspace-wide search over a server that loaded no project
-  // answers a silent `[]` : refused with what the map did find, not waited out.
-  if (files.length === 0) {
-    return { ok: false, error: noAnchorText(tool, symbol, opened.workspaceRoot, mapped.value) };
-  }
-  const opening = await withinBudget(opened.session.openAnchorsOn(files).then((serial) => ({ serial })), opened.budget);
-  if (opening === undefined) {
-    return { ok: false, error: tsBudgetText(tool, opened.budget, "open the project anchors", opened.workspaceRoot) };
-  }
-  const provenOn = opening.serial;
-  // A process replaced halfway through the opens holds only some of the documents, so the answer would be an
-  // empty from a server that never loaded what the question covers.
-  if (provenOn === undefined) {
-    return { ok: false, error: tsReadinessText(tool, opened.budget, symbol, opened.workspaceRoot, "restarted") };
-  }
-  const ready = await proveDocumentsOpen(tool, opened, symbol);
-  if (!ready.ok) return ready;
-  return { ok: true, value: { mapped: mapped.value, anchorsProvenOn: provenOn } };
+  return {
+    ok: false,
+    error: tsReadinessText(tool, opened.budget, symbol, opened.workspaceRoot, "restarted"),
+  };
 }
 
 /**
  * Why a call addressed by a directory found no project to anchor:
  * the projects the map did find, each with why it gave no anchor, or why there is no map at all.
  */
-export function noAnchorText(tool: string, symbol: string, workspaceRoot: string, facts: TsMapFacts): string {
+export function noAnchorText(
+  tool: string,
+  symbol: string,
+  workspaceRoot: string,
+  facts: TsMapFacts,
+): string {
   const head =
     `${tool} failed: no project anchor could be opened in the workspace "${workspaceRoot}", so tsgo has loaded ` +
     `no project and a workspace-wide search for "${symbol}" would answer a silent empty list, which this ` +
@@ -621,10 +721,15 @@ export function noAnchorText(tool: string, symbol: string, workspaceRoot: string
   if (facts.projectsUnavailable !== undefined) {
     return `${head}There is no project map: ${facts.projectsUnavailable}.${tail}`;
   }
-  const failed = facts.failed.map((failure) => `  - "${failure.config}" failed to list: ${failure.reason}`);
+  const failed = facts.failed.map(
+    (failure) => `  - "${failure.config}" failed to list: ${failure.reason}`,
+  );
   const solution = facts.projects
     .filter((project) => project.anchor === null)
-    .map((project) => `  - "${project.config}" lists no member file to anchor on (a solution-style config)`);
+    .map(
+      (project) =>
+        `  - "${project.config}" lists no member file to anchor on (a solution-style config)`,
+    );
   const lines = [...failed, ...solution];
   if (lines.length === 0) {
     return `${head}The workspace holds no tsconfig.json or jsconfig.json project.${tail}`;
@@ -636,16 +741,33 @@ export async function openWorkspace(target: TsTarget): Promise<TsOpened> {
   const { session, budget, binary, workspaceRoot, enclosingWorkspace, file, mentionScan } = target;
   const freshness = await session.refreshModuleSnapshot();
   if (mapIsStale(session, workspaceRoot, freshness)) dropProjectMap(workspaceRoot);
-  return { session, budget, binary, workspaceRoot, enclosingWorkspace, freshness, file, mentionScan };
+  return {
+    session,
+    budget,
+    binary,
+    workspaceRoot,
+    enclosingWorkspace,
+    freshness,
+    file,
+    mentionScan,
+  };
 }
 
 /** One file's outline, bounded by the call's budget, or the reason the call did not get one. */
-export async function readTsOutline(tool: string, opened: TsOpened): Promise<Step<readonly LspDocumentSymbol[]>> {
+export async function readTsOutline(
+  tool: string,
+  opened: TsOpened,
+): Promise<Step<readonly LspDocumentSymbol[]>> {
   const outline = await withinBudget(opened.session.documentSymbol(opened.file), opened.budget);
   if (outline === undefined) {
     return {
       ok: false,
-      error: tsBudgetText(tool, opened.budget, `answer the outline of "${opened.file}"`, opened.workspaceRoot),
+      error: tsBudgetText(
+        tool,
+        opened.budget,
+        `answer the outline of "${opened.file}"`,
+        opened.workspaceRoot,
+      ),
     };
   }
   // tsgo's outline is syntactic and never premature, so an empty one is an answer about the file, and a file that declares nothing addresses no symbol — which the next step says.
@@ -653,15 +775,23 @@ export async function readTsOutline(tool: string, opened: TsOpened): Promise<Ste
 }
 
 /** The documents this answer depends on are opened, and that is the whole of the proof. */
-async function proveDocumentsOpen(tool: string, opened: TsWorkspaceOpen, symbol: string): Promise<Step<true>> {
+async function proveDocumentsOpen(
+  tool: string,
+  opened: TsWorkspaceOpen,
+  symbol: string,
+): Promise<Step<true>> {
   const readiness = await opened.session.awaitWorkspaceReady(opened.budget.remainingMs());
   if (readiness === "ready") return { ok: true, value: true };
-  return { ok: false, error: tsReadinessText(tool, opened.budget, symbol, opened.workspaceRoot, readiness) };
+  return {
+    ok: false,
+    error: tsReadinessText(tool, opened.budget, symbol, opened.workspaceRoot, readiness),
+  };
 }
 
 /** The configs the map loaded, capped; `count` and `failed` beside it stay exact. */
 function projectsBlock(query: TsScopeSource): TsScopeProjects {
-  if (query.projectsUnavailable !== undefined) return { projectsUnavailable: query.projectsUnavailable };
+  if (query.projectsUnavailable !== undefined)
+    return { projectsUnavailable: query.projectsUnavailable };
   return {
     projects: {
       count: query.projects.length + query.failed.length + query.subsumed.length,
@@ -693,7 +823,11 @@ function directoryCounts(files: readonly string[], workspaceRoot: string): TsUnc
   }
   return [...counts.entries()]
     .map(([directory, count]) => ({ directory, count }))
-    .sort((left, right) => right.count - left.count || (left.directory < right.directory ? -1 : left.directory > right.directory ? 1 : 0));
+    .sort(
+      (left, right) =>
+        right.count - left.count ||
+        (left.directory < right.directory ? -1 : left.directory > right.directory ? 1 : 0),
+    );
 }
 
 /**
@@ -701,7 +835,10 @@ function directoryCounts(files: readonly string[], workspaceRoot: string): TsUnc
  * The scan runs on the call's remaining budget: one that ran out reports the files it did not read rather than
  * failing the answer.
  */
-async function uncoveredBlock(query: TsScopeSource, mentionName: string): Promise<TsScopeUncovered> {
+async function uncoveredBlock(
+  query: TsScopeSource,
+  mentionName: string,
+): Promise<TsScopeUncovered> {
   const reason = uncoveredUnavailable(query);
   if (reason !== undefined) return { uncoveredSourcesUnavailable: reason };
   const ranked = [...rankPaths(query.uncovered ?? [])].sort(byNormalisedKey);
@@ -753,7 +890,10 @@ function workspaceTypescriptVersion(workspaceRoot: string): string | null {
   const manifestPath = join(workspaceRoot, "node_modules", "typescript", "package.json");
   try {
     const parsed: unknown = JSON.parse(readFileSync(manifestPath, "utf-8"));
-    const stated = parsed !== null && typeof parsed === "object" ? (parsed as { version?: unknown }).version : undefined;
+    const stated =
+      parsed !== null && typeof parsed === "object"
+        ? (parsed as { version?: unknown }).version
+        : undefined;
     if (typeof stated !== "string") return null;
     return stated.trim() === "" ? null : stated.trim();
   } catch {
@@ -772,14 +912,16 @@ function tsNavigationLimits(
   flags: TsScopeFlags,
 ): NavigationLimit[] {
   const limits: NavigationLimit[] = ["one-workspace"];
-  if ("projectsUnavailable" in projects || projects.projects.failed.length > 0) limits.push("projects-not-loaded");
+  if ("projectsUnavailable" in projects || projects.projects.failed.length > 0)
+    limits.push("projects-not-loaded");
   // The table's own order: what could not load, then what this class of answer can never hold, then what the
   // answering server is, then what the listing dropped. A reader that stops early still learns the answer came
   // from a different compiler than the workspace's own.
   if (flags.structuralImplementers) limits.push("structural-implementers-not-reported");
   const server = majorOf(answered.server.version);
   const workspace = majorOf(answered.workspaceTypescript);
-  if (server !== undefined && workspace !== undefined && server !== workspace) limits.push("workspace-typescript-differs");
+  if (server !== undefined && workspace !== undefined && server !== workspace)
+    limits.push("workspace-typescript-differs");
   if ("uncoveredSources" in uncovered && uncovered.uncoveredSources.count > 0) {
     limits.push("uncovered-sources-present");
   }
@@ -799,7 +941,7 @@ function tsNavigationLimits(
 export function subjectPositions(subject: TsSubject): ReadonlySet<string> {
   const positions = new Set<string>();
   const add = (at: { readonly line: number; readonly character: number }): void => {
-    positions.add(`${pathKey(subject.file)}:${at.line}:${at.character}`);
+    positions.add(`${pathKey(subject.file)}:${String(at.line)}:${String(at.character)}`);
   };
   for (const entry of subject.entries) {
     const start = entry.selectionRange?.start;
@@ -827,7 +969,10 @@ export function withoutPositions(
   locations: readonly ReportedLocation[],
   own: ReadonlySet<string>,
 ): readonly ReportedLocation[] {
-  return locations.filter((location) => !own.has(`${location.key}:${location.line}:${location.character ?? "-"}`));
+  return locations.filter(
+    (location) =>
+      !own.has(`${location.key}:${String(location.line)}:${String(location.character ?? "-")}`),
+  );
 }
 
 /**
@@ -861,7 +1006,10 @@ export async function tsNavigationScope(
  * the line that says which files hold it as text is the only thing pointing there. Empty when the set is not
  * known or holds nothing, so the refusal then carries no line.
  */
-export async function tsUncoveredClause(query: TsScopeSource, mentionName: string): Promise<string> {
+export async function tsUncoveredClause(
+  query: TsScopeSource,
+  mentionName: string,
+): Promise<string> {
   return tsUncoveredLine(await uncoveredBlock(query, mentionName));
 }
 
@@ -885,12 +1033,12 @@ export async function tsUncoveredClauseWithoutMap(
 
 /** `dir n` for one directory of the uncovered set, as the clause spells it. */
 function directoryText(entry: TsUncoveredDirectory): string {
-  return `${entry.directory} ${entry.count}`;
+  return `${entry.directory} ${String(entry.count)}`;
 }
 
 /** One file that mentions the name, with how many of its lines hold it (a count, never a line number). */
 function mentionText(entry: TsUncoveredMention): string {
-  return `${entry.file} (${entry.matchingLines} matching line${entry.matchingLines === 1 ? "" : "s"})`;
+  return `${entry.file} (${String(entry.matchingLines)} matching line${entry.matchingLines === 1 ? "" : "s"})`;
 }
 
 /** The head line's share of the uncovered set: only the reason it is not known. */
@@ -908,27 +1056,31 @@ const INCOMPLETE_TAIL = "Do not report this answer as complete until you have.";
  */
 export function tsUncoveredLine(scope: TsScopeUncovered): string {
   if ("uncoveredSourcesUnavailable" in scope) return "";
-  const { count, directories, directoriesTruncated, mentioning, namedFileUncovered } = scope.uncoveredSources;
+  const { count, directories, directoriesTruncated, mentioning, namedFileUncovered } =
+    scope.uncoveredSources;
   if (count === 0) return "";
   const named = namedFileUncovered ? ", the named file among them" : "";
   const dirs = directories
     .map(directoryText)
     .join(", ")
-    .concat(directoriesTruncated > 0 ? `, +${directoriesTruncated} more directories` : "");
-  const unsearched = `${count} file(s) no tsconfig project includes were not searched (${dirs})${named}`;
+    .concat(directoriesTruncated > 0 ? `, +${String(directoriesTruncated)} more directories` : "");
+  const unsearched = `${String(count)} file(s) no tsconfig project includes were not searched (${dirs})${named}`;
   const { name, unchecked } = mentioning;
   if (mentioning.count > 0) {
     const more =
-      mentioning.filesTruncated > 0 ? `, and ${mentioning.filesTruncated} more files in the directories above` : "";
-    const unread = unchecked > 0 ? `. ${unchecked} file(s) could not be checked - grep them too` : "";
+      mentioning.filesTruncated > 0
+        ? `, and ${String(mentioning.filesTruncated)} more files in the directories above`
+        : "";
+    const unread =
+      unchecked > 0 ? `. ${String(unchecked)} file(s) could not be checked - grep them too` : "";
     return (
-      `INCOMPLETE: ${unsearched}. ${mentioning.count} of them contain "${name}" and may hold more results - ` +
+      `INCOMPLETE: ${unsearched}. ${String(mentioning.count)} of them contain "${name}" and may hold more results - ` +
       `grep "${name}" in: ${mentioning.files.map(mentionText).join(", ")}${more}${unread}. ${INCOMPLETE_TAIL}`
     );
   }
   if (unchecked > 0) {
     return (
-      `INCOMPLETE: ${unsearched}. None of the checked files contains "${name}"; ${unchecked} file(s) could not ` +
+      `INCOMPLETE: ${unsearched}. None of the checked files contains "${name}"; ${String(unchecked)} file(s) could not ` +
       `be checked - grep them for "${name}". ${INCOMPLETE_TAIL}`
     );
   }
@@ -940,11 +1092,7 @@ export function tsUncoveredLine(scope: TsScopeUncovered): string {
  * the uncovered set is non-empty, the line that points at it; `text` is that followed by `rest` (the `limits:`
  * line and the rows), for clients that read `content`.
  */
-export function summarised(
-  head: string,
-  scope: TsScopeUncovered,
-  rest: string,
-): HumanSummary {
+export function summarised(head: string, scope: TsScopeUncovered, rest: string): HumanSummary {
   const line = tsUncoveredLine(scope);
   const summary = line === "" ? head : `${head}\n${line}`;
   return { summary, text: `${summary}\n${rest}` };
@@ -960,15 +1108,18 @@ export function summarised(
 export function tsScopeText(scope: TsWorkspaceScope): string {
   const projects =
     "projects" in scope
-      ? `${scope.projects.count} project(s) found` +
-        `${projectsNamed(scope.projects) ? `, ${scope.projects.configs.length} loaded` : ""}` +
-        `, ${scope.projects.failed.length} failed` +
+      ? `${String(scope.projects.count)} project(s) found` +
+        (projectsNamed(scope.projects) ? `, ${String(scope.projects.configs.length)} loaded` : "") +
+        `, ${String(scope.projects.failed.length)} failed` +
         (scope.projects.subsumed.length === 0
           ? ""
-          : `, ${scope.projects.subsumed.length} subsumed${cappedAt(scope.projects.subsumed) ? "+" : ""}`)
+          : `, ${String(scope.projects.subsumed.length)} subsumed${cappedAt(scope.projects.subsumed) ? "+" : ""}`)
       : scope.projectsUnavailable;
   const server = scope.server.version === null ? "" : `, answered by tsgo ${scope.server.version}`;
-  const spanned = scope.enclosingWorkspace === null ? "" : `; npm workspace "${scope.enclosingWorkspace}" not spanned`;
+  const spanned =
+    scope.enclosingWorkspace === null
+      ? ""
+      : `; npm workspace "${scope.enclosingWorkspace}" not spanned`;
   return (
     ` under workspace "${scope.workspaceRoot}": ${projects}${server}${tsUncoveredText(scope)}` +
     `${spanned}, freshness: ${freshnessText(scope.freshness)}`

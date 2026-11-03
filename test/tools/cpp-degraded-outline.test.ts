@@ -6,7 +6,11 @@ import type { LspDocumentSymbol } from "../../src/clangd/outline.js";
 import { classifyError } from "../../src/call-log/error-class.js";
 import { describeMissingCompileDb } from "../../src/clang-query/compile-db-hint.js";
 import type { LspProcess } from "../../src/lsp/process.js";
-import { clangdConfig, clangdNoDatabaseConfig, type LanguageServerConfig } from "../../src/lsp/server-config.js";
+import {
+  clangdConfig,
+  clangdNoDatabaseConfig,
+  type LanguageServerConfig,
+} from "../../src/lsp/server-config.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { runCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
 import { runCppFindCallers } from "../../src/tools/cpp-find-callers.js";
@@ -23,7 +27,9 @@ const SUMMARY_HEAD =
   "Parsed without a compile database: clangd used default flags, with no include paths or defines from a build, " +
   "so a declaration hidden behind a macro or a missing header may be absent or misnamed. ";
 
-const widget: LspDocumentSymbol[] = [{ name: "Widget", kind: 5, range: { start: { line: 0 }, end: { line: 0 } } }];
+const widget: LspDocumentSymbol[] = [
+  { name: "Widget", kind: 5, range: { start: { line: 0 }, end: { line: 0 } } },
+];
 
 interface Result {
   readonly isError?: boolean;
@@ -88,20 +94,28 @@ describe("cpp_file_symbols without a compile database", () => {
     const result = await outline("a.cpp");
 
     expect(result.isError).toBeUndefined();
-    expect(JSON.stringify(result.structuredContent).startsWith('{"summary":"Parsed without a compile database:')).toBe(
-      true,
-    );
+    expect(
+      JSON.stringify(result.structuredContent).startsWith(
+        '{"summary":"Parsed without a compile database:',
+      ),
+    ).toBe(true);
     expect(result.structuredContent).toEqual({
       summary: SUMMARY_HEAD + missing,
       symbols: [{ name: "Widget", kind: "class", range: { startLine: 1, endLine: 1 } }],
       scope: { projectRoot, limits: ["parsed-without-compile-database"] },
     });
-    expect(Object.keys(result.structuredContent as object)).toEqual(["summary", "symbols", "scope"]);
+    expect(Object.keys(result.structuredContent as object)).toEqual([
+      "summary",
+      "symbols",
+      "scope",
+    ]);
     expect(textOf(result)).toBe(SUMMARY_HEAD + missing);
   });
 
   it("answers a depth-0 outline, whose empty check and truncation agree", async () => {
-    answer = () => [{ ...widget[0]!, children: [{ name: "value", kind: 6, range: widget[0]!.range }] }];
+    answer = () => [
+      { ...widget[0]!, children: [{ name: "value", kind: 6, range: widget[0]!.range }] },
+    ];
 
     const top = await outline("a.cpp", { depth: 0 });
     const nested = await outline("a.h", { depth: 1 });
@@ -109,7 +123,9 @@ describe("cpp_file_symbols without a compile database", () => {
     const symbolsOf = (result: Result): { name: string; children?: unknown[] }[] =>
       (result.structuredContent as { symbols: { name: string; children?: unknown[] }[] }).symbols;
     expect(top.isError).toBeUndefined();
-    expect(symbolsOf(top)).toEqual([{ name: "Widget", kind: "class", range: { startLine: 1, endLine: 1 } }]);
+    expect(symbolsOf(top)).toEqual([
+      { name: "Widget", kind: "class", range: { startLine: 1, endLine: 1 } },
+    ]);
     expect(symbolsOf(nested)[0]?.children).toHaveLength(1);
   });
 
@@ -186,7 +202,11 @@ describe("cpp_file_symbols without a compile database", () => {
   it("keeps variant 3's error for a projectRoot that does not exist, and starts nothing", async () => {
     const gone = join(base, "gone");
 
-    const result = await runCppFileSymbols(sessions, { projectRoot: gone, file: "a.cpp", depth: 1 } as never);
+    const result = await runCppFileSymbols(sessions, {
+      projectRoot: gone,
+      file: "a.cpp",
+      depth: 1,
+    } as never);
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toBe(await describeMissingCompileDb(gone));
@@ -195,7 +215,11 @@ describe("cpp_file_symbols without a compile database", () => {
   });
 
   it("keeps the error for a projectRoot that is a file", async () => {
-    const result = await runCppFileSymbols(sessions, { projectRoot: join(projectRoot, "a.cpp"), file: "a.cpp", depth: 1 } as never);
+    const result = await runCppFileSymbols(sessions, {
+      projectRoot: join(projectRoot, "a.cpp"),
+      file: "a.cpp",
+      depth: 1,
+    } as never);
 
     expect(result.isError).toBe(true);
     expect(spawned).toEqual([]);
@@ -207,7 +231,9 @@ describe("cpp_file_symbols without a compile database", () => {
     const result = await outline("a.cpp");
 
     expect(result.isError).toBeUndefined();
-    expect((result.structuredContent as { summary: string }).summary).toContain("The file is present but could not be read.");
+    expect((result.structuredContent as { summary: string }).summary).toContain(
+      "The file is present but could not be read.",
+    );
   });
 
   it("resolves the file against projectRoot and the declared roots only, deriving nothing", async () => {
@@ -230,7 +256,10 @@ describe("cpp_file_symbols without a compile database", () => {
   });
 
   it("does not outline an ignored path", async () => {
-    writeFileSync(join(projectRoot, "mcp-code-nav.config.json"), JSON.stringify({ ignoredPaths: ["a.cpp"] }));
+    writeFileSync(
+      join(projectRoot, "mcp-code-nav.config.json"),
+      JSON.stringify({ ignoredPaths: ["a.cpp"] }),
+    );
 
     const result = await outline("a.cpp");
 
@@ -241,14 +270,20 @@ describe("cpp_file_symbols without a compile database", () => {
 });
 
 describe("the other four C++ tools without a compile database", () => {
+  let base: string;
   let root: string;
 
   beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), "mcp-code-nav-degraded-refuse-"));
+    // One level below a directory of its own: the hint lists the parent of projectRoot for sibling builds, and
+    // the shared temp directory holds tens of thousands of entries, so listing it can overrun the hint's
+    // 1000 ms bound and make two calls on the same root return different texts.
+    base = mkdtempSync(join(tmpdir(), "mcp-code-nav-degraded-refuse-"));
+    root = join(base, "proj");
+    mkdirSync(root);
   });
 
   afterEach(() => {
-    rmSync(root, { recursive: true, force: true });
+    rmSync(base, { recursive: true, force: true });
   });
 
   it("keep the missing-database error and start no clangd", async () => {
@@ -257,13 +292,17 @@ describe("the other four C++ tools without a compile database", () => {
     const head = await describeMissingCompileDb(root);
 
     const results = [
-      await runCppFindSymbol(sessions, { projectRoot: root, name: "Widget", file: "a.cpp" } as never),
+      await runCppFindSymbol(sessions, {
+        projectRoot: root,
+        name: "Widget",
+        file: "a.cpp",
+      } as never),
       await runCppFindReferences(sessions, { projectRoot: root, name: "Widget" } as never),
       await runCppFindCallers(sessions, { projectRoot: root, name: "Widget" } as never),
-      await runCppFindDerivedClasses(
-        { cache: new SweepCache() },
-        { projectRoot: root, qualifiedName: "Widget" } as never,
-      ),
+      await runCppFindDerivedClasses({ cache: new SweepCache() }, {
+        projectRoot: root,
+        qualifiedName: "Widget",
+      } as never),
     ];
 
     for (const result of results) {

@@ -15,8 +15,7 @@ import {
  * Shared across the C++ tools' input schemas so the wording stays identical
  * rather than drifting across copies.
  */
-export const SourceRootsSchema = PathList
-  .optional()
+export const SourceRootsSchema = PathList.optional()
   .default([])
   .describe(
     "Absolute directories `file`/`files` may resolve within, besides projectRoot. Omitted or empty: the source " +
@@ -41,7 +40,11 @@ export class IgnoredPathError extends Error {
 export function isPathResolutionError(
   e: unknown,
 ): e is PathEscapeError | AmbiguousRelativePathError | IgnoredPathError {
-  return e instanceof PathEscapeError || e instanceof AmbiguousRelativePathError || e instanceof IgnoredPathError;
+  return (
+    e instanceof PathEscapeError ||
+    e instanceof AmbiguousRelativePathError ||
+    e instanceof IgnoredPathError
+  );
 }
 
 /**
@@ -109,7 +112,9 @@ const PROJECT_ROOT_ONLY_HINT =
  * `SOURCE_ROOT_MAX_ASCENT` levels above `projectRoot`, never a filesystem root - or `undefined`.
  */
 function commonAncestor(projectRoot: string, file: string): string | undefined {
-  return boundedAncestors(projectRoot).find((ancestor) => !escapesRoot(pathKey(ancestor), pathKey(file)));
+  return boundedAncestors(projectRoot).find(
+    (ancestor) => !escapesRoot(pathKey(ancestor), pathKey(file)),
+  );
 }
 
 /**
@@ -119,11 +124,16 @@ function commonAncestor(projectRoot: string, file: string): string | undefined {
  */
 export function pathFixHint(
   e: PathEscapeError | AmbiguousRelativePathError | IgnoredPathError,
-  ctx: { readonly projectRoot: string; readonly file: string; readonly sourceRoots: CppSourceRootsBlock },
+  ctx: {
+    readonly projectRoot: string;
+    readonly file: string;
+    readonly sourceRoots: CppSourceRootsBlock;
+  },
 ): string {
   if (!(e instanceof PathEscapeError)) return "";
   const { sourceRoots } = ctx;
-  if (sourceRoots.origin === "declared") return " To read a file outside these roots, add its source tree to sourceRoots.";
+  if (sourceRoots.origin === "declared")
+    return " To read a file outside these roots, add its source tree to sourceRoots.";
   if (sourceRoots.origin === "derived") {
     return (
       ` "${sourceRoots.roots[0]}" was derived from compile_commands.json because sourceRoots was omitted; to read ` +
@@ -142,7 +152,8 @@ export function pathFixHint(
  */
 export function fileNotFoundHint(error: unknown, sourceRoots: CppSourceRootsBlock): string {
   if (error instanceof LanguageServerUnavailableError) return "";
-  const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+  const code =
+    typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
   if (code !== "ENOENT" || sourceRoots.origin !== "project-root-only") return "";
   return " Only projectRoot was searched; if the file lives in a source tree outside it, pass that tree as sourceRoots.";
 }

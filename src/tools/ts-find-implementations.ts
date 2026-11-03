@@ -5,7 +5,6 @@ import { textDocumentId } from "../lsp/document-uri.js";
 import type { LspSession } from "../lsp/session.js";
 import type { LspSessionManager } from "../lsp/session-manager.js";
 import { errorResult, successResult } from "../mcp-response.js";
-import { pathKey } from "../paths/path-containment.js";
 import type { ResolvedPath } from "../paths/resolve-safe-path.js";
 import type { Budget } from "./budget.js";
 import { inModuleFirst, type ReportedLocation, toReported } from "./lsp-locations.js";
@@ -31,7 +30,12 @@ import {
   type TsQueryDeps,
   type TsResolvedSymbol,
 } from "./ts-navigation-shared.js";
-import { type HumanSummary, TsSourceRootsSchema, timeBudgetSchema, withSummary } from "./ts-shared.js";
+import {
+  type HumanSummary,
+  TsSourceRootsSchema,
+  timeBudgetSchema,
+  withSummary,
+} from "./ts-shared.js";
 import { messageOf } from "../error-message.js";
 
 const TOOL = "ts_find_implementations";
@@ -53,13 +57,13 @@ export type TsFindImplementationsPayload = {
 
 export const TsFindImplementationsInput = z.object({
   sourceRoots: TsSourceRootsSchema,
-  file: PathInput
-    .describe("The file declaring the symbol: absolute, or relative to exactly one sourceRoots entry."),
-  symbol: NameInput
-    .describe(
-      "Name as declared in `file`: top-level, or a dotted path through classes, interfaces, enums and " +
-        "namespaces (`ExecDriver.run`, `Ns.Inner.x`).",
-    ),
+  file: PathInput.describe(
+    "The file declaring the symbol: absolute, or relative to exactly one sourceRoots entry.",
+  ),
+  symbol: NameInput.describe(
+    "Name as declared in `file`: top-level, or a dotted path through classes, interfaces, enums and " +
+      "namespaces (`ExecDriver.run`, `Ns.Inner.x`).",
+  ),
   timeBudgetMs: timeBudgetSchema(60_000),
 });
 
@@ -114,18 +118,26 @@ async function buildRows(
 function rowText(row: TsImplementationRow): string {
   const name = row.name ?? "<unnamed>";
   const kind = row.kind ?? "?";
-  return `  ${name} (${kind}) ${row.file}:${row.line}${row.reason ? ` - ${row.reason}` : ""}`;
+  return `  ${name} (${kind}) ${row.file}:${String(row.line)}${row.reason ? ` - ${row.reason}` : ""}`;
 }
 
 /** The same JSON, phrased once for a reader who will not parse it. */
 function humanSummary(payload: TsFindImplementationsPayload): HumanSummary {
   const { resolved, implementations, truncated, scope } = payload;
-  const tail = capsText([truncated > 0 ? `${truncated} row(s) dropped by the ${IMPLEMENTATIONS_LIMIT}-row cap` : undefined]);
+  const tail = capsText([
+    truncated > 0
+      ? `${String(truncated)} row(s) dropped by the ${String(IMPLEMENTATIONS_LIMIT)}-row cap`
+      : undefined,
+  ]);
   const rows = implementations.map(rowText).join("\n");
   const head =
-    `Implementations of ${resolved.kind} "${resolved.name}" (${resolved.file}:${resolved.line})${tsScopeText(scope)} ` +
-    `- ${implementations.length} row(s)${tail}.`;
-  return summarised(head, scope, `limits: ${scope.limits.join(", ")}${rows === "" ? "" : `\n${rows}`}`);
+    `Implementations of ${resolved.kind} "${resolved.name}" (${resolved.file}:${String(resolved.line)})${tsScopeText(scope)} ` +
+    `- ${String(implementations.length)} row(s)${tail}.`;
+  return summarised(
+    head,
+    scope,
+    `limits: ${scope.limits.join(", ")}${rows === "" ? "" : `\n${rows}`}`,
+  );
 }
 
 export async function runTsFindImplementations(
@@ -164,7 +176,13 @@ export async function runTsFindImplementations(
       `answer the query for "${input.symbol}"`,
     );
     if (!answered.ok) return errorResult(answered.error);
-    const locations = toReported("tsgo", TOOL, answered.value, tsFileExternal(query.workspaceRoot), input.symbol);
+    const locations = toReported(
+      "tsgo",
+      TOOL,
+      answered.value,
+      tsFileExternal(query.workspaceRoot),
+      input.symbol,
+    );
     if (!locations.ok) return errorResult(locations.error);
 
     const { rows, truncated } = await buildRows(
@@ -186,7 +204,12 @@ export async function runTsFindImplementations(
       },
       mentionNameOf(input.symbol),
     );
-    const payload: TsFindImplementationsPayload = { resolved, implementations: rows, truncated, scope };
+    const payload: TsFindImplementationsPayload = {
+      resolved,
+      implementations: rows,
+      truncated,
+      scope,
+    };
     const { summary, text } = humanSummary(payload);
     return successResult(withSummary(summary, payload), text);
   } catch (e) {
@@ -214,6 +237,7 @@ export function registerTsFindImplementations(
       description: TOOL_DESCRIPTION,
       inputSchema: TsFindImplementationsInput.shape,
     },
-    async (args) => runTsFindImplementations(sessions, args as TsFindImplementationsInputType, deps),
+    async (args) =>
+      runTsFindImplementations(sessions, args as TsFindImplementationsInputType, deps),
   );
 }

@@ -7,6 +7,7 @@ import { watchStdinClose, withCallLog } from "./call-log/logging-transport.js";
 import { openCallLog } from "./call-log/writer.js";
 import { SweepCache } from "./clang-query/sweep-cache.js";
 import { resolveRequestTimeoutMs } from "./lsp/request-control.js";
+import { resolveSessionLimits, warnOnStderr } from "./lsp/resource-limits.js";
 import { withRequestCancellation } from "./request-cancellation.js";
 import { LspSessionManager } from "./lsp/session-manager.js";
 import { registerCppFindDerivedClasses } from "./tools/cpp-find-derived-classes.js";
@@ -49,9 +50,10 @@ const server = new McpServer(
 
 // What is specific to a language server lives on its `LanguageServerConfig` — for gopls that includes the
 // module walk proving its package graph, which is why a clangd session never runs one.
-const sessions = new LspSessionManager({
-  requestTimeoutMs: resolveRequestTimeoutMs(process.env, (message) => process.stderr.write(`mcp-code-nav ${message}\n`)),
-});
+const sessions = new LspSessionManager(
+  { requestTimeoutMs: resolveRequestTimeoutMs(process.env, warnOnStderr) },
+  resolveSessionLimits(process.env, warnOnStderr),
+);
 const sweepCache = new SweepCache();
 
 registerCppFileSymbols(server, sessions);

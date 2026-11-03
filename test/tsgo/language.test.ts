@@ -55,7 +55,10 @@ describe("tsLanguageId", () => {
 describe("isTsOrJsSourceFile", () => {
   it("accepts every extension in TS_SOURCE_EXTENSIONS", () => {
     for (const extension of TS_SOURCE_EXTENSIONS) {
-      expect(isTsOrJsSourceFile(`a${extension}`), `accepted list should answer true for ${extension}`).toBe(true);
+      expect(
+        isTsOrJsSourceFile(`a${extension}`),
+        `accepted list should answer true for ${extension}`,
+      ).toBe(true);
     }
   });
 
@@ -87,7 +90,10 @@ describe("TS_SOURCE_EXTENSIONS", () => {
   it("maps every extension it lists through tsLanguageId to the id this test expects of it", () => {
     for (const extension of TS_SOURCE_EXTENSIONS) {
       const expected = LANGUAGE_IDS[extension];
-      expect(expected, `${extension} is listed but has no expected id to compare against`).not.toBeUndefined();
+      expect(
+        expected,
+        `${extension} is listed but has no expected id to compare against`,
+      ).not.toBeUndefined();
       expect(tsLanguageId(`a${extension}`)).toBe(expected);
     }
   });
@@ -95,13 +101,19 @@ describe("TS_SOURCE_EXTENSIONS", () => {
   it("lists only extensions whose id is one of the four tsgo is told", () => {
     const ids = new Set(Object.values(LANGUAGE_IDS));
     for (const extension of TS_SOURCE_EXTENSIONS) {
-      expect(ids.has(tsLanguageId(`a${extension}`)), `${extension} maps outside the four ids`).toBe(true);
+      expect(ids.has(tsLanguageId(`a${extension}`)), `${extension} maps outside the four ids`).toBe(
+        true,
+      );
     }
   });
 });
 
 describe("the languageId a session opens a TS document under", () => {
-  const BINARY: TsgoBinary = { executable: "/native/typescript-linux-x64/lib/tsc", version: "7.0.2", source: "global" };
+  const BINARY: TsgoBinary = {
+    executable: "/native/typescript-linux-x64/lib/tsc",
+    version: "7.0.2",
+    source: "global",
+  };
 
   it("comes from tsLanguageId for tsgo, whose one process serves both families", () => {
     const config = tsgoConfig(BINARY);

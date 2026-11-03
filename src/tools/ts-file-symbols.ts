@@ -1,6 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { type LspDocumentSymbol, symbolKindName, toOutline, type OutlineSymbol } from "../clangd/outline.js";
+import {
+  type LspDocumentSymbol,
+  symbolKindName,
+  toOutline,
+  type OutlineSymbol,
+} from "../clangd/outline.js";
 import type { LspSession } from "../lsp/session.js";
 import type { LspSessionManager } from "../lsp/session-manager.js";
 import { errorResult, successResult } from "../mcp-response.js";
@@ -13,7 +18,12 @@ import { containerOf } from "./navigation-text.js";
 import { PathInput } from "./input-limits.js";
 import { resolutionNote } from "./shared.js";
 import { CONTAINER_KINDS } from "./ts-addressing.js";
-import { TsSourceRootsSchema, resolveTsTarget, timeBudgetSchema, type TsTargetDeps } from "./ts-shared.js";
+import {
+  TsSourceRootsSchema,
+  resolveTsTarget,
+  timeBudgetSchema,
+  type TsTargetDeps,
+} from "./ts-shared.js";
 import { messageOf } from "../error-message.js";
 
 const TOOL = "ts_file_symbols";
@@ -35,17 +45,18 @@ export type TsFileSymbolsPayload = {
 
 export const TsFileSymbolsInput = z.object({
   sourceRoots: TsSourceRootsSchema,
-  file: PathInput
-    .describe(
-      "TypeScript or JavaScript file: absolute, or relative to exactly one sourceRoots entry.",
-    ),
+  file: PathInput.describe(
+    "TypeScript or JavaScript file: absolute, or relative to exactly one sourceRoots entry.",
+  ),
   depth: z
     .number()
     .int()
     .min(0)
     .max(1)
     .default(1)
-    .describe("0: top-level entries only. 1 (default): also the members of classes, interfaces, enums and namespaces."),
+    .describe(
+      "0: top-level entries only. 1 (default): also the members of classes, interfaces, enums and namespaces.",
+    ),
   timeBudgetMs: timeBudgetSchema(DEFAULT_TIME_BUDGET_MS),
 });
 
@@ -74,7 +85,11 @@ interface Classified {
 }
 
 /** One top-level `variable` entry as a hover row: its own name is where the checker is asked. */
-function hoverRow(entry: LspDocumentSymbol, file: string, workspaceRoot: string): DeclarationSource {
+function hoverRow(
+  entry: LspDocumentSymbol,
+  file: string,
+  workspaceRoot: string,
+): DeclarationSource {
   const start = entry.selectionRange?.start;
   return {
     name: entry.name,
@@ -112,10 +127,12 @@ async function classifyTopLevel(
   const verdicts = new Map<LspDocumentSymbol, string | undefined>();
   const unverified: string[] = [];
   for (const [index, entry] of asked.entries()) {
-    const description = described?.[index];
+    const description = described[index];
     const signature = description?.signature;
     if (signature === undefined) {
-      unverified.push(description?.descriptionUnavailable ?? "the hover answer carried no signature");
+      unverified.push(
+        description?.descriptionUnavailable ?? "the hover answer carried no signature",
+      );
     }
     verdicts.set(entry, signature);
   }
@@ -132,10 +149,9 @@ async function classifyTopLevel(
   return { declarations, bindings, unverified };
 }
 
-function unverifiedText(reasons: readonly string[]): string {
-  const [first] = reasons;
-  const noun = reasons.length === 1 ? "entry" : "entries";
-  return `${reasons.length} top-level variable ${noun} could not be checked: ${first}`;
+function unverifiedText(count: number, first: string): string {
+  const noun = count === 1 ? "entry" : "entries";
+  return `${String(count)} top-level variable ${noun} could not be checked: ${first}`;
 }
 
 export async function runTsFileSymbols(
@@ -153,14 +169,15 @@ export async function runTsFileSymbols(
     const outline = await withinBudget(session.documentSymbol(file), budget);
     if (outline === undefined) {
       return errorResult(
-        `${TOOL} failed: tsgo did not answer for "${file}" within its ${budget.ceilingMs} ms budget. ` +
+        `${TOOL} failed: tsgo did not answer for "${file}" within its ${String(budget.ceilingMs)} ms budget. ` +
           `The workspace at "${workspaceRoot}" may still be loading its projects; raise timeBudgetMs or ` +
           "call again, and do not read this as an empty file.",
       );
     }
     // tsgo's documentSymbol is syntactic and correct on the first call, so an empty outline is a real answer
     // about an empty file rather than a project that has not loaded.
-    if (outline.state !== "ok") return successResult<TsFileSymbolsPayload>({ symbols: [], bindings: [] });
+    if (outline.state !== "ok")
+      return successResult<TsFileSymbolsPayload>({ symbols: [], bindings: [] });
     const { declarations, bindings, unverified } = await classifyTopLevel(
       session,
       budget,
@@ -168,10 +185,13 @@ export async function runTsFileSymbols(
       workspaceRoot,
       outline.symbols,
     );
+    const [firstUnverified] = unverified;
     const payload: TsFileSymbolsPayload = {
       symbols: toOutline(withContainerChildren(declarations), input.depth),
       bindings,
-      ...(unverified.length === 0 ? {} : { bindingsUnverified: unverifiedText(unverified) }),
+      ...(firstUnverified === undefined
+        ? {}
+        : { bindingsUnverified: unverifiedText(unverified.length, firstUnverified) }),
     };
     return successResult(payload);
   } catch (e) {

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { clangdConfig, goplsConfig, type LanguageServerConfig } from "../../src/lsp/server-config.js";
+import {
+  clangdConfig,
+  goplsConfig,
+  type LanguageServerConfig,
+} from "../../src/lsp/server-config.js";
 import { LspSession } from "../../src/lsp/session.js";
 import { fakeServer, type FakeServer } from "../helpers/fake-lsp.js";
 import { sym } from "../helpers/fake-clangd.js";
@@ -7,7 +11,10 @@ import { sym } from "../helpers/fake-clangd.js";
 const SYMBOL = sym("Foo", 5);
 
 /** A session whose children come from `spawn`, counted so a test can tell a reuse from a respawn. */
-function sessionFor(spawn: (call: number) => FakeServer, config: LanguageServerConfig = clangdConfig) {
+function sessionFor(
+  spawn: (call: number) => FakeServer,
+  config: LanguageServerConfig = clangdConfig,
+) {
   let call = 0;
   const spawnFn = vi.fn(() => spawn(call++).process);
   const session = new LspSession({
@@ -38,7 +45,10 @@ describe("the handshake is not published until it is complete", () => {
       return server;
     });
 
-    const both = Promise.all([session.documentSymbol("/proj/a.cpp"), session.documentSymbol("/proj/b.cpp")]);
+    const both = Promise.all([
+      session.documentSymbol("/proj/a.cpp"),
+      session.documentSymbol("/proj/b.cpp"),
+    ]);
     settle?.();
     expect(await both).toEqual([
       { state: "ok", symbols: [SYMBOL] },
@@ -91,7 +101,9 @@ describe("a child whose handshake failed", () => {
       },
     });
     const { session } = sessionFor(() => server);
-    await expect(session.documentSymbol("/proj/a.cpp")).rejects.toThrow("clangd refused initialize");
+    await expect(session.documentSymbol("/proj/a.cpp")).rejects.toThrow(
+      "clangd refused initialize",
+    );
     expect(kill).toHaveBeenCalledTimes(1);
   });
 });
@@ -99,10 +111,15 @@ describe("a child whose handshake failed", () => {
 describe("the capabilities the handshake declares", () => {
   it("declares window.workDoneProgress to gopls, because without it no initial-load token is ever created", () => {
     const { capabilities } = goplsConfig.initializeParams("/mod") as {
-      capabilities: { window?: { workDoneProgress?: boolean }; textDocument?: Record<string, unknown> };
+      capabilities: {
+        window?: { workDoneProgress?: boolean };
+        textDocument?: Record<string, unknown>;
+      };
     };
     expect(capabilities.window?.workDoneProgress).toBe(true);
     // The capability the outline answer depends on is still beside it, not replaced by it.
-    expect(capabilities.textDocument).toMatchObject({ documentSymbol: { hierarchicalDocumentSymbolSupport: true } });
+    expect(capabilities.textDocument).toMatchObject({
+      documentSymbol: { hierarchicalDocumentSymbolSupport: true },
+    });
   });
 });

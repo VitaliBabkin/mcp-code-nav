@@ -42,11 +42,20 @@ function okResult(id: string, text = "answered"): Block {
 }
 
 function failedResult(id: string, text: string): Block {
-  return { type: "tool_result", tool_use_id: id, is_error: true, content: [{ type: "text", text }] };
+  return {
+    type: "tool_result",
+    tool_use_id: id,
+    is_error: true,
+    content: [{ type: "text", text }],
+  };
 }
 
 function assistant(timestamp: string, blocks: Block[]): string {
-  return JSON.stringify({ type: "assistant", timestamp, message: { role: "assistant", content: blocks } });
+  return JSON.stringify({
+    type: "assistant",
+    timestamp,
+    message: { role: "assistant", content: blocks },
+  });
 }
 
 function user(timestamp: string, blocks: Block[]): string {
@@ -95,14 +104,30 @@ describe("parseTranscript", () => {
 
   it("classifies this server's failure, marks the client-side class, and keeps no result text at all", () => {
     const calls = parse([
-      assistant("2026-09-30T10:00:00.000Z", [use("t1", "cpp_file_symbols"), foreignUse("t2", "Read")]),
+      assistant("2026-09-30T10:00:00.000Z", [
+        use("t1", "cpp_file_symbols"),
+        foreignUse("t2", "Read"),
+      ]),
       user("2026-09-30T10:00:00.100Z", [
-        failedResult("t1", 'MCP error -32602: Input validation error: [InputValidationError] for "D:\\repo"'),
+        failedResult(
+          "t1",
+          'MCP error -32602: Input validation error: [InputValidationError] for "D:\\repo"',
+        ),
         failedResult("t2", "Read failed: EACCES denied on a 900 kilobyte file"),
       ]),
     ]);
-    expect(calls[0]).toMatchObject({ clientSide: true, errorClass: "client-side-rejection", ok: false });
-    expect(calls[1]).toMatchObject({ ours: null, ok: false, errorClass: null, errorHead: null, clientSide: false });
+    expect(calls[0]).toMatchObject({
+      clientSide: true,
+      errorClass: "client-side-rejection",
+      ok: false,
+    });
+    expect(calls[1]).toMatchObject({
+      ours: null,
+      ok: false,
+      errorClass: null,
+      errorHead: null,
+      clientSide: false,
+    });
     expect(calls.map((call) => Object.hasOwn(call, "text"))).toEqual([false, false]);
   });
 
@@ -118,8 +143,14 @@ describe("parseTranscript", () => {
 
   it("strips only the configured server's prefix and ignores records with no tool blocks", () => {
     const calls = parse([
-      assistant("2026-09-30T10:00:00.000Z", [{ type: "tool_use", id: "t1", name: "mcp__other__cpp_file_symbols", input: {} }]),
-      JSON.stringify({ type: "summary", timestamp: "2026-09-30T10:00:01.000Z", summary: "walked the outline" }),
+      assistant("2026-09-30T10:00:00.000Z", [
+        { type: "tool_use", id: "t1", name: "mcp__other__cpp_file_symbols", input: {} },
+      ]),
+      JSON.stringify({
+        type: "summary",
+        timestamp: "2026-09-30T10:00:01.000Z",
+        summary: "walked the outline",
+      }),
     ]);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ ours: null, tool: "mcp__other__cpp_file_symbols" });
@@ -133,9 +164,22 @@ describe("detectRetries", () => {
       user(stamp, [okResult(id)]),
     ];
     const a = failingSymbolCall("A", "Widget", "2026-09-30T10:00:00.000Z");
-    const three = parse([...a, ...filler("f1", "10:00:01"), ...filler("f2", "10:00:02"), ...filler("f3", "10:00:03"), ...a]);
+    const three = parse([
+      ...a,
+      ...filler("f1", "10:00:01"),
+      ...filler("f2", "10:00:02"),
+      ...filler("f3", "10:00:03"),
+      ...a,
+    ]);
     expect(detectRetries(three, NO_WINDOW)).toHaveLength(1);
-    const four = parse([...a, ...filler("f1", "10:00:01"), ...filler("f2", "10:00:02"), ...filler("f3", "10:00:03"), ...filler("f4", "10:00:04"), ...a]);
+    const four = parse([
+      ...a,
+      ...filler("f1", "10:00:01"),
+      ...filler("f2", "10:00:02"),
+      ...filler("f3", "10:00:03"),
+      ...filler("f4", "10:00:04"),
+      ...a,
+    ]);
     expect(detectRetries(four, NO_WINDOW)).toHaveLength(0);
   });
 
@@ -154,18 +198,28 @@ describe("detectRetries", () => {
 
   it("names the keys whose values differ, and calls a reordered argument identical", () => {
     const changed = parse([
-      assistant("2026-09-30T10:00:00.000Z", [use("A", "cpp_file_symbols", { file: "a.cpp", projectRoot: "D:\\repo" })]),
-      user("2026-09-30T10:00:00.000Z", [failedResult("A", 'compile_commands.json not found or unreadable at "D:\\repo"')]),
-      assistant("2026-09-30T10:00:01.000Z", [use("B", "cpp_file_symbols", { file: "a.cpp", projectRoot: "D:\\build" })]),
+      assistant("2026-09-30T10:00:00.000Z", [
+        use("A", "cpp_file_symbols", { file: "a.cpp", projectRoot: "D:\\repo" }),
+      ]),
+      user("2026-09-30T10:00:00.000Z", [
+        failedResult("A", 'compile_commands.json not found or unreadable at "D:\\repo"'),
+      ]),
+      assistant("2026-09-30T10:00:01.000Z", [
+        use("B", "cpp_file_symbols", { file: "a.cpp", projectRoot: "D:\\build" }),
+      ]),
       user("2026-09-30T10:00:01.000Z", [okResult("B")]),
     ]);
     expect(detectRetries(changed, NO_WINDOW)).toEqual([
       { tool: "cpp_file_symbols", changed: true, changedKeys: ["projectRoot"], recovered: true },
     ]);
     const reordered = parse([
-      assistant("2026-09-30T10:00:00.000Z", [use("A", "cpp_find_symbol", { name: "Widget", projectRoot: "D:\\a" })]),
+      assistant("2026-09-30T10:00:00.000Z", [
+        use("A", "cpp_find_symbol", { name: "Widget", projectRoot: "D:\\a" }),
+      ]),
       user("2026-09-30T10:00:00.000Z", [failedResult("A", 'no symbol "Widget"')]),
-      assistant("2026-09-30T10:00:01.000Z", [use("B", "cpp_find_symbol", { projectRoot: "D:\\a", name: "Widget" })]),
+      assistant("2026-09-30T10:00:01.000Z", [
+        use("B", "cpp_find_symbol", { projectRoot: "D:\\a", name: "Widget" }),
+      ]),
       user("2026-09-30T10:00:01.000Z", [failedResult("B", 'no symbol "Widget"')]),
     ]);
     expect(detectRetries(reordered, NO_WINDOW)).toEqual([
@@ -201,7 +255,10 @@ describe("detectRetries", () => {
         use("A", "cpp_find_callers", { symbol: "Store.Open" }),
         use("B", "cpp_find_callers", { symbol: "Store.Close" }),
       ]),
-      user("2026-09-30T10:00:00.500Z", [failedResult("A", 'no symbol "Store.Open"'), okResult("B")]),
+      user("2026-09-30T10:00:00.500Z", [
+        failedResult("A", 'no symbol "Store.Open"'),
+        okResult("B"),
+      ]),
     ]);
     expect(detectRetries(parallel, NO_WINDOW)).toHaveLength(0);
   });
@@ -209,7 +266,10 @@ describe("detectRetries", () => {
   it("spends the event window only on events after the result, not on the batch that preceded it", () => {
     const sibling = foreignUse("S", "Read", { path: "notes.md" });
     const lines = [
-      assistant("2026-09-30T10:00:00.000Z", [use("A", "cpp_find_symbol", { name: "Widget" }), sibling]),
+      assistant("2026-09-30T10:00:00.000Z", [
+        use("A", "cpp_find_symbol", { name: "Widget" }),
+        sibling,
+      ]),
       user("2026-09-30T10:00:00.000Z", [failedResult("A", 'no symbol "Widget"'), okResult("S")]),
       assistant("2026-09-30T10:00:01.000Z", [foreignUse("f1", "Read")]),
       user("2026-09-30T10:00:01.000Z", [okResult("f1")]),
@@ -228,7 +288,10 @@ describe("detectRetries", () => {
         use("A1", "cpp_find_symbol", { name: "Foo" }),
         use("A2", "cpp_find_symbol", { name: "Bar" }),
       ]),
-      user("2026-09-30T10:00:00.100Z", [failedResult("A1", 'no symbol "Foo"'), failedResult("A2", 'no symbol "Bar"')]),
+      user("2026-09-30T10:00:00.100Z", [
+        failedResult("A1", 'no symbol "Foo"'),
+        failedResult("A2", 'no symbol "Bar"'),
+      ]),
       assistant("2026-09-30T10:00:01.000Z", [use("C", "cpp_find_symbol", { name: "Foo" })]),
       user("2026-09-30T10:00:01.100Z", [okResult("C")]),
     ]);
@@ -243,7 +306,10 @@ describe("detectRetries", () => {
         use("A1", "cpp_find_symbol", { name: "Foo" }),
         use("A2", "cpp_find_symbol", { name: "Bar" }),
       ]),
-      user("2026-09-30T10:00:00.100Z", [failedResult("A1", 'no symbol "Foo"'), failedResult("A2", 'no symbol "Bar"')]),
+      user("2026-09-30T10:00:00.100Z", [
+        failedResult("A1", 'no symbol "Foo"'),
+        failedResult("A2", 'no symbol "Bar"'),
+      ]),
       assistant("2026-09-30T10:00:01.000Z", [use("C", "cpp_find_symbol", { name: "Foo" })]),
       user("2026-09-30T10:00:01.100Z", [failedResult("C", 'no symbol "Foo"')]),
       assistant("2026-09-30T10:00:02.000Z", [use("D", "cpp_find_symbol", { name: "Bar" })]),
@@ -286,7 +352,9 @@ describe("detectFallbacks", () => {
     const longer = parse([
       assistant("2026-09-30T10:00:00.100Z", [use("A", "cpp_find_symbol", { name: "Widget" })]),
       user("2026-09-30T10:00:00.200Z", [okResult("A")]),
-      assistant("2026-09-30T10:00:00.300Z", [foreignUse("G", "Grep", { pattern: "WidgetFactory" })]),
+      assistant("2026-09-30T10:00:00.300Z", [
+        foreignUse("G", "Grep", { pattern: "WidgetFactory" }),
+      ]),
       user("2026-09-30T10:00:00.400Z", [okResult("G")]),
     ]);
     expect(detectFallbacks(longer, NO_WINDOW).fallbacks).toHaveLength(0);
@@ -323,16 +391,24 @@ describe("detectFallbacks", () => {
 
   it("needs a search program in the command, not merely the name in any text", () => {
     const withProgram = parse([
-      assistant("2026-09-30T10:00:00.000Z", [use("A", "go_find_callers", { symbol: "Store.Open" })]),
+      assistant("2026-09-30T10:00:00.000Z", [
+        use("A", "go_find_callers", { symbol: "Store.Open" }),
+      ]),
       user("2026-09-30T10:00:00.100Z", [okResult("A")]),
-      assistant("2026-09-30T10:00:00.200Z", [foreignUse("B", "Bash", { command: "rg Open internal" })]),
+      assistant("2026-09-30T10:00:00.200Z", [
+        foreignUse("B", "Bash", { command: "rg Open internal" }),
+      ]),
       user("2026-09-30T10:00:00.300Z", [okResult("B")]),
     ]);
     expect(detectFallbacks(withProgram, NO_WINDOW).fallbacks[0]?.kind).toBe("shell");
     const withoutProgram = parse([
-      assistant("2026-09-30T10:00:00.000Z", [use("A", "go_find_callers", { symbol: "Store.Open" })]),
+      assistant("2026-09-30T10:00:00.000Z", [
+        use("A", "go_find_callers", { symbol: "Store.Open" }),
+      ]),
       user("2026-09-30T10:00:00.100Z", [okResult("A")]),
-      assistant("2026-09-30T10:00:00.200Z", [foreignUse("B", "PowerShell", { command: "Get-Content Open" })]),
+      assistant("2026-09-30T10:00:00.200Z", [
+        foreignUse("B", "PowerShell", { command: "Get-Content Open" }),
+      ]),
       user("2026-09-30T10:00:00.300Z", [okResult("B")]),
     ]);
     expect(detectFallbacks(withoutProgram, NO_WINDOW).fallbacks).toHaveLength(0);
@@ -341,17 +417,23 @@ describe("detectFallbacks", () => {
   it("counts a workspaceSymbol query as a fallback and a positioned navigation as lspNav instead", () => {
     const symbol = parse([
       ...failingSymbolCall("A", "Widget", "2026-09-30T10:00:00.000Z"),
-      assistant("2026-09-30T10:00:01.000Z", [foreignUse("L", "LSP", { operation: "workspaceSymbol", query: "Widget" })]),
+      assistant("2026-09-30T10:00:01.000Z", [
+        foreignUse("L", "LSP", { operation: "workspaceSymbol", query: "Widget" }),
+      ]),
       user("2026-09-30T10:00:01.100Z", [okResult("L")]),
     ]);
     expect(detectFallbacks(symbol, NO_WINDOW).fallbacks[0]?.kind).toBe("lsp-symbol");
     const nav = parse([
       ...failingSymbolCall("A", "Widget", "2026-09-30T10:00:00.000Z"),
-      assistant("2026-09-30T10:00:01.000Z", [foreignUse("L", "LSP", { operation: "goToDefinition", line: 12 })]),
+      assistant("2026-09-30T10:00:01.000Z", [
+        foreignUse("L", "LSP", { operation: "goToDefinition", line: 12 }),
+      ]),
       user("2026-09-30T10:00:01.100Z", [okResult("L")]),
     ]);
     expect(detectFallbacks(nav, NO_WINDOW).fallbacks).toHaveLength(0);
-    expect(detectFallbacks(nav, NO_WINDOW).nav).toEqual([{ tool: "cpp_find_symbol", afterOk: false }]);
+    expect(detectFallbacks(nav, NO_WINDOW).nav).toEqual([
+      { tool: "cpp_find_symbol", afterOk: false },
+    ]);
   });
 
   it("looks as far as the fifth tool event after the result and no further", () => {
@@ -366,9 +448,18 @@ describe("detectFallbacks", () => {
       ...filler("3"),
       ...filler("4"),
     ];
-    const atFive = parse([...base, assistant("2026-09-30T10:00:05.000Z", [foreignUse("G", "Grep", { pattern: "Widget" })]), user("2026-09-30T10:00:05.100Z", [okResult("G")])]);
+    const atFive = parse([
+      ...base,
+      assistant("2026-09-30T10:00:05.000Z", [foreignUse("G", "Grep", { pattern: "Widget" })]),
+      user("2026-09-30T10:00:05.100Z", [okResult("G")]),
+    ]);
     expect(detectFallbacks(atFive, NO_WINDOW).fallbacks).toHaveLength(1);
-    const atSix = parse([...base, ...filler("5"), assistant("2026-09-30T10:00:06.000Z", [foreignUse("G", "Grep", { pattern: "Widget" })]), user("2026-09-30T10:00:06.100Z", [okResult("G")])]);
+    const atSix = parse([
+      ...base,
+      ...filler("5"),
+      assistant("2026-09-30T10:00:06.000Z", [foreignUse("G", "Grep", { pattern: "Widget" })]),
+      user("2026-09-30T10:00:06.100Z", [okResult("G")]),
+    ]);
     expect(detectFallbacks(atSix, NO_WINDOW).fallbacks).toHaveLength(0);
   });
 
@@ -377,16 +468,36 @@ describe("detectFallbacks", () => {
       return parse([
         assistant("2026-09-30T10:00:00.000Z", [use("A", tool, { [key]: value })]),
         user("2026-09-30T10:00:00.100Z", [okResult("A")]),
-        assistant("2026-09-30T10:00:00.200Z", [foreignUse("G", "Grep", { pattern: `class ${searched}` })]),
+        assistant("2026-09-30T10:00:00.200Z", [
+          foreignUse("G", "Grep", { pattern: `class ${searched}` }),
+        ]),
         user("2026-09-30T10:00:00.300Z", [okResult("G")]),
       ]);
     }
-    expect(detectFallbacks(named("cpp_find_symbol", "name", "ns::Foo::Bar", "Bar"), NO_WINDOW).fallbacks[0]?.identifier).toBe("Bar");
-    expect(detectFallbacks(named("go_find_references", "symbol", "pkg.Type", "Type"), NO_WINDOW).fallbacks[0]?.identifier).toBe("Type");
-    expect(detectFallbacks(named("cpp_find_symbol", "name", "Foo::bar(int)", "bar"), NO_WINDOW).fallbacks[0]?.identifier).toBe("bar");
-    expect(detectFallbacks(named("cpp_find_derived_classes", "qualifiedName", "ns::Foo*", "Foo"), NO_WINDOW).fallbacks[0]?.identifier).toBe("Foo");
-    expect(detectFallbacks(named("cpp_find_symbol", "name", "ns::ab", "ab"), NO_WINDOW).fallbacks).toHaveLength(0);
-    expect(detectFallbacks(named("cpp_find_symbol", "name", "ns::1Bad", "1Bad"), NO_WINDOW).fallbacks).toHaveLength(0);
+    expect(
+      detectFallbacks(named("cpp_find_symbol", "name", "ns::Foo::Bar", "Bar"), NO_WINDOW)
+        .fallbacks[0]?.identifier,
+    ).toBe("Bar");
+    expect(
+      detectFallbacks(named("go_find_references", "symbol", "pkg.Type", "Type"), NO_WINDOW)
+        .fallbacks[0]?.identifier,
+    ).toBe("Type");
+    expect(
+      detectFallbacks(named("cpp_find_symbol", "name", "Foo::bar(int)", "bar"), NO_WINDOW)
+        .fallbacks[0]?.identifier,
+    ).toBe("bar");
+    expect(
+      detectFallbacks(
+        named("cpp_find_derived_classes", "qualifiedName", "ns::Foo*", "Foo"),
+        NO_WINDOW,
+      ).fallbacks[0]?.identifier,
+    ).toBe("Foo");
+    expect(
+      detectFallbacks(named("cpp_find_symbol", "name", "ns::ab", "ab"), NO_WINDOW).fallbacks,
+    ).toHaveLength(0);
+    expect(
+      detectFallbacks(named("cpp_find_symbol", "name", "ns::1Bad", "1Bad"), NO_WINDOW).fallbacks,
+    ).toHaveLength(0);
   });
 
   it("names no identifier for the tools that do not take one", () => {
@@ -419,12 +530,19 @@ describe("detectFallbacks", () => {
 });
 
 describe("the transcript section over the fixtures", () => {
-  async function text(logsDir: string, transcriptDir: string | undefined = transcripts): Promise<string> {
+  async function text(
+    logsDir: string,
+    transcriptDir: string | undefined = transcripts,
+  ): Promise<string> {
     return renderText(await buildReport(options({ logs: logsDir, transcripts: transcriptDir })));
   }
 
   it("keeps one agent's context in one file, splitting main from subagent", async () => {
-    const stats = await summarizeTranscripts(await scanTranscripts(transcripts), "mcp-code-nav", NO_WINDOW);
+    const stats = await summarizeTranscripts(
+      await scanTranscripts(transcripts),
+      "mcp-code-nav",
+      NO_WINDOW,
+    );
     expect(stats.mainFiles).toBe(1);
     expect(stats.subagentFiles).toBe(1);
     expect(stats.groups.map((group) => `${group.kind}/${group.tool}`)).toEqual([
@@ -465,24 +583,123 @@ describe("the transcript section over the fixtures", () => {
     const scan = await scanTranscripts(transcripts);
     expect(scan.files.map((file) => file.kind)).toEqual(["main", "subagent"]);
     const stats = await summarizeTranscripts(scan, "mcp-code-nav", NO_WINDOW);
-    const group = (kind: string, tool: string) => stats.groups.find((item) => item.kind === kind && item.tool === tool)!;
-    expect(group("main", "cpp_file_symbols")).toMatchObject({ calls: 3, failures: 2, clientSide: 1 });
+    const group = (kind: string, tool: string) =>
+      stats.groups.find((item) => item.kind === kind && item.tool === tool)!;
+    expect(group("main", "cpp_file_symbols")).toMatchObject({
+      calls: 3,
+      failures: 2,
+      clientSide: 1,
+    });
     expect(group("main", "cpp_file_symbols").latency).toEqual([500, 200, 0]);
-    expect(group("main", "go_find_callers")).toMatchObject({ calls: 2, failures: 0, failedCalls: 0 });
-    expect(group("subagent", "go_file_symbols")).toMatchObject({ calls: 2, failures: 1, retries: 1, changed: 1, recovered: 1 });
+    expect(group("main", "go_find_callers")).toMatchObject({
+      calls: 2,
+      failures: 0,
+      failedCalls: 0,
+    });
+    expect(group("subagent", "go_file_symbols")).toMatchObject({
+      calls: 2,
+      failures: 1,
+      retries: 1,
+      changed: 1,
+      recovered: 1,
+    });
     expect(group("main", "cpp_find_symbol").classes).toEqual(new Map([["symbol-not-found", 2]]));
   });
 
   it("renders the window-edge fixtures into rows a reader can check by hand", async () => {
     const report = await text(logs);
     expect(rowsAfter(report, "transcripts ")).toEqual([
-      ["main", "cpp_file_symbols", "3", "2", "1", "200", "500", "1/2 50.0%", "1/1", "1/1", "0", "0", "0"],
-      ["main", "cpp_find_derived_classes", "2", "1", "0", "0", "500", "1/1 100.0%", "1/1", "1/1", "0", "1", "1"],
-      ["main", "cpp_find_references", "2", "2", "0", "100", "100", "0/2 0.0%", "0/0", "0/0", "0", "0", "0"],
-      ["main", "cpp_find_symbol", "2", "2", "0", "0", "500", "1/2 50.0%", "0/1", "0/1", "0", "1", "0"],
+      [
+        "main",
+        "cpp_file_symbols",
+        "3",
+        "2",
+        "1",
+        "200",
+        "500",
+        "1/2 50.0%",
+        "1/1",
+        "1/1",
+        "0",
+        "0",
+        "0",
+      ],
+      [
+        "main",
+        "cpp_find_derived_classes",
+        "2",
+        "1",
+        "0",
+        "0",
+        "500",
+        "1/1 100.0%",
+        "1/1",
+        "1/1",
+        "0",
+        "1",
+        "1",
+      ],
+      [
+        "main",
+        "cpp_find_references",
+        "2",
+        "2",
+        "0",
+        "100",
+        "100",
+        "0/2 0.0%",
+        "0/0",
+        "0/0",
+        "0",
+        "0",
+        "0",
+      ],
+      [
+        "main",
+        "cpp_find_symbol",
+        "2",
+        "2",
+        "0",
+        "0",
+        "500",
+        "1/2 50.0%",
+        "0/1",
+        "0/1",
+        "0",
+        "1",
+        "0",
+      ],
       ["main", "go_find_callers", "2", "0", "0", "100", "100", "—", "0/0", "0/0", "0", "0", "2"],
-      ["main", "go_find_implementations", "2", "2", "0", "0", "99", "0/2 0.0%", "0/0", "0/0", "0", "0", "0"],
-      ["subagent", "go_file_symbols", "2", "1", "0", "200", "400", "1/1 100.0%", "1/1", "1/1", "0", "0", "0"],
+      [
+        "main",
+        "go_find_implementations",
+        "2",
+        "2",
+        "0",
+        "0",
+        "99",
+        "0/2 0.0%",
+        "0/0",
+        "0/0",
+        "0",
+        "0",
+        "0",
+      ],
+      [
+        "subagent",
+        "go_file_symbols",
+        "2",
+        "1",
+        "0",
+        "200",
+        "400",
+        "1/1 100.0%",
+        "1/1",
+        "1/1",
+        "0",
+        "0",
+        "0",
+      ],
     ]);
     expect(rowsAfter(report, "retry changedKeys")).toEqual([
       ["projectRoot", "1"],
@@ -516,7 +733,9 @@ describe("the transcript section over the fixtures", () => {
     const stats = await summarizeTranscripts(scan, "mcp-code-nav", since);
     expect(stats.mainFiles).toBe(0);
     expect(stats.subagentFiles).toBe(1);
-    expect(stats.groups.map((group) => `${group.kind}/${group.tool}`)).toEqual(["subagent/go_file_symbols"]);
+    expect(stats.groups.map((group) => `${group.kind}/${group.tool}`)).toEqual([
+      "subagent/go_file_symbols",
+    ]);
     expect(stats.groups[0]?.calls).toBe(2);
   });
 

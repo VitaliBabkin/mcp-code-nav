@@ -21,7 +21,12 @@ import {
   typeAwareRequest,
 } from "./go-navigation-shared.js";
 import { inModuleFirst, outsideRoot, type ReportedLocation, toReported } from "./lsp-locations.js";
-import { OUTSIDE_MODULE_REASON, type NamedRow, nameLocations, namedRow } from "./location-naming.js";
+import {
+  OUTSIDE_MODULE_REASON,
+  type NamedRow,
+  nameLocations,
+  namedRow,
+} from "./location-naming.js";
 import { IMPLEMENTATIONS_LIMIT } from "./navigation-limits.js";
 import { type Step, withArticle } from "./navigation-text.js";
 import { messageOf } from "../error-message.js";
@@ -43,8 +48,9 @@ type FindImplementationsPayload = {
 export const GoFindImplementationsInput = z.object({
   sourceRoots: GoSourceRootsSchema,
   file: GoDeclaringFileSchema,
-  symbol: NameInput
-    .describe("An interface or named type: exact name as declared at the top level of `file`."),
+  symbol: NameInput.describe(
+    "An interface or named type: exact name as declared at the top level of `file`.",
+  ),
   timeBudgetMs: timeBudgetSchema(60_000),
 });
 
@@ -66,7 +72,8 @@ export interface GoFindImplementationsDeps {
 function directionFor(symbol: LspDocumentSymbol): Step<GoImplementationDirection> {
   const kind = symbolKindName(symbol.kind);
   if (kind === "interface") return { ok: true, value: "implementers-of-interface" };
-  if (kind === "struct" || kind === "class") return { ok: true, value: "interfaces-implemented-by-type" };
+  if (kind === "struct" || kind === "class")
+    return { ok: true, value: "interfaces-implemented-by-type" };
   if (kind === "function") {
     return {
       ok: false,
@@ -98,14 +105,21 @@ async function buildRows(
 ): Promise<{ rows: ImplementationRow[]; truncated: number }> {
   const ordered = inModuleFirst(locations, (location) => location.external);
   const kept = ordered.slice(0, IMPLEMENTATIONS_LIMIT).map((location) => ({ location }));
-  const named = await nameLocations(session, kept, queriedFile, queriedOutline, budget, OUTSIDE_MODULE_REASON);
+  const named = await nameLocations(
+    session,
+    kept,
+    queriedFile,
+    queriedOutline,
+    budget,
+    OUTSIDE_MODULE_REASON,
+  );
   return { rows: named.map(namedRow), truncated: ordered.length - kept.length };
 }
 
 function rowText(row: ImplementationRow): string {
   const name = row.name ?? "<unnamed>";
   const kind = row.kind ?? "?";
-  return `  ${name} (${kind}) ${row.file}:${row.line}${row.reason ? ` - ${row.reason}` : ""}`;
+  return `  ${name} (${kind}) ${row.file}:${String(row.line)}${row.reason ? ` - ${row.reason}` : ""}`;
 }
 
 /** The same JSON, phrased once for a reader who will not parse it. */
@@ -113,11 +127,14 @@ function humanSummary(payload: FindImplementationsPayload): string {
   const { resolved, direction, implementations, truncated, scope } = payload;
   const question =
     direction === "implementers-of-interface"
-      ? `Implementations of ${resolved.kind} "${resolved.name}" (${resolved.file}:${resolved.line})`
-      : `Interfaces implemented by ${resolved.kind} "${resolved.name}" (${resolved.file}:${resolved.line})`;
-  const tail = truncated > 0 ? `, ${truncated} row(s) dropped by the ${IMPLEMENTATIONS_LIMIT}-row cap` : "";
+      ? `Implementations of ${resolved.kind} "${resolved.name}" (${resolved.file}:${String(resolved.line)})`
+      : `Interfaces implemented by ${resolved.kind} "${resolved.name}" (${resolved.file}:${String(resolved.line)})`;
+  const tail =
+    truncated > 0
+      ? `, ${String(truncated)} row(s) dropped by the ${String(IMPLEMENTATIONS_LIMIT)}-row cap`
+      : "";
   const rows = implementations.map(rowText).join("\n");
-  return `${question} in module "${scope.moduleRoot}"${environmentText(scope)} - ${implementations.length} row(s), freshness: ${freshnessText(scope.freshness)}${tail}.\n${rows}`;
+  return `${question} in module "${scope.moduleRoot}"${environmentText(scope)} - ${String(implementations.length)} row(s), freshness: ${freshnessText(scope.freshness)}${tail}.\n${rows}`;
 }
 
 export async function runGoFindImplementations(
@@ -132,7 +149,17 @@ export async function runGoFindImplementations(
     });
     if (!opened.ok) return errorResult(opened.error);
     const query = opened.value;
-    const { file, moduleRoot, budget, session, symbols, picked, freshness, toolchain, gated: direction } = query;
+    const {
+      file,
+      moduleRoot,
+      budget,
+      session,
+      symbols,
+      picked,
+      freshness,
+      toolchain,
+      gated: direction,
+    } = query;
 
     const params = { textDocument: textDocumentId(file), position: picked.position };
     const answered = await typeAwareRequest(
@@ -144,7 +171,13 @@ export async function runGoFindImplementations(
       `answer the query for "${input.symbol}"`,
     );
     if (!answered.ok) return errorResult(answered.error);
-    const locations = toReported("gopls", TOOL, answered.value, outsideRoot(moduleRoot), input.symbol);
+    const locations = toReported(
+      "gopls",
+      TOOL,
+      answered.value,
+      outsideRoot(moduleRoot),
+      input.symbol,
+    );
     if (!locations.ok) return errorResult(locations.error);
 
     const { rows, truncated } = await buildRows(session, locations.value, file, symbols, budget);
@@ -181,6 +214,7 @@ export function registerGoFindImplementations(
         "direction follows from what `symbol` names and is echoed as `direction`.",
       inputSchema: GoFindImplementationsInput.shape,
     },
-    async (args) => runGoFindImplementations(sessions, args as GoFindImplementationsInputType, deps),
+    async (args) =>
+      runGoFindImplementations(sessions, args as GoFindImplementationsInputType, deps),
   );
 }

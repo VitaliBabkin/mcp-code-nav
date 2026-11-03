@@ -36,8 +36,18 @@ const METHOD_LIMITS = [
   "indirect-dispatch-not-resolved",
 ];
 
-function ask(manager: LspSessionManager, roots: string[], file: string, symbol: string): Promise<Result> {
-  return runGoFindCallers(manager, { sourceRoots: roots, file, symbol, timeBudgetMs: CALL_BUDGET_MS });
+function ask(
+  manager: LspSessionManager,
+  roots: string[],
+  file: string,
+  symbol: string,
+): Promise<Result> {
+  return runGoFindCallers(manager, {
+    sourceRoots: roots,
+    file,
+    symbol,
+    timeBudgetMs: CALL_BUDGET_MS,
+  });
 }
 
 function payloadOf(result: Result): Payload {
@@ -68,7 +78,9 @@ describe("go_find_callers against a real gopls binary", () => {
   itIfGoplsAvailable(
     "reports the direct call and the interface dispatch alike, and states that the list over-reports",
     async () => {
-      const payload = payloadOf(await ask(freshManager(), [navRoot], storageFile, "(*Memory).Read"));
+      const payload = payloadOf(
+        await ask(freshManager(), [navRoot], storageFile, "(*Memory).Read"),
+      );
 
       expect(payload.resolved).toMatchObject({ name: "(*Memory).Read", kind: "method" });
       expect(samePath(payload.scope.moduleRoot, resolve(navRoot))).toBe(true);
@@ -111,40 +123,56 @@ describe("go_find_callers against a real gopls binary", () => {
     600_000,
   );
 
-  itIfGoplsAvailable("carries the dispatch code but not the correspondence code for a function", async () => {
-    const payload = payloadOf(await ask(freshManager(), [navRoot], usesFile, "Trim"));
+  itIfGoplsAvailable(
+    "carries the dispatch code but not the correspondence code for a function",
+    async () => {
+      const payload = payloadOf(await ask(freshManager(), [navRoot], usesFile, "Trim"));
 
-    expect(payload.resolved).toMatchObject({ name: "Trim", kind: "function" });
-    expect(payload.scope.visibility).toBe("exported");
-    expect(payload.scope.limits).toContain("exported-symbol-importers-invisible");
-    expect(payload.scope.limits).toContain("indirect-dispatch-not-resolved");
-    expect(payload.scope.limits).not.toContain("corresponding-interface-methods-included");
-  }, 600_000);
+      expect(payload.resolved).toMatchObject({ name: "Trim", kind: "function" });
+      expect(payload.scope.visibility).toBe("exported");
+      expect(payload.scope.limits).toContain("exported-symbol-importers-invisible");
+      expect(payload.scope.limits).toContain("indirect-dispatch-not-resolved");
+      expect(payload.scope.limits).not.toContain("corresponding-interface-methods-included");
+    },
+    600_000,
+  );
 
-  itIfGoplsAvailable("answers a function nobody calls with a scoped empty, not with a failure", async () => {
-    const result = await ask(freshManager(), [navRoot], storageFile, "loneHelper");
-    expect(result.isError, textOf(result)).toBeFalsy();
-    expect(textOf(result)).not.toMatch(/initial workspace load/);
+  itIfGoplsAvailable(
+    "answers a function nobody calls with a scoped empty, not with a failure",
+    async () => {
+      const result = await ask(freshManager(), [navRoot], storageFile, "loneHelper");
+      expect(result.isError, textOf(result)).toBeFalsy();
+      expect(textOf(result)).not.toMatch(/initial workspace load/);
 
-    const payload = result.structuredContent as Payload;
-    expect(payload.totalCallers).toBe(0);
-    expect(payload.callers).toEqual([]);
-    expect(payload.callersTruncated).toBe(0);
-    expect(payload.scope.limits).toEqual(["one-module", "one-port", "indirect-dispatch-not-resolved"]);
-  }, 600_000);
+      const payload = result.structuredContent as Payload;
+      expect(payload.totalCallers).toBe(0);
+      expect(payload.callers).toEqual([]);
+      expect(payload.callersTruncated).toBe(0);
+      expect(payload.scope.limits).toEqual([
+        "one-module",
+        "one-port",
+        "indirect-dispatch-not-resolved",
+      ]);
+    },
+    600_000,
+  );
 
-  itIfGoplsAvailable("refuses a kind that is never called, naming it with the right article", async () => {
-    const manager = freshManager();
+  itIfGoplsAvailable(
+    "refuses a kind that is never called, naming it with the right article",
+    async () => {
+      const manager = freshManager();
 
-    const struct = await ask(manager, [navRoot], usesFile, "Store");
-    expect(struct.isError).toBe(true);
-    expect(textOf(struct)).toContain("is a struct");
-    expect(textOf(struct)).toMatch(/only a function or a method has callers/);
+      const struct = await ask(manager, [navRoot], usesFile, "Store");
+      expect(struct.isError).toBe(true);
+      expect(textOf(struct)).toContain("is a struct");
+      expect(textOf(struct)).toMatch(/only a function or a method has callers/);
 
-    const iface = await ask(manager, [navRoot], storageFile, "Reader");
-    expect(iface.isError).toBe(true);
-    expect(textOf(iface)).toContain("is an interface");
-  }, 600_000);
+      const iface = await ask(manager, [navRoot], storageFile, "Reader");
+      expect(iface.isError).toBe(true);
+      expect(textOf(iface)).toContain("is an interface");
+    },
+    600_000,
+  );
 
   itIfGoplsAvailable(
     "corrects one warm session when a caller appears on disk, and says so in scope.freshness",
@@ -167,7 +195,7 @@ describe("go_find_callers against a real gopls binary", () => {
             "",
             "// ExtraCaller is written after the session loaded the package.",
             "func ExtraCaller(m *Memory) error {",
-            "\t_, err := m.Read(\"late\")",
+            '\t_, err := m.Read("late")',
             "\treturn err",
             "}",
             "",
@@ -186,45 +214,59 @@ describe("go_find_callers against a real gopls binary", () => {
     900_000,
   );
 
-  itIfGoplsAvailable("does not reach a sibling implementation of the interface", async () => {
-    // `FetchDisk` calls `(*Disk).Read`, a sibling implementation of the same interface. gopls's
-    // correspondence covers the interface method the subject satisfies and stops there, so the answer is
-    // still the two call sites that name `Read` through `Reader` or through `(*Memory).Read` itself.
-    const payload = payloadOf(await ask(freshManager(), [navRoot], storageFile, "(*Memory).Read"));
+  itIfGoplsAvailable(
+    "does not reach a sibling implementation of the interface",
+    async () => {
+      // `FetchDisk` calls `(*Disk).Read`, a sibling implementation of the same interface. gopls's
+      // correspondence covers the interface method the subject satisfies and stops there, so the answer is
+      // still the two call sites that name `Read` through `Reader` or through `(*Memory).Read` itself.
+      const payload = payloadOf(
+        await ask(freshManager(), [navRoot], storageFile, "(*Memory).Read"),
+      );
 
-    expect(callerNames(payload)).toEqual(["Fetch", "Serve"]);
-    expect(callerNames(payload)).not.toContain("FetchDisk");
-    expect(payload.totalCallers).toBe(2);
-    expect(payload.scope.limits).toContain("corresponding-interface-methods-included");
-  }, 600_000);
+      expect(callerNames(payload)).toEqual(["Fetch", "Serve"]);
+      expect(callerNames(payload)).not.toContain("FetchDisk");
+      expect(payload.totalCallers).toBe(2);
+      expect(payload.scope.limits).toContain("corresponding-interface-methods-included");
+    },
+    600_000,
+  );
 
-  itIfGoplsAvailable("reports a cross-package caller of an exported method on an unexported type", async () => {
-    // `sub.Ping` calls it through a value `gonav.NewHidden` returned, so the static call edge exists in
-    // another package even though nothing outside `gonav` can name the receiver's type.
-    const payload = payloadOf(await ask(freshManager(), [navRoot], hiddenFile, "(*hidden).Ping"));
+  itIfGoplsAvailable(
+    "reports a cross-package caller of an exported method on an unexported type",
+    async () => {
+      // `sub.Ping` calls it through a value `gonav.NewHidden` returned, so the static call edge exists in
+      // another package even though nothing outside `gonav` can name the receiver's type.
+      const payload = payloadOf(await ask(freshManager(), [navRoot], hiddenFile, "(*hidden).Ping"));
 
-    expect(callerNames(payload)).toEqual(["Ping"]);
-    expect(payload.totalCallers).toBe(1);
-    const row = rowNamed(payload, "Ping");
-    expect(samePath(row?.file, subFile)).toBe(true);
-    expect(row).toMatchObject({ external: false, kind: "function" });
-    expect(row?.callSites).toHaveLength(1);
-    expect(payload.scope.visibility).toBe("exported");
-    expect(payload.scope.limits).toEqual(METHOD_LIMITS);
-  }, 600_000);
+      expect(callerNames(payload)).toEqual(["Ping"]);
+      expect(payload.totalCallers).toBe(1);
+      const row = rowNamed(payload, "Ping");
+      expect(samePath(row?.file, subFile)).toBe(true);
+      expect(row).toMatchObject({ external: false, kind: "function" });
+      expect(row?.callSites).toHaveLength(1);
+      expect(payload.scope.visibility).toBe("exported");
+      expect(payload.scope.limits).toEqual(METHOD_LIMITS);
+    },
+    600_000,
+  );
 
-  itIfGoplsAvailable("keeps an unexported method's callers inside its package", async () => {
-    const payload = payloadOf(await ask(freshManager(), [navRoot], hiddenFile, "(*hidden).ping"));
+  itIfGoplsAvailable(
+    "keeps an unexported method's callers inside its package",
+    async () => {
+      const payload = payloadOf(await ask(freshManager(), [navRoot], hiddenFile, "(*hidden).ping"));
 
-    expect(callerNames(payload)).toEqual(["pingTwice"]);
-    expect(payload.scope.visibility).toBe("package-private");
-    expect(payload.scope.limits).toEqual([
-      "one-module",
-      "one-port",
-      "corresponding-interface-methods-included",
-      "indirect-dispatch-not-resolved",
-    ]);
-    expect(rowNamed(payload, "pingTwice")).toMatchObject({ external: false });
-    expect(samePath(rowNamed(payload, "pingTwice")?.file, hiddenFile)).toBe(true);
-  }, 600_000);
+      expect(callerNames(payload)).toEqual(["pingTwice"]);
+      expect(payload.scope.visibility).toBe("package-private");
+      expect(payload.scope.limits).toEqual([
+        "one-module",
+        "one-port",
+        "corresponding-interface-methods-included",
+        "indirect-dispatch-not-resolved",
+      ]);
+      expect(rowNamed(payload, "pingTwice")).toMatchObject({ external: false });
+      expect(samePath(rowNamed(payload, "pingTwice")?.file, hiddenFile)).toBe(true);
+    },
+    600_000,
+  );
 });

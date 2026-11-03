@@ -23,7 +23,11 @@ export interface ClangQueryExecResult {
 }
 
 /** Injection seam for tests — real execution shells out to the `clang-query` binary. */
-export type ClangQueryExecFn = (args: string[], cwd: string, signal?: AbortSignal) => Promise<ClangQueryExecResult>;
+export type ClangQueryExecFn = (
+  args: string[],
+  cwd: string,
+  signal?: AbortSignal,
+) => Promise<ClangQueryExecResult>;
 
 const execFileAsync = promisify(execFile);
 
@@ -132,7 +136,12 @@ function isDigitSeparator(text: string, pos: number): boolean {
  * comments and string/character literals are skipped, so a `>` inside `(N > 0)` or `"x>y"` cannot close a
  * `<...>` header.
  */
-function skipBalanced(text: string, open: number, opener: string, closer: string): number | undefined {
+function skipBalanced(
+  text: string,
+  open: number,
+  opener: string,
+  closer: string,
+): number | undefined {
   let depth = 0;
   let pos = open;
   while (pos < text.length) {
@@ -180,7 +189,10 @@ function skipRequiresClause(text: string, start: number): number | undefined {
     }
     const word = matchAt(IDENTIFIER, text, pos)?.[0];
     if (word !== undefined) {
-      const endsClause = word === "class" || word === "struct" || word === "union" ||
+      const endsClause =
+        word === "class" ||
+        word === "struct" ||
+        word === "union" ||
         (word === "template" && last !== ":" && last !== ".");
       if (endsClause) return pos;
       pos += word.length;
@@ -234,7 +246,11 @@ function skipAttributes(text: string, start: number): number {
 
 function classNameAt(text: string, start: number): string | undefined {
   let pos = skipTrivia(text, start);
-  for (let next = skipTemplateHeader(text, pos); next !== undefined; next = skipTemplateHeader(text, pos)) {
+  for (
+    let next = skipTemplateHeader(text, pos);
+    next !== undefined;
+    next = skipTemplateHeader(text, pos)
+  ) {
     pos = next;
   }
   pos = skipAttributes(text, pos);
@@ -350,7 +366,11 @@ export interface FindDerivedClassesResult {
   matches: DerivedClassMatch[];
   failedFiles: FailedFile[];
   /** Present only when the sweep did not cover its whole scope. */
-  incomplete?: { readonly sweptTus: number; readonly totalTus: number; readonly reason: "time-budget" | "cancelled" };
+  incomplete?: {
+    readonly sweptTus: number;
+    readonly totalTus: number;
+    readonly reason: "time-budget" | "cancelled";
+  };
   /** Present only on a complete sweep whose every translation unit failed with one identical error. */
   uniformFailure?: UniformSweepFailure;
   sweep: SweepStats;
@@ -376,7 +396,10 @@ const DIAGNOSTIC_LINE = /error|not found/i;
 function failureText(result: ClangQueryExecResult): string {
   const stderr = result.stderr.trim();
   if (stderr) return stderr;
-  const lines = result.stdout.split(/\r?\n/).map((line) => line.trim()).filter((line) => line !== "");
+  const lines = result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
   const diagnostics = lines.filter((line) => DIAGNOSTIC_LINE.test(line));
   if (diagnostics.length > 0) return diagnostics.slice(0, 2).join(" ");
   return lines.at(-1) ?? "non-zero exit, no stderr captured";
@@ -407,10 +430,10 @@ function computeFreshOutcome(
     // pattern for the compile database's own directory/file pairs.
     const rawFile = m[1] as string;
     const file = resolve(projectRoot, rawFile);
-    const lineNo = Number(m[2] as string);
-    const column = Number(m[3] as string);
+    const lineNo = Number(m[2]);
+    const column = Number(m[3]);
     const direct = m[4] === "direct";
-    const key = `${file}:${lineNo}:${column}`;
+    const key = `${file}:${String(lineNo)}:${String(column)}`;
     const known = locations.get(key);
     if (known) known.direct ||= direct;
     else locations.set(key, { file, line: lineNo, column, direct });
@@ -428,7 +451,7 @@ function computeFreshOutcome(
       extractionFailures.push({
         file: location.file,
         error:
-          `clang-query reported a match at ${location.file}:${location.line}:${location.column}, but the ` +
+          `clang-query reported a match at ${location.file}:${String(location.line)}:${String(location.column)}, but the ` +
           "identifier there could not be read (source unreadable, or unexpected content at that location) — " +
           "the match was not silently dropped.",
       });
@@ -455,11 +478,14 @@ function mergeOutcome(acc: SweepAccumulator, tu: string, outcome: TuOutcome): vo
     return;
   }
   for (const match of outcome.matches) {
-    const key = `${match.file}:${match.line}:${match.column}`;
+    const key = `${match.file}:${String(match.line)}:${String(match.column)}`;
     const alreadySeen = acc.locations.get(key);
     // OR-ed rather than first-wins, so the answer does not depend on which TU completed first. Re-setting
     // an existing key keeps its position, so a merged row never moves either.
-    acc.locations.set(key, alreadySeen ? { ...alreadySeen, direct: alreadySeen.direct || match.direct } : match);
+    acc.locations.set(
+      key,
+      alreadySeen ? { ...alreadySeen, direct: alreadySeen.direct || match.direct } : match,
+    );
   }
 }
 
@@ -506,7 +532,9 @@ function derivationMatchers(qualifiedName: string): readonly [transitive: string
  * tells the caller the empty `matches` is that failure rather than an empty hierarchy. A TU that failed is
  * never cached, whatever else the sweep stores — its cause may be the environment, not the source.
  */
-export async function findDerivedClasses(options: FindDerivedClassesOptions): Promise<FindDerivedClassesResult> {
+export async function findDerivedClasses(
+  options: FindDerivedClassesOptions,
+): Promise<FindDerivedClassesResult> {
   const run = resolveSweepRun(options, Date.now());
   const totalTus = run.translationUnits.length;
   const acc: SweepAccumulator = {
@@ -523,7 +551,9 @@ export async function findDerivedClasses(options: FindDerivedClassesOptions): Pr
 
   const sweptTus = cachedTus + sweptCount;
   const incomplete =
-    sweptTus < totalTus ? { sweptTus, totalTus, reason: abortReason ?? ("time-budget" as const) } : undefined;
+    sweptTus < totalTus
+      ? { sweptTus, totalTus, reason: abortReason ?? ("time-budget" as const) }
+      : undefined;
   const uniformFailure = incomplete ? undefined : uniformSweepFailure(acc.failureErrors, totalTus);
 
   return {
@@ -581,7 +611,11 @@ function resolveSweepRun(options: FindDerivedClassesOptions, startedAt: number):
 }
 
 /** argv for one TU: `-p <projectRoot> <tu>` plus one `-c` per matcher, transitive first. */
-function clangQueryArgv(projectRoot: string, tu: string, matchers: readonly [string, string]): string[] {
+function clangQueryArgv(
+  projectRoot: string,
+  tu: string,
+  matchers: readonly [string, string],
+): string[] {
   return ["-p", projectRoot, tu, "-c", matchers[0], "-c", matchers[1]];
 }
 
@@ -604,7 +638,10 @@ function storeCleanOutcome(run: SweepRun, tu: string, outcome: TuOutcome): void 
 }
 
 /** Merges every already-cached TU and returns the translation units still needing a run. */
-function replayCachedTus(run: SweepRun, acc: SweepAccumulator): { pending: string[]; cachedTus: number } {
+function replayCachedTus(
+  run: SweepRun,
+  acc: SweepAccumulator,
+): { pending: string[]; cachedTus: number } {
   const cachedOutcomes = cachedOutcomesFor(run);
   const pending: string[] = [];
   let cachedTus = 0;
@@ -655,7 +692,11 @@ async function sweepPendingTus(
   const runOne = async (tu: string): Promise<void> => {
     let result: ClangQueryExecResult;
     try {
-      result = await run.exec(clangQueryArgv(run.projectRoot, tu, run.matchers), run.projectRoot, controller.signal);
+      result = await run.exec(
+        clangQueryArgv(run.projectRoot, tu, run.matchers),
+        run.projectRoot,
+        controller.signal,
+      );
     } catch {
       if (controller.signal.aborted) return; // interrupted — not a genuine clang-query failure
       // An exec implementation that throws for a reason other than the abort this sweep issued:
@@ -664,7 +705,11 @@ async function sweepPendingTus(
       result = { exitCode: 1, stdout: "", stderr: "clang-query invocation threw unexpectedly" };
     }
     if (controller.signal.aborted) return; // settled after the budget/cancel fired — never checked
-    const { outcome, extractionFailures } = computeFreshOutcome(run.readFile, run.projectRoot, result);
+    const { outcome, extractionFailures } = computeFreshOutcome(
+      run.readFile,
+      run.projectRoot,
+      result,
+    );
     mergeOutcome(acc, tu, outcome);
     acc.failedFiles.push(...extractionFailures);
     storeCleanOutcome(run, tu, outcome);
@@ -697,7 +742,11 @@ async function sweepPendingTus(
   return { sweptCount, abortReason };
 }
 
-function cacheStatus(cacheReady: boolean, cachedTus: number, totalTus: number): SweepStats["cache"] {
+function cacheStatus(
+  cacheReady: boolean,
+  cachedTus: number,
+  totalTus: number,
+): SweepStats["cache"] {
   if (!cacheReady) return "disabled";
   if (totalTus > 0 && cachedTus === totalTus) return "hit";
   if (cachedTus > 0) return "partial";

@@ -12,12 +12,17 @@ const TimeoutSchema = z.coerce.number().int().positive().max(3_600_000);
  * The per-request timeout from the environment. Unset means the default; a value that is not a positive integer
  * (at most one hour) is reported through `onInvalid` and the default is used, so a typo never costs the server.
  */
-export function resolveRequestTimeoutMs(env: NodeJS.ProcessEnv, onInvalid: (message: string) => void): number {
+export function resolveRequestTimeoutMs(
+  env: NodeJS.ProcessEnv,
+  onInvalid: (message: string) => void,
+): number {
   const raw = env[ENV_VAR];
   if (raw === undefined || raw === "") return DEFAULT_REQUEST_TIMEOUT_MS;
   const parsed = TimeoutSchema.safeParse(raw);
   if (parsed.success) return parsed.data;
-  onInvalid(`${ENV_VAR}="${raw}" is not a positive integer of at most 3600000; using ${DEFAULT_REQUEST_TIMEOUT_MS}`);
+  onInvalid(
+    `${ENV_VAR}="${raw}" is not a positive integer of at most 3600000; using ${String(DEFAULT_REQUEST_TIMEOUT_MS)}`,
+  );
   return DEFAULT_REQUEST_TIMEOUT_MS;
 }
 
@@ -28,7 +33,9 @@ export class RequestTimeoutError extends Error {
     readonly method: string,
     readonly timeoutMs: number,
   ) {
-    super(`${serverId} did not answer ${method} within ${timeoutMs} ms; the request was cancelled.`);
+    super(
+      `${serverId} did not answer ${method} within ${String(timeoutMs)} ms; the request was cancelled.`,
+    );
     this.name = "RequestTimeoutError";
   }
 }
@@ -42,6 +49,15 @@ export class RequestAbortedError extends Error {
     super(`${serverId} ${method} was cancelled because the client cancelled the call.`);
     this.name = "RequestAbortedError";
   }
+}
+
+/** A rejection stays an Error so callers can branch on it; any other reason is wrapped with its cause. */
+function asRequestError(serverId: string, method: string, reason: unknown): Error {
+  return reason instanceof Error
+    ? reason
+    : new Error(`${serverId} ${method} was rejected with a value that is not an Error`, {
+        cause: reason,
+      });
 }
 
 /** What bounds one request: the caller's cancellation, a deadline, and the server's name for messages. */
@@ -76,19 +92,34 @@ export function sendWithControl<R>(
       source.dispose();
       settle();
     };
-    const onAbort = (): void => finish(() => reject(new RequestAbortedError(serverId, method)), true);
-    const timer = setTimeout(
-      () => finish(() => reject(new RequestTimeoutError(serverId, method, timeoutMs)), true),
-      timeoutMs,
-    );
+    const onAbort = (): void => {
+      finish(() => {
+        reject(new RequestAbortedError(serverId, method));
+      }, true);
+    };
+    const timer = setTimeout(() => {
+      finish(() => {
+        reject(new RequestTimeoutError(serverId, method, timeoutMs));
+      }, true);
+    }, timeoutMs);
     signal?.addEventListener("abort", onAbort, { once: true });
     try {
       connection.sendRequest<R>(method, params, source.token).then(
-        (value) => finish(() => resolve(value), false),
-        (error: unknown) => finish(() => reject(error), false),
+        (value) => {
+          finish(() => {
+            resolve(value);
+          }, false);
+        },
+        (error: unknown) => {
+          finish(() => {
+            reject(asRequestError(serverId, method, error));
+          }, false);
+        },
       );
     } catch (error) {
-      finish(() => reject(error), false);
+      finish(() => {
+        reject(asRequestError(serverId, method, error));
+      }, false);
     }
   });
 }

@@ -83,8 +83,18 @@ function freshManager(): LspSessionManager {
   return manager;
 }
 
-function ask(manager: LspSessionManager, roots: string[], file: string, symbol: string): Promise<Result> {
-  return runGoFindImplementations(manager, { sourceRoots: roots, file, symbol, timeBudgetMs: CALL_BUDGET_MS });
+function ask(
+  manager: LspSessionManager,
+  roots: string[],
+  file: string,
+  symbol: string,
+): Promise<Result> {
+  return runGoFindImplementations(manager, {
+    sourceRoots: roots,
+    file,
+    symbol,
+    timeBudgetMs: CALL_BUDGET_MS,
+  });
 }
 
 function textOf(result: Result): string {
@@ -104,7 +114,10 @@ function samePath(a: string | undefined, b: string): boolean {
 }
 
 function namedRows(payload: Payload): string[] {
-  return payload.implementations.map((row) => row.name).filter((name): name is string => name !== null).sort();
+  return payload.implementations
+    .map((row) => row.name)
+    .filter((name): name is string => name !== null)
+    .sort();
 }
 
 /** Whether a `files` list names `path`, compared the way the OS compares paths. */
@@ -148,7 +161,10 @@ describe("go_find_implementations against a real gopls binary", () => {
       expect(payload.direction).toBe("implementers-of-interface");
       expect(samePath(payload.scope.moduleRoot, resolve(implRoot))).toBe(true);
       const memory = payload.implementations.find((row) => row.name === "MemoryStorage");
-      expect(memory, `expected MemoryStorage in: ${JSON.stringify(payload.implementations)}`).toMatchObject({
+      expect(
+        memory,
+        `expected MemoryStorage in: ${JSON.stringify(payload.implementations)}`,
+      ).toMatchObject({
         kind: "struct",
         external: false,
       });
@@ -158,15 +174,23 @@ describe("go_find_implementations against a real gopls binary", () => {
       // Whether that implementer is in the graph at all is a fact about the toolchain that answered, read
       // off this payload rather than assumed from the OS the test suite happens to run on.
       const environment = payload.scope.environment;
-      expect(environment, `scope had no environment: ${JSON.stringify(payload.scope)}`).toBeDefined();
+      expect(
+        environment,
+        `scope had no environment: ${JSON.stringify(payload.scope)}`,
+      ).toBeDefined();
       const linuxFile = join(implRoot, "disk_linux.go");
       const excluded = payload.scope.osArchExcluded;
-      expect(excluded, `scope had no exclusion set: ${JSON.stringify(payload.scope)}`).toBeDefined();
+      expect(
+        excluded,
+        `scope had no exclusion set: ${JSON.stringify(payload.scope)}`,
+      ).toBeDefined();
       if (environment?.goos === "linux" || environment?.goos === "android") {
         expect(namedRows(payload)).toContain("LinuxStorage");
         expect(namesPath(excluded?.files, linuxFile)).toBe(false);
       } else {
-        expect(payload.implementations.filter((row) => row.file.includes("disk_linux"))).toEqual([]);
+        expect(payload.implementations.filter((row) => row.file.includes("disk_linux"))).toEqual(
+          [],
+        );
         expect(namedRows(payload)).not.toContain("LinuxStorage");
         // The blind spot is visible in the same payload that is narrowed by it.
         expect(namesPath(excluded?.files, linuxFile)).toBe(true);
@@ -188,7 +212,10 @@ describe("go_find_implementations against a real gopls binary", () => {
       expect(payload.direction).toBe("implementers-of-interface");
       expect(samePath(payload.scope.moduleRoot, join(workspaceRoot, "mod-a"))).toBe(true);
       const environment = payload.scope.environment;
-      expect(environment, `scope had no environment: ${JSON.stringify(payload.scope)}`).toBeDefined();
+      expect(
+        environment,
+        `scope had no environment: ${JSON.stringify(payload.scope)}`,
+      ).toBeDefined();
       expect(samePath(environment?.goWork ?? "", join(workspaceRoot, "go.work"))).toBe(true);
       expect(payload.scope.osArchExcluded).toBeDefined();
 
@@ -249,22 +276,32 @@ describe("go_find_implementations against a real gopls binary", () => {
     600_000,
   );
 
-  itIfGoplsAvailable("reports the direction its kind table actually produced for an alias to a stdlib interface", async () => {
-    const result = await ask(freshManager(), [implRoot], aliasFile, "Reader");
+  itIfGoplsAvailable(
+    "reports the direction its kind table actually produced for an alias to a stdlib interface",
+    async () => {
+      const result = await ask(freshManager(), [implRoot], aliasFile, "Reader");
 
-    if (result.isError) {
-      // gopls gave the alias a kind with no direction: the refusal has to name that kind, and the
-      // observation belongs in the report rather than in an assumed assertion.
-      expect(textOf(result)).toMatch(/only named types and interfaces have a direction|named func type/);
-      return;
-    }
-    const payload = result.structuredContent as Payload;
-    expect(["interface", "struct", "class"]).toContain(payload.resolved.kind);
-    expect(payload.direction).toBe(
-      payload.resolved.kind === "interface" ? "implementers-of-interface" : "interfaces-implemented-by-type",
-    );
-    expect(payload.implementations.filter((row) => row.external && row.name !== null)).toEqual([]);
-  }, 300_000);
+      if (result.isError) {
+        // gopls gave the alias a kind with no direction: the refusal has to name that kind, and the
+        // observation belongs in the report rather than in an assumed assertion.
+        expect(textOf(result)).toMatch(
+          /only named types and interfaces have a direction|named func type/,
+        );
+        return;
+      }
+      const payload = result.structuredContent as Payload;
+      expect(["interface", "struct", "class"]).toContain(payload.resolved.kind);
+      expect(payload.direction).toBe(
+        payload.resolved.kind === "interface"
+          ? "implementers-of-interface"
+          : "interfaces-implemented-by-type",
+      );
+      expect(payload.implementations.filter((row) => row.external && row.name !== null)).toEqual(
+        [],
+      );
+    },
+    300_000,
+  );
 
   itIfGoplsAvailable(
     "caps the fan-out, counts what it dropped, and never names a row from outside the module",
@@ -275,8 +312,12 @@ describe("go_find_implementations against a real gopls binary", () => {
       expect(payload.direction).toBe("implementers-of-interface");
       expect(payload.implementations).toHaveLength(IMPLEMENTATIONS_LIMIT);
       expect(payload.truncated).toBeGreaterThan(0);
-      expect(payload.implementations.filter((row) => row.external && row.name !== null)).toEqual([]);
-      expect(payload.implementations.some((row) => row.name === "reportError" && !row.external)).toBe(true);
+      expect(payload.implementations.filter((row) => row.external && row.name !== null)).toEqual(
+        [],
+      );
+      expect(
+        payload.implementations.some((row) => row.name === "reportError" && !row.external),
+      ).toBe(true);
       // In-module rows are kept ahead of external ones, so the first row is never an unnamed one.
       expect(payload.implementations[0]).toMatchObject({ external: false });
     },
@@ -287,8 +328,12 @@ describe("go_find_implementations against a real gopls binary", () => {
     "roots each answer at the queried file's own module, not at a sibling declaring the same interface",
     async () => {
       const manager = freshManager();
-      const inA = payloadOf(await ask(manager, [siblingRoot], join(siblingRoot, "mod-a", "store.go"), "Storage"));
-      const inB = payloadOf(await ask(manager, [siblingRoot], join(siblingRoot, "mod-b", "store.go"), "Storage"));
+      const inA = payloadOf(
+        await ask(manager, [siblingRoot], join(siblingRoot, "mod-a", "store.go"), "Storage"),
+      );
+      const inB = payloadOf(
+        await ask(manager, [siblingRoot], join(siblingRoot, "mod-b", "store.go"), "Storage"),
+      );
 
       expect(inA.scope.moduleRoot.replace(/\\/g, "/")).toMatch(/go-sibling-modules\/mod-a$/);
       expect(inB.scope.moduleRoot.replace(/\\/g, "/")).toMatch(/go-sibling-modules\/mod-b$/);

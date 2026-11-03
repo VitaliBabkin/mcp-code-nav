@@ -1,9 +1,9 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { performance } from "node:perf_hooks";
 import { dirname, join, parse, resolve } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TsgoBinary, TsExecFn, TsExecResult } from "../../src/tsgo/binary.js";
+import { pathKey } from "../../src/paths/path-containment.js";
 import { unreadableConfigReason } from "../../src/tsgo/config-graph.js";
 import {
   PROJECT_MAP_LIMIT,
@@ -15,6 +15,12 @@ import {
   type ProjectMap,
   type TsProject,
 } from "../../src/tsgo/project-map.js";
+
+// Counts the path normalizations the build makes, which the scaling case below reads.
+vi.mock("../../src/paths/path-containment.js", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../../src/paths/path-containment.js")>();
+  return { ...original, pathKey: vi.fn(original.pathKey) };
+});
 
 /**
  * The project map, with `tsc --listFilesOnly` answered by the injection seam in
@@ -32,7 +38,11 @@ import {
  * CLIMB). The search stops at the first owner; only a file none of them names belongs to no project.
  */
 
-const BINARY: TsgoBinary = { executable: "C:/fake/lib/tsc.exe", version: "7.0.2", source: "global" };
+const BINARY: TsgoBinary = {
+  executable: "C:/fake/lib/tsc.exe",
+  version: "7.0.2",
+  source: "global",
+};
 
 /** A compiler library beside the install, which resolves outside every workspace root. */
 const LIB_FILE = resolve("/typescript/lib/lib.es5.d.ts");
@@ -43,7 +53,11 @@ type ListingAnswer = readonly string[] | TsExecResult;
 interface ListingHarness {
   readonly exec: TsExecFn;
   /** Every call the map made, in the order it made them. */
-  readonly asked: { readonly executable: string; readonly args: readonly string[]; readonly cwd: string }[];
+  readonly asked: {
+    readonly executable: string;
+    readonly args: readonly string[];
+    readonly cwd: string;
+  }[];
 }
 
 /** The `exec` seam: one answer per config, and a run of nothing for any config a case did not answer. */
@@ -62,7 +76,8 @@ function listings(answers: Record<string, ListingAnswer>): ListingHarness {
 
 /** The mapped half of an answer, or a failure naming what came back instead of one. */
 function mapped(map: ProjectMap): Extract<ProjectMap, { kind: "mapped" }> {
-  if (map.kind !== "mapped") throw new Error(`expected a mapped project map, got ${JSON.stringify(map)}`);
+  if (map.kind !== "mapped")
+    throw new Error(`expected a mapped project map, got ${JSON.stringify(map)}`);
   return map;
 }
 
@@ -143,7 +158,12 @@ describe("buildProjectMap", () => {
     const first = source("src", "a.ts");
     const h = listings({ [app]: [siblingFile, last, first], [sibling]: [siblingFile] });
 
-    const map = await buildProjectMap(tmp, [app, sibling, first, last, siblingFile], BINARY, h.exec);
+    const map = await buildProjectMap(
+      tmp,
+      [app, sibling, first, last, siblingFile],
+      BINARY,
+      h.exec,
+    );
 
     // Opening the file this project merely imports would load the sibling's project and leave this one out.
     expect(projectOf(map, app)?.members).toEqual([siblingFile, last, first]);
@@ -155,14 +175,24 @@ describe("buildProjectMap", () => {
 
   it("assigns a file the nearest config does not list to the first config in its references closure that does, and subsumes the closure config that owns none", async () => {
     const root = config({ references: [{ path: "./packages/app" }] }, "tsconfig.json");
-    const app = config({ references: [{ path: "./configs/gen-a.json" }, { path: "./configs/gen-b.json" }] }, "packages", "app", "tsconfig.json");
+    const app = config(
+      { references: [{ path: "./configs/gen-a.json" }, { path: "./configs/gen-b.json" }] },
+      "packages",
+      "app",
+      "tsconfig.json",
+    );
     const genA = config({}, "packages", "app", "configs", "gen-a.json");
     const genB = config({}, "packages", "app", "configs", "gen-b.json");
     const generated = source("packages", "app", "src", "api.ts");
     const owned = source("packages", "app", "src", "app.ts");
     const h = listings({ [app]: [owned], [genA]: [generated], [genB]: [generated] });
 
-    const map = await buildProjectMap(tmp, [root, app, genA, genB, generated, owned], BINARY, h.exec);
+    const map = await buildProjectMap(
+      tmp,
+      [root, app, genA, genB, generated, owned],
+      BINARY,
+      h.exec,
+    );
 
     // `api.ts` sits under `app`, its nearest config, and `app` does not list it, so the search goes down
     // `app`'s `references` in the order they are listed: `gen-a.json` is named first and wins the file both
@@ -217,7 +247,12 @@ describe("buildProjectMap", () => {
     const listedByJsOnly = source("src", "legacy.js");
     const h = listings({ [tsconfig]: [listedByBoth], [jsconfig]: [listedByBoth, listedByJsOnly] });
 
-    const map = await buildProjectMap(tmp, [tsconfig, jsconfig, listedByBoth, listedByJsOnly], BINARY, h.exec);
+    const map = await buildProjectMap(
+      tmp,
+      [tsconfig, jsconfig, listedByBoth, listedByJsOnly],
+      BINARY,
+      h.exec,
+    );
 
     // The language service looks for those two names per directory, tsconfig first, so the file both list is
     // the tsconfig's; the sibling keeps the file the tsconfig does not name. It reaches that sibling through the
@@ -237,7 +272,10 @@ describe("buildProjectMap", () => {
   });
 
   it("reports a config the graph could not read as a failed project, and runs no listing for it", async () => {
-    const cfg = config({ references: [{ path: "./packages/broken/tsconfig.json" }] }, "tsconfig.json");
+    const cfg = config(
+      { references: [{ path: "./packages/broken/tsconfig.json" }] },
+      "tsconfig.json",
+    );
     // A manifest that is not a JSONC object this server can read: `config-graph` answers `undefined` for it,
     // which is the same fact as a config that is not JSON at all.
     const broken = join(tmp, "packages", "broken", "tsconfig.json");
@@ -328,7 +366,11 @@ describe("buildProjectMap", () => {
     const listed = source("src", "a.ts");
     const reason = `error TS6053: File '${join(tmp, "missing.ts")}' not found.`;
     const h = listings({
-      [cfg]: { stdout: `${listed}\n   ${reason}\nerror TS18003: a later line`, stderr: "error TS9999: from stderr", exitCode: 2 },
+      [cfg]: {
+        stdout: `${listed}\n   ${reason}\nerror TS18003: a later line`,
+        stderr: "error TS9999: from stderr",
+        exitCode: 2,
+      },
     });
 
     const map = await buildProjectMap(tmp, [cfg, listed], BINARY, h.exec);
@@ -347,12 +389,21 @@ describe("buildProjectMap", () => {
   it.each([
     {
       shape: "a non-zero exit with no error line",
-      result: { stdout: "", stderr: "tsc: the given path is not a directory", exitCode: 2 } satisfies TsExecResult,
+      result: {
+        stdout: "",
+        stderr: "tsc: the given path is not a directory",
+        exitCode: 2,
+      } satisfies TsExecResult,
       reason: "the listing exited with code 2",
     },
     {
       shape: "a process that never started",
-      result: { stdout: "", stderr: "", exitCode: undefined, spawnCode: "ENOENT" } satisfies TsExecResult,
+      result: {
+        stdout: "",
+        stderr: "",
+        exitCode: undefined,
+        spawnCode: "ENOENT",
+      } satisfies TsExecResult,
       reason: "the listing did not answer (ENOENT)",
     },
     {
@@ -382,7 +433,12 @@ describe("buildProjectMap", () => {
     const orphan = source("src", "a-orphan.ts");
     const declaration = source("src", "types.d.ts");
 
-    const map = await buildProjectMap(tmp, [cfg, listed, orphan, declaration], BINARY, listings({ [cfg]: [listed] }).exec);
+    const map = await buildProjectMap(
+      tmp,
+      [cfg, listed, orphan, declaration],
+      BINARY,
+      listings({ [cfg]: [listed] }).exec,
+    );
 
     expect(mapped(map).uncovered).toEqual([orphan]);
   });
@@ -400,28 +456,43 @@ describe("buildProjectMap", () => {
     expect(mapped(tsOnly).uncovered).toEqual([]);
 
     // On an `allowJs` project, where the compiler did name one, the JavaScript files no project lists are.
-    const allowJs = await buildProjectMap(tmp, snapshot, BINARY, listings({ [cfg]: [listed, listedJs] }).exec);
+    const allowJs = await buildProjectMap(
+      tmp,
+      snapshot,
+      BINARY,
+      listings({ [cfg]: [listed, listedJs] }).exec,
+    );
     expect(mapped(allowJs).uncovered).toEqual([looseJs]);
   });
 
-  it("assigns eight thousand members of one project in one pass, not one scan per query", async () => {
-    const cfg = config({}, "tsconfig.json");
-    const members = Array.from({ length: 8_000 }, (_unused, index) =>
-      join(tmp, "src", `f${String(index).padStart(5, "0")}.ts`),
-    );
-    const h = listings({ [cfg]: members });
-
-    const began = performance.now();
-    const map = await buildProjectMap(tmp, [cfg, ...members], BINARY, h.exec);
-    const took = performance.now() - began;
-
-    expect(mapped(map).projects).toHaveLength(1);
-    expect(mapped(map).uncovered).toEqual([]);
+  it("assigns the members of one project in one pass, not one scan per query", async () => {
     // Membership is asked per walked path, so a query that scans its listing's whole member list makes the
     // build quadratic in the project's size — and it is synchronous, so `withinBudget` cannot pre-empt it and
     // every other tool in this server waits. One listing's keys are a set built once, which makes it a pass.
-    expect(took, `a map of 8000 listed members took ${took.toFixed(0)} ms`).toBeLessThan(1_000);
-  }, 120_000);
+    // The guard counts the path normalizations (`pathKey`) the build makes instead of timing it: a scan that
+    // compares keys normalizes every member for every query, so a fourfold project makes a linear build
+    // about fourfold the calls and a quadratic one about sixteenfold, on any machine at any load.
+    const cfg = config({}, "tsconfig.json");
+    const keysOfBuild = async (size: number): Promise<number> => {
+      const members = Array.from({ length: size }, (_unused, index) =>
+        join(tmp, "src", `f${String(index).padStart(5, "0")}.ts`),
+      );
+      const h = listings({ [cfg]: members });
+      vi.mocked(pathKey).mockClear();
+      const map = await buildProjectMap(tmp, [cfg, ...members], BINARY, h.exec);
+      expect(mapped(map).projects).toHaveLength(1);
+      expect(mapped(map).uncovered).toEqual([]);
+      return vi.mocked(pathKey).mock.calls.length;
+    };
+
+    const small = await keysOfBuild(500);
+    const large = await keysOfBuild(2_000);
+
+    expect(
+      large / small,
+      `pathKey calls grew ${(large / small).toFixed(1)}x (${String(small)} to ${String(large)}) for a 4x project`,
+    ).toBeLessThan(6);
+  });
 
   it("ends the owner search at a workspace that is a filesystem root", async () => {
     // `dirname` of a root is the root itself, so a climb without its own stop would ask one directory forever.
@@ -457,7 +528,10 @@ describe("buildProjectMap", () => {
 
     const map = await buildProjectMap(tmp, [sourceFile, join(tmp, "package.json")], BINARY, h.exec);
 
-    expect(map).toEqual({ kind: "unavailable", reason: `no tsconfig.json or jsconfig.json was found under "${tmp}"` });
+    expect(map).toEqual({
+      kind: "unavailable",
+      reason: `no tsconfig.json or jsconfig.json was found under "${tmp}"`,
+    });
     expect(h.asked).toEqual([]);
   });
 });
@@ -603,13 +677,25 @@ describe("cachedProjectMap", () => {
 
     await cachedProjectMap(tmp, [cfg, a], BINARY, GENERATION, h.exec);
 
-    expect(projectMapNeedsRebuild(tmp, { ...noChange, created: [join(tmp, "src", "new.ts")] }, GENERATION)).toBe(true);
+    expect(
+      projectMapNeedsRebuild(
+        tmp,
+        { ...noChange, created: [join(tmp, "src", "new.ts")] },
+        GENERATION,
+      ),
+    ).toBe(true);
     expect(projectMapNeedsRebuild(tmp, { ...noChange, deleted: [a] }, GENERATION)).toBe(true);
     // A content edit to a source leaves the same projects over the same files.
     expect(projectMapNeedsRebuild(tmp, { ...noChange, changed: [a] }, GENERATION)).toBe(false);
     expect(projectMapNeedsRebuild(tmp, { ...noChange, changed: [options] }, GENERATION)).toBe(true);
     expect(projectMapNeedsRebuild(tmp, { ...noChange, changed: [cfg] }, GENERATION)).toBe(true);
-    expect(projectMapNeedsRebuild(tmp, { ...noChange, changed: [join(tmp, "package.json")] }, GENERATION)).toBe(true);
+    expect(
+      projectMapNeedsRebuild(
+        tmp,
+        { ...noChange, changed: [join(tmp, "package.json")] },
+        GENERATION,
+      ),
+    ).toBe(true);
 
     // Two listings so far: the uncached build above and the one the cache made.
     expect(h.asked).toHaveLength(2);
@@ -622,7 +708,9 @@ describe("cachedProjectMap", () => {
   });
 
   it("runs no more than four listings at once, however many projects the workspace holds", async () => {
-    const configs = Array.from({ length: 9 }, (_unused, index) => config({}, `p${index}`, "tsconfig.json"));
+    const configs = Array.from({ length: 9 }, (_unused, index) =>
+      config({}, `p${index}`, "tsconfig.json"),
+    );
     let running = 0;
     let peak = 0;
     const exec: TsExecFn = async () => {

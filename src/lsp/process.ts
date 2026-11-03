@@ -1,7 +1,23 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import type { CancellationToken, Disposable, ErrorCodes, GenericRequestHandler, MessageConnection, ProgressToken, ProgressType } from "vscode-jsonrpc/node";
-import { createMessageConnection, StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
-import { LanguageServerUnavailableError, type LanguageServerConfig, type SpawnAttempt } from "./server-config.js";
+import type {
+  CancellationToken,
+  Disposable,
+  ErrorCodes,
+  GenericRequestHandler,
+  MessageConnection,
+  ProgressToken,
+  ProgressType,
+} from "vscode-jsonrpc/node";
+import {
+  createMessageConnection,
+  StreamMessageReader,
+  StreamMessageWriter,
+} from "vscode-jsonrpc/node";
+import {
+  LanguageServerUnavailableError,
+  type LanguageServerConfig,
+  type SpawnAttempt,
+} from "./server-config.js";
 import { drainStderr, stderrNote, StderrTail } from "./stderr-tail.js";
 
 /**
@@ -13,7 +29,11 @@ export interface LspConnection {
   sendRequest<R>(method: string, params?: unknown, token?: CancellationToken): Promise<R>;
   sendNotification(method: string, params?: unknown): Promise<void>;
   onRequest(method: string, handler: GenericRequestHandler<unknown, ErrorCodes>): Disposable;
-  onProgress<P>(type: ProgressType<P>, token: ProgressToken, handler: (value: P) => void): Disposable;
+  onProgress<P>(
+    type: ProgressType<P>,
+    token: ProgressToken,
+    handler: (value: P) => void,
+  ): Disposable;
 }
 
 /** One live language-server child process plus its JSON-RPC connection. */
@@ -65,7 +85,11 @@ export interface LifecycleState {
  * back. It is recorded here as a `LanguageServerUnavailableError` for the session to surface in place
  * of the connection's own opaque "disposed" rejection.
  */
-export function attachLifecycleHandlers(child: LifecycleChild, connection: DisposableConnection, attempt: SpawnAttempt): LifecycleState {
+export function attachLifecycleHandlers(
+  child: LifecycleChild,
+  connection: DisposableConnection,
+  attempt: SpawnAttempt,
+): LifecycleState {
   let alive = true;
   let disposed = false;
   let failure: LanguageServerUnavailableError | undefined;
@@ -94,10 +118,16 @@ function errorCode(error: unknown): string | undefined {
 /** The override names an absolute binary; without it `config.command` is looked up on PATH. */
 function spawnAttempt(config: LanguageServerConfig): SpawnAttempt {
   const override = process.env[config.commandEnvOverride];
-  return override ? { config, attempted: override, fromOverride: true } : { config, attempted: config.command, fromOverride: false };
+  return override
+    ? { config, attempted: override, fromOverride: true }
+    : { config, attempted: config.command, fromOverride: false };
 }
 
-function spawnChild(attempt: SpawnAttempt, root: string, config: LanguageServerConfig): ChildProcess {
+function spawnChild(
+  attempt: SpawnAttempt,
+  root: string,
+  config: LanguageServerConfig,
+): ChildProcess {
   try {
     return spawn(attempt.attempted, [...config.argv(root)], {
       cwd: root,
@@ -117,7 +147,13 @@ function whenSpawned(child: ChildProcess, lifecycle: LifecycleState): Promise<vo
     child.once("spawn", resolve);
     // Registered after `attachLifecycleHandlers` attached its own `'error'` listener, so Node calls
     // that one first and the failure is recorded by the time this runs.
-    child.once("error", () => reject(lifecycle.spawnFailure()));
+    child.once("error", (error) => {
+      // The lifecycle listener has recorded the failure already; the fallback only covers the type's `undefined`.
+      reject(
+        lifecycle.spawnFailure() ??
+          new Error("language server process failed to start", { cause: error }),
+      );
+    });
   });
 }
 
@@ -138,8 +174,13 @@ function gatedConnection(connection: MessageConnection, spawned: Promise<void>):
   const afterSpawn = <T>(write: () => Promise<T>): Promise<T> => spawned.then(write);
   return {
     sendRequest: <R>(method: string, params?: unknown, token?: CancellationToken) =>
-      afterSpawn(() => (token === undefined ? connection.sendRequest<R>(method, params) : connection.sendRequest<R>(method, params, token))),
-    sendNotification: (method, params) => afterSpawn(() => connection.sendNotification(method, params)),
+      afterSpawn(() =>
+        token === undefined
+          ? connection.sendRequest<R>(method, params)
+          : connection.sendRequest<R>(method, params, token),
+      ),
+    sendNotification: (method, params) =>
+      afterSpawn(() => connection.sendNotification(method, params)),
     onRequest: (method, handler) => connection.onRequest(method, handler),
     onProgress: (type, token, handler) => connection.onProgress(type, token, handler),
   };
@@ -166,9 +207,16 @@ export class NonRejectingStreamMessageWriter extends StreamMessageWriter {
  * One block on this server's own stderr when a child ends on its own (not by `kill()`), so a crash leaves its last
  * words in the diagnostics even when no request was in flight to carry them.
  */
-function reportUnexpectedExit(config: LanguageServerConfig, tail: StderrTail, code: number | null, signal: string | null): void {
+function reportUnexpectedExit(
+  config: LanguageServerConfig,
+  tail: StderrTail,
+  code: number | null,
+  signal: string | null,
+): void {
   const how = signal === null ? `code ${String(code)}` : `signal ${signal}`;
-  process.stderr.write(`mcp-code-nav: ${config.id} exited (${how})${stderrNote(config.id, tail.read())}\n`);
+  process.stderr.write(
+    `mcp-code-nav: ${config.id} exited (${how})${stderrNote(config.id, tail.read())}\n`,
+  );
 }
 
 export const defaultSpawnLsp: SpawnLsp = (root, config) => {
@@ -196,12 +244,12 @@ export const defaultSpawnLsp: SpawnLsp = (root, config) => {
   const lifecycle = attachLifecycleHandlers(child, connection, attempt);
   return {
     connection: gatedConnection(connection, whenSpawned(child, lifecycle)),
-    isAlive: lifecycle.isAlive,
+    isAlive: () => lifecycle.isAlive(),
     kill: () => {
       killedByUs = true;
       child.kill();
     },
-    spawnFailure: lifecycle.spawnFailure,
+    spawnFailure: () => lifecycle.spawnFailure(),
     stderrTail: () => tail.read(),
     stderrSettled: () => tail.settled,
   };

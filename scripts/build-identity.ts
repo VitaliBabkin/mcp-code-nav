@@ -83,10 +83,17 @@ function workingTreeIsDirty(cwd: string): boolean {
 /** git's stdout, trimmed; `undefined` when git ran and answered with a non-zero exit. */
 function git(cwd: string, args: string[]): string | undefined {
   try {
-    return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    return execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
   } catch (error) {
     if (errorCode(error) === "ENOENT") {
-      throw new Error(`Building needs git to derive the identity (no bundle without one) and \`git ${args.join(" ")}\` could not be started.`, { cause: error });
+      throw new Error(
+        `Building needs git to derive the identity (no bundle without one) and \`git ${args.join(" ")}\` could not be started.`,
+        { cause: error },
+      );
     }
     return undefined;
   }

@@ -50,12 +50,12 @@ function noPositionReason(server: string, declaration: DeclarationSource): strin
 }
 
 function hoverBudgetReason(budget: Budget): string {
-  return `its hover never arrived inside this call's ${budget.ceilingMs} ms budget`;
+  return `its hover never arrived inside this call's ${String(budget.ceilingMs)} ms budget`;
 }
 
 /** Why a group of rows carries no description at all: the server would not hold their file open. */
 function unopenableReason(error: unknown): string {
-  return `its file could not be held open to ask: ${(error as Error).message}`;
+  return `its file could not be held open to ask: ${error instanceof Error ? error.message : String(error)}`;
 }
 
 /**
@@ -67,7 +67,8 @@ type RowPlan = { readonly reason: string } | { readonly position: Position };
 
 function planRow(context: DescriptionContext, declaration: DeclarationSource): RowPlan {
   if (declaration.external) return { reason: context.externalReason };
-  if (declaration.position === null) return { reason: noPositionReason(context.server, declaration) };
+  if (declaration.position === null)
+    return { reason: noPositionReason(context.server, declaration) };
   return { position: declaration.position };
 }
 
@@ -99,7 +100,12 @@ function hoverGroups(
     }
     const key = pathKey(declaration.file);
     const existing = groups.find((group) => group.key === key);
-    if (existing === undefined) groups.push({ key, file: declaration.file, rows: [{ declaration, position: plan.position }] });
+    if (existing === undefined)
+      groups.push({
+        key,
+        file: declaration.file,
+        rows: [{ declaration, position: plan.position }],
+      });
     else existing.rows.push({ declaration, position: plan.position });
   }
   return groups;
@@ -119,7 +125,8 @@ async function describeHover(
       .catch((e: unknown) => ({ hoverFailure: messageOf(e) })),
     context.budget,
   );
-  if (answered === undefined) described.set(declaration, { descriptionUnavailable: hoverBudgetReason(context.budget) });
+  if (answered === undefined)
+    described.set(declaration, { descriptionUnavailable: hoverBudgetReason(context.budget) });
   else if (typeof answered === "object" && answered !== null && "hoverFailure" in answered) {
     described.set(declaration, {
       descriptionUnavailable: `${context.server} refused the hover: ${(answered as { hoverFailure: string }).hoverFailure}`,
@@ -138,11 +145,16 @@ async function describeGroup(
 ): Promise<void> {
   try {
     await context.session.withTransientDocument(group.file, (asking) =>
-      Promise.all(group.rows.map((row) => describeHover(context, asking, row.declaration, row.position, described))),
+      Promise.all(
+        group.rows.map((row) =>
+          describeHover(context, asking, row.declaration, row.position, described),
+        ),
+      ),
     );
   } catch (e) {
     for (const row of group.rows) {
-      if (!described.has(row.declaration)) described.set(row.declaration, { descriptionUnavailable: unopenableReason(e) });
+      if (!described.has(row.declaration))
+        described.set(row.declaration, { descriptionUnavailable: unopenableReason(e) });
     }
   }
 }
@@ -157,9 +169,16 @@ export async function describeRows(
   declarations: readonly DeclarationSource[],
 ): Promise<SymbolDescription[] | undefined> {
   const described = new Map<DeclarationSource, SymbolDescription>();
-  await Promise.all(hoverGroups(context, declarations, described).map((group) => describeGroup(context, group, described)));
+  await Promise.all(
+    hoverGroups(context, declarations, described).map((group) =>
+      describeGroup(context, group, described),
+    ),
+  );
   if (!context.stillProven()) return undefined;
   return declarations.map(
-    (declaration) => described.get(declaration) ?? { descriptionUnavailable: "this server read no hover answer for this row" },
+    (declaration) =>
+      described.get(declaration) ?? {
+        descriptionUnavailable: "this server read no hover answer for this row",
+      },
   );
 }

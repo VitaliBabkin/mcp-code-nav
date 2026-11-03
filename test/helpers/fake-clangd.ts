@@ -20,7 +20,9 @@ export function noopServerHandlers(): Pick<Connection, "onRequest" | "onProgress
 }
 
 /** A clangd whose `documentSymbol` answer is decided per file path; `null` reads as a cold, empty answer. */
-export function fakeProcessByFile(byFile: (file: string) => LspDocumentSymbol[] | null): LspProcess {
+export function fakeProcessByFile(
+  byFile: (file: string) => LspDocumentSymbol[] | null,
+): LspProcess {
   return fakeProcessByFileAndIndex(byFile);
 }
 
@@ -61,7 +63,12 @@ export function fakeProcessByFileAndIndex(
  * whole range starts on column 0 of that line — the keyword. The two are deliberately apart so that a
  * request which landed on the range instead of the name is visible in the params it was sent with.
  */
-export function symAt(name: string, kind: number, nameLine: number, nameCharacter: number): LspDocumentSymbol {
+export function symAt(
+  name: string,
+  kind: number,
+  nameLine: number,
+  nameCharacter: number,
+): LspDocumentSymbol {
   return {
     name,
     kind,

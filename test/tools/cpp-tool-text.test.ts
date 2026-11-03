@@ -79,7 +79,9 @@ describe("what cpp_find_symbol says about the search it ran and the text it retu
   });
 
   it("states where a name is looked for when no file is given, on the parameter that omits it", () => {
-    expect(CppFindSymbolInput.shape.file.description).toContain("the files this session opened, then clangd's index");
+    expect(CppFindSymbolInput.shape.file.description).toContain(
+      "the files this session opened, then clangd's index",
+    );
   });
 
   it("states that the match is exact, on the parameter that carries the name", () => {

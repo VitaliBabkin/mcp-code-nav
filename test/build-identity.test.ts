@@ -17,7 +17,9 @@ describe("the unbundled build identity", () => {
   });
 
   it("is the package version marked unbundled when nothing injected an identity", () => {
-    const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+    const { version } = JSON.parse(
+      readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+    ) as {
       version: string;
     };
     expect(BUILD_IDENTITY).toBe(`${version}+unbundled`);

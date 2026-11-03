@@ -50,7 +50,9 @@ describe("takeModuleSnapshot", () => {
   function keysUnder(mod: string, snapshot: Map<string, string> | undefined): string[] {
     if (snapshot === undefined) throw new Error("expected a snapshot");
     const prefix = `${resolve(mod)}${sep}`;
-    return Array.from(snapshot.keys(), (path) => (path.startsWith(prefix) ? path.slice(prefix.length) : path)).sort();
+    return Array.from(snapshot.keys(), (path) =>
+      path.startsWith(prefix) ? path.slice(prefix.length) : path,
+    ).sort();
   }
 
   it("keys every tracked file by its absolute path and values it with size|mtimeMs", () => {

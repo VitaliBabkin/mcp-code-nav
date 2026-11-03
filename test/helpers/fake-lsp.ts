@@ -1,7 +1,11 @@
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { vi } from "vitest";
 import type { ProgressToken } from "vscode-jsonrpc/node";
-import { goplsConfig, type LanguageServerConfig, type LanguageServerUnavailableError } from "../../src/lsp/server-config.js";
+import {
+  goplsConfig,
+  type LanguageServerConfig,
+  type LanguageServerUnavailableError,
+} from "../../src/lsp/server-config.js";
 import { LspSession } from "../../src/lsp/session.js";
 import type { LspProcess } from "../../src/lsp/process.js";
 
@@ -19,9 +23,11 @@ export function pathOfUri(uri: string): string {
 
 /** The path a `textDocument`-carrying request or notification names, or `undefined` if it names none. */
 export function pathOfDocumentId(params: unknown): string | undefined {
-  if (typeof params !== "object" || params === null || !("textDocument" in params)) return undefined;
+  if (typeof params !== "object" || params === null || !("textDocument" in params))
+    return undefined;
   const doc = params.textDocument;
-  if (typeof doc !== "object" || doc === null || !("uri" in doc) || typeof doc.uri !== "string") return undefined;
+  if (typeof doc !== "object" || doc === null || !("uri" in doc) || typeof doc.uri !== "string")
+    return undefined;
   return fileURLToPath(doc.uri);
 }
 
@@ -101,11 +107,14 @@ export function fakeServer(options: FakeServerOptions = {}) {
       requestHandlers.set(method, handler);
       return { dispose: () => {} };
     }),
-    onProgress: vi.fn((_type: unknown, token: ProgressToken, handler: (value: unknown) => unknown) => {
-      if (progressHandlers.has(token)) throw new Error(`Progress handler for token ${String(token)} already registered`);
-      progressHandlers.set(token, handler);
-      return { dispose: () => {} };
-    }),
+    onProgress: vi.fn(
+      (_type: unknown, token: ProgressToken, handler: (value: unknown) => unknown) => {
+        if (progressHandlers.has(token))
+          throw new Error(`Progress handler for token ${String(token)} already registered`);
+        progressHandlers.set(token, handler);
+        return { dispose: () => {} };
+      },
+    ),
   } as unknown as Connection;
 
   return {
@@ -131,7 +140,8 @@ export function fakeServer(options: FakeServerOptions = {}) {
     },
     createProgress: async (token?: ProgressToken) => {
       const handler = requestHandlers.get("window/workDoneProgress/create");
-      if (!handler) throw new Error("this session registered no window/workDoneProgress/create handler");
+      if (!handler)
+        throw new Error("this session registered no window/workDoneProgress/create handler");
       return handler({ token });
     },
     sendProgress: (token: ProgressToken, value: unknown) => {

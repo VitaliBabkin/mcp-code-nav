@@ -40,8 +40,10 @@ function installedDeps(asks: { npm: number }): Partial<TsgoBinaryDeps> {
       return { stdout: `${NPM_GLOBAL}\n`, stderr: "", exitCode: 0 };
     },
     readJson: (path) => {
-      if (path === join(TYPESCRIPT_DIR, "package.json")) return { name: "typescript", version: "7.0.2" };
-      if (path === join(NATIVE_DIR, "package.json")) return { name: "@typescript/typescript-win32-x64" };
+      if (path === join(TYPESCRIPT_DIR, "package.json"))
+        return { name: "typescript", version: "7.0.2" };
+      if (path === join(NATIVE_DIR, "package.json"))
+        return { name: "@typescript/typescript-win32-x64" };
       return undefined;
     },
     exists: (path) => path === NPM_GLOBAL || path === EXECUTABLE,
@@ -75,7 +77,9 @@ describe("tsWorkspaceRootErrorText", () => {
 
   it("names the directory the search started from when no package.json exists above the file", () => {
     const outcome: NotInPackage = { kind: "not-in-package", searchedFrom: "C:/Users/dev/scratch" };
-    expect(tsWorkspaceRootErrorText("ts_find_references", outcome, "C:/Users/dev/scratch/a.ts")).toBe(
+    expect(
+      tsWorkspaceRootErrorText("ts_find_references", outcome, "C:/Users/dev/scratch/a.ts"),
+    ).toBe(
       'ts_find_references failed: "C:/Users/dev/scratch/a.ts" is not inside an npm package - no package.json ' +
         'exists in "C:/Users/dev/scratch" or any parent directory up to the filesystem root. tsgo answers ' +
         "for the workspace holding a file; name one inside a package.",
@@ -100,7 +104,9 @@ describe("cachedTsgoBinary", () => {
     const first = await cached(installedDeps(asks));
     const secondAsks = { npm: 0 };
     const second = await cached(installedDeps(secondAsks));
-    expect(first).toEqual({ binary: { executable: EXECUTABLE, version: "7.0.2", source: "global" } });
+    expect(first).toEqual({
+      binary: { executable: EXECUTABLE, version: "7.0.2", source: "global" },
+    });
     expect(second).toEqual(first);
     expect(asks.npm).toBe(1);
     expect(secondAsks.npm).toBe(0);

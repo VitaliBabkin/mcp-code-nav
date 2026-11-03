@@ -2,7 +2,11 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { isIgnoredPath, loadIgnoredPaths, readIgnoredPatterns } from "../../src/config/ignored-paths.js";
+import {
+  isIgnoredPath,
+  loadIgnoredPaths,
+  readIgnoredPatterns,
+} from "../../src/config/ignored-paths.js";
 
 describe("loadIgnoredPaths", () => {
   let projectRoot: string;
@@ -33,7 +37,10 @@ describe("loadIgnoredPaths", () => {
   });
 
   it("throws when ignoredPaths is present but the wrong type", () => {
-    writeFileSync(join(projectRoot, "mcp-code-nav.config.json"), JSON.stringify({ ignoredPaths: "not-an-array" }));
+    writeFileSync(
+      join(projectRoot, "mcp-code-nav.config.json"),
+      JSON.stringify({ ignoredPaths: "not-an-array" }),
+    );
     expect(() => loadIgnoredPaths(projectRoot)).toThrow();
   });
 
@@ -80,10 +87,19 @@ describe("accepted patterns", () => {
   const root = process.platform === "win32" ? "C:\\proj" : "/proj";
 
   it("keeps the common patterns working", () => {
-    const patterns = ["**/build/**", "**/*.generated.*", "third_party/**", "**/node_modules/**", "src/{a,b}/*.cpp"];
+    const patterns = [
+      "**/build/**",
+      "**/*.generated.*",
+      "third_party/**",
+      "**/node_modules/**",
+      "src/{a,b}/*.cpp",
+    ];
     const projectRoot = mkdtempSync(join(tmpdir(), "mcp-code-nav-cfg-"));
     try {
-      writeFileSync(join(projectRoot, "mcp-code-nav.config.json"), JSON.stringify({ ignoredPaths: patterns }));
+      writeFileSync(
+        join(projectRoot, "mcp-code-nav.config.json"),
+        JSON.stringify({ ignoredPaths: patterns }),
+      );
       expect(loadIgnoredPaths(projectRoot)).toEqual(patterns);
     } finally {
       rmSync(projectRoot, { recursive: true, force: true });
@@ -91,7 +107,9 @@ describe("accepted patterns", () => {
     expect(isIgnoredPath(root, join(root, "x", "build", "y.cpp"), ["**/build/**"])).toBe(true);
     expect(isIgnoredPath(root, join(root, "x", "a.generated.h"), ["**/*.generated.*"])).toBe(true);
     expect(isIgnoredPath(root, join(root, "src", "a", "z.cpp"), ["src/{a,b}/*.cpp"])).toBe(true);
-    expect(isIgnoredPath(root, join(root, "a", "node_modules", "p", "i.js"), ["**/node_modules/**"])).toBe(true);
+    expect(
+      isIgnoredPath(root, join(root, "a", "node_modules", "p", "i.js"), ["**/node_modules/**"]),
+    ).toBe(true);
   });
 
   it("finishes the worst accepted pattern quickly on a long name", () => {

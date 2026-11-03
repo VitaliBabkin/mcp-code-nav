@@ -36,7 +36,11 @@ describe("findWorkspaceRoot", () => {
   const json = (body: Record<string, unknown>): string => JSON.stringify(body);
 
   /** The member package inside a root whose `package.json` is `rootManifest`, holding `src/index.ts`. */
-  function memberUnder(rootDir: string, rootManifest: string, extraFiles: Record<string, string> = {}): string {
+  function memberUnder(
+    rootDir: string,
+    rootManifest: string,
+    extraFiles: Record<string, string> = {},
+  ): string {
     const ws = dirWithFiles(join(tmp, rootDir), { "package.json": rootManifest, ...extraFiles });
     return dirWithFiles(join(ws, "packages", "app"), {
       "package.json": json({ name: "app" }),
@@ -59,11 +63,9 @@ describe("findWorkspaceRoot", () => {
   });
 
   it("roots the same member at the workspace from a pnpm-workspace.yaml alone, with no workspaces field", () => {
-    const member = memberUnder(
-      "pnpm",
-      json({ name: "root" }),
-      { "pnpm-workspace.yaml": "packages:\n  - 'packages/*'\n" },
-    );
+    const member = memberUnder("pnpm", json({ name: "root" }), {
+      "pnpm-workspace.yaml": "packages:\n  - 'packages/*'\n",
+    });
     const ws = workspaceOf(member);
 
     expect(findWorkspaceRoot(join(member, "src", "index.ts"), [ws])).toEqual({
@@ -222,7 +224,9 @@ describe("findWorkspaceRoot", () => {
 
   it("reports the package, and not the workspace above it, when both lie outside every declared root", () => {
     const member = memberUnder("both-outside", json({ name: "root", workspaces: ["packages/*"] }));
-    const declared = dirWithFiles(join(tmp, "declared"), { "package.json": json({ name: "declared" }) });
+    const declared = dirWithFiles(join(tmp, "declared"), {
+      "package.json": json({ name: "declared" }),
+    });
 
     expect(findWorkspaceRoot(join(member, "src", "index.ts"), [declared])).toEqual({
       kind: "outside-roots",
@@ -281,7 +285,10 @@ describe("findWorkspaceRoot", () => {
       "index.ts": "export const x = 1\n",
     });
 
-    expect(findWorkspaceRoot(solo, [tmp])).toEqual({ kind: "not-in-package", searchedFrom: resolve(tmp) });
+    expect(findWorkspaceRoot(solo, [tmp])).toEqual({
+      kind: "not-in-package",
+      searchedFrom: resolve(tmp),
+    });
     expect(findWorkspaceRoot(solo, [solo], "directory").kind).toBe("found");
   });
 });

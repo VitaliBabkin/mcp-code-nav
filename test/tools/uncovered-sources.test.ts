@@ -9,7 +9,11 @@ import { runCppFindDerivedClasses } from "../../src/tools/cpp-find-derived-class
 import { cleanExec, registeredDescription } from "../helpers/cpp-find-derived-classes.js";
 
 /** Every TU fails, all of them the same way — the whole-sweep failure text. */
-const brokenExec: ClangQueryExecFn = async () => ({ exitCode: 1, stdout: "", stderr: "error: unknown matcher" });
+const brokenExec: ClangQueryExecFn = async () => ({
+  exitCode: 1,
+  stdout: "",
+  stderr: "error: unknown matcher",
+});
 
 /** Every TU fails, each differently, so no uniform failure short-circuits the response and `failedFiles` is read. */
 const failsEachWay: ClangQueryExecFn = async (args) => ({
@@ -38,7 +42,10 @@ function writeDb(files: string[]): void {
  * (`sources-under-project-root`) and the call has no source tree to make a claim about.
  */
 function writeDbUnderProjectRoot(): void {
-  writeFileSync(join(buildRoot, "compile_commands.json"), JSON.stringify([{ directory: buildRoot, file: "gen.cpp" }]));
+  writeFileSync(
+    join(buildRoot, "compile_commands.json"),
+    JSON.stringify([{ directory: buildRoot, file: "gen.cpp" }]),
+  );
 }
 
 function writeConfig(raw: string): void {
@@ -46,7 +53,12 @@ function writeConfig(raw: string): void {
 }
 
 async function run(
-  overrides: { files?: string[]; sourceRoots?: string[]; exec?: ClangQueryExecFn; timeBudgetMs?: number } = {},
+  overrides: {
+    files?: string[];
+    sourceRoots?: string[];
+    exec?: ClangQueryExecFn;
+    timeBudgetMs?: number;
+  } = {},
 ) {
   return runCppFindDerivedClasses(
     { exec: overrides.exec ?? cleanExec, cache },
@@ -65,7 +77,10 @@ beforeEach(() => {
   sourceRoot = mkdtempSync(join(tmpdir(), "mcp-code-nav-uncov-src-"));
   cache = new SweepCache();
   writeFileSync(source("adapter.cpp"), "class Adapter : public IProviderAdapter {};\n");
-  writeFileSync(source("factset_md_adapter.cpp"), "class FactSetMdAdapter : public IProviderAdapter {};\n");
+  writeFileSync(
+    source("factset_md_adapter.cpp"),
+    "class FactSetMdAdapter : public IProviderAdapter {};\n",
+  );
   writeDb(["adapter.cpp"]);
 });
 
@@ -112,15 +127,22 @@ describe("sweep.uncoveredSources", () => {
   it("says count zero, with the field present rather than absent, when every visited source has an entry", async () => {
     rmSync(source("factset_md_adapter.cpp"));
     const out = await run();
-    expect(out.structuredContent.sweep).toMatchObject({ uncoveredSources: { count: 0, files: [] } });
+    expect(out.structuredContent.sweep).toMatchObject({
+      uncoveredSources: { count: 0, files: [] },
+    });
     expect(out.structuredContent.sweep).not.toHaveProperty("uncoveredSourcesUnavailable");
   });
 
   it("makes no claim about sources under projectRoot alone, which is the build directory", async () => {
-    writeFileSync(join(buildRoot, "generated.cpp"), "class Generated : public IProviderAdapter {};\n");
+    writeFileSync(
+      join(buildRoot, "generated.cpp"),
+      "class Generated : public IProviderAdapter {};\n",
+    );
     rmSync(source("factset_md_adapter.cpp"));
     const out = await run();
-    expect(out.structuredContent.sweep).toMatchObject({ uncoveredSources: { count: 0, files: [] } });
+    expect(out.structuredContent.sweep).toMatchObject({
+      uncoveredSources: { count: 0, files: [] },
+    });
   });
 
   it("is information only: the rows, counts and isError do not depend on whether the signal could be computed", async () => {
@@ -168,7 +190,11 @@ describe("sweep.uncoveredSources", () => {
       });
     const out = await run({ exec: hanging, timeBudgetMs: 20 });
     expect(out.isError).toBe(true);
-    expect(out.structuredContent.incomplete).toEqual({ sweptTus: 0, totalTus: 1, reason: "time-budget" });
+    expect(out.structuredContent.incomplete).toEqual({
+      sweptTus: 0,
+      totalTus: 1,
+      reason: "time-budget",
+    });
     expect(out.structuredContent.sweep).toMatchObject({ uncoveredSources: { count: 1 } });
     expect(out.structuredContent.sweep).not.toHaveProperty("uncoveredSourcesUnavailable");
   });
@@ -179,7 +205,9 @@ describe("sweep.uncoveredSourcesUnavailable", () => {
     writeDbUnderProjectRoot();
     const out = await run({ sourceRoots: [] });
     expect(out.isError).toBeFalsy();
-    expect(out.structuredContent.sweep).toMatchObject({ uncoveredSourcesUnavailable: "no-source-roots" });
+    expect(out.structuredContent.sweep).toMatchObject({
+      uncoveredSourcesUnavailable: "no-source-roots",
+    });
     expect(out.structuredContent.sweep).not.toHaveProperty("uncoveredSources");
   });
 
@@ -188,7 +216,9 @@ describe("sweep.uncoveredSourcesUnavailable", () => {
     rmSync(missing, { recursive: true, force: true });
     const out = await run({ sourceRoots: [sourceRoot, missing] });
     expect(out.isError).toBeFalsy();
-    expect(out.structuredContent.sweep).toMatchObject({ uncoveredSourcesUnavailable: "walk-incomplete" });
+    expect(out.structuredContent.sweep).toMatchObject({
+      uncoveredSourcesUnavailable: "walk-incomplete",
+    });
   });
 
   it("says root-under-skipped-dir when dedupe drops a root behind a skipped directory name", async () => {
@@ -200,7 +230,9 @@ describe("sweep.uncoveredSourcesUnavailable", () => {
     rmSync(source("factset_md_adapter.cpp"));
     const out = await run({ sourceRoots: [sourceRoot, hidden] });
     expect(out.isError).toBeFalsy();
-    expect(out.structuredContent.sweep).toMatchObject({ uncoveredSourcesUnavailable: "root-under-skipped-dir" });
+    expect(out.structuredContent.sweep).toMatchObject({
+      uncoveredSourcesUnavailable: "root-under-skipped-dir",
+    });
     expect(out.structuredContent.sweep).not.toHaveProperty("uncoveredSources");
   });
 
@@ -211,7 +243,9 @@ describe("sweep.uncoveredSourcesUnavailable", () => {
     rmSync(source("factset_md_adapter.cpp"));
     const out = await run({ sourceRoots: [sourceRoot, hidden] });
     expect(out.isError).toBeFalsy();
-    expect(out.structuredContent.sweep).toMatchObject({ uncoveredSourcesUnavailable: "root-under-skipped-dir" });
+    expect(out.structuredContent.sweep).toMatchObject({
+      uncoveredSourcesUnavailable: "root-under-skipped-dir",
+    });
     expect(out.structuredContent.sweep).not.toHaveProperty("uncoveredSources");
   });
 
@@ -220,7 +254,9 @@ describe("sweep.uncoveredSourcesUnavailable", () => {
     const out = await run();
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent.matches).toEqual([]);
-    expect(out.structuredContent.sweep).toMatchObject({ uncoveredSourcesUnavailable: "ignored-paths-unreadable" });
+    expect(out.structuredContent.sweep).toMatchObject({
+      uncoveredSourcesUnavailable: "ignored-paths-unreadable",
+    });
     expect(out.structuredContent.sweep).not.toHaveProperty("uncoveredSources");
   });
 
@@ -228,7 +264,9 @@ describe("sweep.uncoveredSourcesUnavailable", () => {
     rmSync(join(buildRoot, "compile_commands.json"));
     const out = await run({ files: ["untouched.cpp"] });
     expect(out.isError).toBeFalsy();
-    expect(out.structuredContent.sweep).toMatchObject({ uncoveredSourcesUnavailable: "compile-db-unlistable" });
+    expect(out.structuredContent.sweep).toMatchObject({
+      uncoveredSourcesUnavailable: "compile-db-unlistable",
+    });
   });
 
   it("keeps the walk's own failure ahead of an unreadable config when both are true", async () => {
@@ -238,7 +276,9 @@ describe("sweep.uncoveredSourcesUnavailable", () => {
     const missing = join(tmpdir(), "mcp-code-nav-uncov-no-such-root-again");
     rmSync(missing, { recursive: true, force: true });
     const out = await run({ sourceRoots: [sourceRoot, missing] });
-    expect(out.structuredContent.sweep).toMatchObject({ uncoveredSourcesUnavailable: "walk-incomplete" });
+    expect(out.structuredContent.sweep).toMatchObject({
+      uncoveredSourcesUnavailable: "walk-incomplete",
+    });
   });
 
   it("applies ignoredPaths keyed to the source root that contains the file, not to projectRoot", async () => {
@@ -249,17 +289,24 @@ describe("sweep.uncoveredSourcesUnavailable", () => {
     const out = await run();
     // Keyed to the build directory the relative path would start with ".." and the pattern could never
     // have matched, leaving this file reported as a blind spot forever.
-    expect(out.structuredContent.sweep).toMatchObject({ uncoveredSources: { count: 0, files: [] } });
+    expect(out.structuredContent.sweep).toMatchObject({
+      uncoveredSources: { count: 0, files: [] },
+    });
   });
 
   it("keeps a source under a skipped directory inside a declared root out of both the count and the reasons", async () => {
     // The narrowed claim, pinned so widening it has to change this test: a real source tree named
     // `builder/` is invisible to the field in both directions.
     mkdirSync(source("builder"));
-    writeFileSync(source(join("builder", "omitted.cpp")), "class Omitted : public IProviderAdapter {};\n");
+    writeFileSync(
+      source(join("builder", "omitted.cpp")),
+      "class Omitted : public IProviderAdapter {};\n",
+    );
     rmSync(source("factset_md_adapter.cpp"));
     const out = await run();
-    expect(out.structuredContent.sweep).toMatchObject({ uncoveredSources: { count: 0, files: [] } });
+    expect(out.structuredContent.sweep).toMatchObject({
+      uncoveredSources: { count: 0, files: [] },
+    });
     expect(out.structuredContent.sweep).not.toHaveProperty("uncoveredSourcesUnavailable");
   });
 });
@@ -279,19 +326,27 @@ describe("a files-scoped call diagnoses its own entries against the database", (
     expect(rowFor(out.structuredContent.failedFiles, mistyped())).toBe(
       `fatal error: cannot compile typo.cpp - ${DB_ENTRY_REASON}`,
     );
-    expect(rowFor(out.structuredContent.failedFiles, compiled())).toBe("fatal error: cannot compile adapter.cpp");
+    expect(rowFor(out.structuredContent.failedFiles, compiled())).toBe(
+      "fatal error: cannot compile adapter.cpp",
+    );
   });
 
   it("needs no sourceRoots and no completed walk to make the diagnosis", async () => {
     writeDbUnderProjectRoot();
-    const out = await run({ sourceRoots: [], files: ["typo.cpp", "adapter.cpp"], exec: failsEachWay });
+    const out = await run({
+      sourceRoots: [],
+      files: ["typo.cpp", "adapter.cpp"],
+      exec: failsEachWay,
+    });
     expect(rowFor(out.structuredContent.failedFiles, join(buildRoot, "typo.cpp"))).toBe(
       `fatal error: cannot compile typo.cpp - ${DB_ENTRY_REASON}`,
     );
     expect(rowFor(out.structuredContent.failedFiles, join(buildRoot, "adapter.cpp"))).toBe(
       `fatal error: cannot compile adapter.cpp - ${DB_ENTRY_REASON}`,
     );
-    expect(out.structuredContent.sweep).toMatchObject({ uncoveredSourcesUnavailable: "no-source-roots" });
+    expect(out.structuredContent.sweep).toMatchObject({
+      uncoveredSourcesUnavailable: "no-source-roots",
+    });
   });
 
   it("names the blind-spot files in the uniform-failure text instead of only blaming the binary", async () => {
@@ -325,7 +380,9 @@ describe("a files-scoped call diagnoses its own entries against the database", (
     const out = await run({ files: ["adapter.cpp"] });
     expect(out.isError).toBeFalsy();
     expect(out.structuredContent.matches).toEqual([]);
-    expect(out.structuredContent.sweep).toMatchObject({ uncoveredSourcesUnavailable: "compile-db-unlistable" });
+    expect(out.structuredContent.sweep).toMatchObject({
+      uncoveredSourcesUnavailable: "compile-db-unlistable",
+    });
     expect(out.structuredContent.sweep).not.toHaveProperty("uncoveredSources");
   });
 

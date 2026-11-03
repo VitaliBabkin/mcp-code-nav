@@ -9,7 +9,7 @@ import { statSync } from "node:fs";
 export function fileStamp(path: string): string | undefined {
   try {
     const { size, mtimeMs } = statSync(path);
-    return `${size}|${mtimeMs}`;
+    return `${String(size)}|${String(mtimeMs)}`;
   } catch {
     return undefined;
   }

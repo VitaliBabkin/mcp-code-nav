@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -96,7 +104,9 @@ describe("takeIndexSnapshot", () => {
     const built = join(root, "build");
 
     expect(takeIndexSnapshot([built])?.stamps.size).toBe(1);
-    expect([...(takeIndexSnapshot([built])?.paths.values() ?? [])]).toEqual([join(built, "generated.cpp")]);
+    expect([...(takeIndexSnapshot([built])?.paths.values() ?? [])]).toEqual([
+      join(built, "generated.cpp"),
+    ]);
   });
 
   it("reports a bounded walk as no usable look, rather than as a smaller snapshot", () => {
@@ -116,13 +126,17 @@ describe("takeIndexSnapshot", () => {
     // parent, and a trailing separator. Each is entered once, so the entry bound is not spent twice.
     const spelledTwice = [root, join(root, "..", basename(root)), `${root}${sep}`];
     expect(takeIndexSnapshot(spelledTwice).stamps.size).toBe(3);
-    expect([...(takeIndexSnapshot(spelledTwice).paths?.values() ?? [])]).toContain(join(root, "widget.cpp"));
+    expect([...(takeIndexSnapshot(spelledTwice).paths?.values() ?? [])]).toContain(
+      join(root, "widget.cpp"),
+    );
   });
 
   it("keeps its account of the sources it visited, for the blind-spot signal beside the drift", () => {
     const snapshot = takeIndexSnapshot([root]);
 
-    expect(snapshot.account?.sources.sort()).toEqual([join(root, "widget.cpp"), join(root, "sub", "other.cc")].sort());
+    expect(snapshot.account?.sources.sort()).toEqual(
+      [join(root, "widget.cpp"), join(root, "sub", "other.cc")].sort(),
+    );
     expect(snapshot.account?.walkIncomplete).toBe(false);
     expect(snapshot.account?.bounded).toBe(false);
     expect(snapshot.account?.unreachableSourceRoots).toEqual([]);
@@ -162,7 +176,9 @@ describe("takeIndexSnapshot", () => {
     // directory inside it.
     expect(walkFailure(takeIndexSnapshot([root], { maxEntries: 7 }))).toBe("entry-bound");
     expect(walkFailure(takeIndexSnapshot([root], { maxEntries: 8 }))).toBeUndefined();
-    expect(walkFailure(takeIndexSnapshot([root, join(root, "sub")], { maxEntries: 8 }))).toBeUndefined();
+    expect(
+      walkFailure(takeIndexSnapshot([root, join(root, "sub")], { maxEntries: 8 })),
+    ).toBeUndefined();
 
     const nested = takeIndexSnapshot([root, join(root, "sub")]);
 
@@ -208,12 +224,18 @@ describe("the drift verdict one index-backed call is preceded by", () => {
   });
 
   it("keeps the baseline it has when the walk cannot complete, and says so without disposing anything", async () => {
-    const { drift, events } = harness([snap({ "/a/widget.cpp": "10|1" }), undefined, snap({ "/a/widget.cpp": "99|9" })]);
+    const { drift, events } = harness([
+      snap({ "/a/widget.cpp": "10|1" }),
+      undefined,
+      snap({ "/a/widget.cpp": "99|9" }),
+    ]);
     await drift.check(["/a"]);
 
     const failed = await drift.check(["/a"]);
     expect(failed).toMatchObject({ kind: "unknown" });
-    expect((failed as { reason: string }).reason).toMatch(/did not complete within its entry bound/);
+    expect((failed as { reason: string }).reason).toMatch(
+      /did not complete within its entry bound/,
+    );
     expect(events).toEqual([]);
 
     // Nothing was learned and nothing was forgotten, so the change the failed walk missed is still named.
@@ -261,13 +283,18 @@ describe("the drift verdict one index-backed call is preceded by", () => {
   });
 
   it("reports an unlanded push as unknown and offers the same paths to the server again", async () => {
-    const { drift, notifications, state } = harness([snap({ "/a/widget.cpp": "10|1" }), snap({ "/a/widget.cpp": "99|9" })]);
+    const { drift, notifications, state } = harness([
+      snap({ "/a/widget.cpp": "10|1" }),
+      snap({ "/a/widget.cpp": "99|9" }),
+    ]);
     await drift.check(["/a"]);
     state.notifyFails = true;
 
     const failed = await drift.check(["/a"]);
     expect(failed).toMatchObject({ kind: "unknown" });
-    expect((failed as { reason: string }).reason).toMatch(/could not be reported to the server \(the pipe closed\)/);
+    expect((failed as { reason: string }).reason).toMatch(
+      /could not be reported to the server \(the pipe closed\)/,
+    );
     expect(notifications).toEqual([]);
 
     state.notifyFails = false;
@@ -296,7 +323,10 @@ describe("the drift verdict one index-backed call is preceded by", () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const { drift, events } = harness([snap({ "/a/widget.cpp": "10|1" }), snap({ "/a/widget.cpp": "99|9" })], { gate });
+    const { drift, events } = harness(
+      [snap({ "/a/widget.cpp": "10|1" }), snap({ "/a/widget.cpp": "99|9" })],
+      { gate },
+    );
     await drift.check(["/a"]);
 
     const first = drift.check(["/a"]);
@@ -314,7 +344,10 @@ describe("the drift verdict one index-backed call is preceded by", () => {
       release = resolve;
     });
     const moved = snap({ "/a/widget.cpp": "99|9" });
-    const { drift, events, notifications } = harness([snap({ "/a/widget.cpp": "10|1" }), moved, moved], { gate });
+    const { drift, events, notifications } = harness(
+      [snap({ "/a/widget.cpp": "10|1" }), moved, moved],
+      { gate },
+    );
     await drift.check(["/a"]);
 
     const inFlight = drift.check(["/a"]);
@@ -324,7 +357,9 @@ describe("the drift verdict one index-backed call is preceded by", () => {
     const oldVerdict = await inFlight;
 
     expect(oldVerdict).toMatchObject({ kind: "unknown" });
-    expect((oldVerdict as { reason: string }).reason).toMatch(/the server was replaced while this call/);
+    expect((oldVerdict as { reason: string }).reason).toMatch(
+      /the server was replaced while this call/,
+    );
     // The caller that arrived after the replacement got its own check and took its own baseline, instead
     // of inheriting the dead process's verdict — which is what it would have done, reported as `stale`.
     const fresh = await afterReplacement;
@@ -340,7 +375,10 @@ describe("the drift verdict one index-backed call is preceded by", () => {
       release = resolve;
     });
     const { drift, events, held } = harness(
-      [snap({ "/a/a.cpp": "10|1", "/a/b.cpp": "10|1" }), snap({ "/a/a.cpp": "99|9", "/a/b.cpp": "99|9" })],
+      [
+        snap({ "/a/a.cpp": "10|1", "/a/b.cpp": "10|1" }),
+        snap({ "/a/a.cpp": "99|9", "/a/b.cpp": "99|9" }),
+      ],
       { closeGate },
     );
     held.set("/a/a.cpp", "/a/a.cpp");
@@ -359,7 +397,10 @@ describe("the drift verdict one index-backed call is preceded by", () => {
   });
 
   it("starts over when told the process was replaced, which has read the disk for itself", async () => {
-    const { drift } = harness([snap({ "/a/widget.cpp": "10|1" }), snap({ "/a/widget.cpp": "10|1" })]);
+    const { drift } = harness([
+      snap({ "/a/widget.cpp": "10|1" }),
+      snap({ "/a/widget.cpp": "10|1" }),
+    ]);
     await drift.check(["/a"]);
     expect(await drift.check(["/a"])).toEqual({ kind: "current" });
 
@@ -407,7 +448,9 @@ describe("the drift signal through a session", () => {
     const second: IndexDriftVerdict = await session.indexDrift([root]);
 
     expect(second).toMatchObject({ kind: "stale", files: [source] });
-    const changes = server.notifications.filter(([method]) => method === "workspace/didChangeWatchedFiles");
+    const changes = server.notifications.filter(
+      ([method]) => method === "workspace/didChangeWatchedFiles",
+    );
     expect(changes).toHaveLength(1);
     expect(changes[0]?.[1]).toEqual({ changes: [{ uri: fileUri(source), type: 2 }] });
     // The held document is released so the notification can reach the disk behind it, and the release
@@ -423,18 +466,21 @@ describe("the drift signal through a session", () => {
     session.dispose();
   });
 
-  itIfWindows("folds one caller's casing into the other's baseline instead of reporting the tree as moved", async () => {
-    const { session } = sessionWith(clangdConfig);
-    expect(await session.indexDrift([root])).toMatchObject({ kind: "unknown" });
+  itIfWindows(
+    "folds one caller's casing into the other's baseline instead of reporting the tree as moved",
+    async () => {
+      const { session } = sessionWith(clangdConfig);
+      expect(await session.indexDrift([root])).toMatchObject({ kind: "unknown" });
 
-    // The same directory spelled with another casing: the baseline key folds casings already, so the
-    // snapshot has to be keyed the same way, or every unchanged file arrives as a create beside a delete,
-    // watched-file changes go out for nothing, and the call reports itself stale.
-    const spelled = root.toUpperCase();
-    expect(spelled).not.toBe(root);
-    expect(await session.indexDrift([spelled])).toEqual({ kind: "current" });
-    session.dispose();
-  });
+      // The same directory spelled with another casing: the baseline key folds casings already, so the
+      // snapshot has to be keyed the same way, or every unchanged file arrives as a create beside a delete,
+      // watched-file changes go out for nothing, and the call reports itself stale.
+      const spelled = root.toUpperCase();
+      expect(spelled).not.toBe(root);
+      expect(await session.indexDrift([spelled])).toEqual({ kind: "current" });
+      session.dispose();
+    },
+  );
 
   it("asks nothing of a server that answers no question from an index of the sources", async () => {
     const { server, session } = sessionWith(goplsConfig);
@@ -442,7 +488,9 @@ describe("the drift signal through a session", () => {
     const verdict = await session.indexDrift([root]);
 
     expect(verdict).toMatchObject({ kind: "unknown" });
-    expect((verdict as { reason: string }).reason).toMatch(/gopls answers no question from an index/);
+    expect((verdict as { reason: string }).reason).toMatch(
+      /gopls answers no question from an index/,
+    );
     expect(server.methods).toEqual([]);
     expect(server.notifications).toEqual([]);
     session.dispose();

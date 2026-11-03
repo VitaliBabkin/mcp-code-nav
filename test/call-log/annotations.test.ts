@@ -127,7 +127,8 @@ describe("LspSession.awaitWorkspaceReady", () => {
     const cold = new LspSession({
       root: resolve(root),
       config: goplsConfig,
-      spawn: () => fakeServer({ respond: async (method) => (method === "initialize" ? {} : []) }).process,
+      spawn: () =>
+        fakeServer({ respond: async (method) => (method === "initialize" ? {} : []) }).process,
       readFile: () => "class Foo {};\n",
       sleep: async () => {},
     });

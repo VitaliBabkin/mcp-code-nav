@@ -39,7 +39,12 @@ import {
   type TsQueryDeps,
   type TsResolvedSymbol,
 } from "./ts-navigation-shared.js";
-import { type HumanSummary, TsSourceRootsSchema, timeBudgetSchema, withSummary } from "./ts-shared.js";
+import {
+  type HumanSummary,
+  TsSourceRootsSchema,
+  timeBudgetSchema,
+  withSummary,
+} from "./ts-shared.js";
 import { messageOf } from "../error-message.js";
 
 const TOOL = "ts_find_callers";
@@ -65,13 +70,13 @@ export type TsFindCallersPayload = {
 
 export const TsFindCallersInput = z.object({
   sourceRoots: TsSourceRootsSchema,
-  file: PathInput
-    .describe("The file declaring the symbol: absolute, or relative to exactly one sourceRoots entry."),
-  symbol: NameInput
-    .describe(
-      "Name as declared in `file`: top-level, or a dotted path through classes, interfaces, enums and " +
-        "namespaces (`ExecDriver.run`, `Ns.Inner.x`). An arrow-function `const` counts as callable.",
-    ),
+  file: PathInput.describe(
+    "The file declaring the symbol: absolute, or relative to exactly one sourceRoots entry.",
+  ),
+  symbol: NameInput.describe(
+    "Name as declared in `file`: top-level, or a dotted path through classes, interfaces, enums and " +
+      "namespaces (`ExecDriver.run`, `Ns.Inner.x`). An arrow-function `const` counts as callable.",
+  ),
   timeBudgetMs: timeBudgetSchema(60_000),
 });
 
@@ -127,7 +132,10 @@ function readItem(
   if (file === undefined || start === undefined) {
     return { ok: false, error: unexpectedCallText(symbol, raw, part) };
   }
-  return { ok: true, value: reportedLocation(file, start, tsFileExternal(workspaceRoot), keyOf(file)) };
+  return {
+    ok: true,
+    value: reportedLocation(file, start, tsFileExternal(workspaceRoot), keyOf(file)),
+  };
 }
 
 const MODULE_SYMBOL_KIND = 2;
@@ -144,9 +152,7 @@ function isSourceFileItem(raw: unknown): boolean {
   const selection = recordOf(item.selectionRange);
   const start = rangeStart(selection);
   const end = rangeStart({ start: selection.end });
-  return (
-    start?.line === 0 && start.character === 0 && end?.line === 0 && end.character === 0
-  );
+  return start?.line === 0 && start.character === 0 && end?.line === 0 && end.character === 0;
 }
 
 function describedItem(value: unknown): string {
@@ -172,14 +178,14 @@ function preparedItem(
   if (result !== null && result !== undefined && !Array.isArray(result)) {
     return { ok: false, error: unexpectedCallText(symbol, result) };
   }
-  const items = Array.isArray(result) ? result : [];
+  const items: unknown[] = Array.isArray(result) ? result : [];
   if (items.length === 0) return { ok: false, error: notCallableText(symbol, query.file) };
   if (items.length > 1) {
     const lines = items.map(describedItem).join("\n");
     return {
       ok: false,
       error:
-        `${TOOL} failed: tsgo offered ${items.length} call-hierarchy items for "${symbol}", and picking one ` +
+        `${TOOL} failed: tsgo offered ${String(items.length)} call-hierarchy items for "${symbol}", and picking one ` +
         `would be a guess, so they are listed:\n${lines}`,
     };
   }
@@ -195,9 +201,15 @@ function callSitesOf(value: unknown, symbol: string): Step<TsCallSite[]> {
   for (const [index, range] of value.entries()) {
     const start = rangeStart(range);
     if (start === undefined) {
-      return { ok: false, error: unexpectedCallText(symbol, value[index], `call site ${index + 1}`) };
+      return {
+        ok: false,
+        error: unexpectedCallText(symbol, value[index], `call site ${String(index + 1)}`),
+      };
     }
-    sites.push({ line: start.line + 1, column: start.character === undefined ? null : start.character + 1 });
+    sites.push({
+      line: start.line + 1,
+      column: start.character === undefined ? null : start.character + 1,
+    });
   }
   return { ok: true, value: sites };
 }
@@ -207,7 +219,12 @@ function callSitesOf(value: unknown, symbol: string): Step<TsCallSite[]> {
  * times with different ranges, and "who calls this" is answered by declaration. In-workspace callers are kept
  * ahead of external ones, so a cap drops external rows first.
  */
-function callerEntries(result: unknown, query: TsQuery, symbol: string, keyOf: (file: string) => string): Step<CallerGroup[]> {
+function callerEntries(
+  result: unknown,
+  query: TsQuery,
+  symbol: string,
+  keyOf: (file: string) => string,
+): Step<CallerGroup[]> {
   if (result !== null && result !== undefined && !Array.isArray(result)) {
     return { ok: false, error: unexpectedCallText(symbol, result) };
   }
@@ -215,18 +232,27 @@ function callerEntries(result: unknown, query: TsQuery, symbol: string, keyOf: (
   const entries = Array.isArray(result) ? result : [];
   for (const [index, entry] of entries.entries()) {
     const raw = recordOf(entry);
-    const position = readItem(symbol, query.workspaceRoot, keyOf, raw.from, `entry ${index + 1}`);
+    const position = readItem(
+      symbol,
+      query.workspaceRoot,
+      keyOf,
+      raw.from,
+      `entry ${String(index + 1)}`,
+    );
     if (!position.ok) return position;
     const sites = callSitesOf(raw.fromRanges, symbol);
     if (!sites.ok) return sites;
     const location = position.value;
     const moduleScope = isSourceFileItem(raw.from);
-    const groupKey = `${location.key}:${location.line}:${location.character ?? -1}:${moduleScope}`;
+    const groupKey = `${location.key}:${String(location.line)}:${String(location.character ?? -1)}:${String(moduleScope)}`;
     const seen = byKey.get(groupKey);
     if (seen === undefined) byKey.set(groupKey, { location, sites: sites.value, moduleScope });
     else seen.sites.push(...sites.value);
   }
-  return { ok: true, value: inModuleFirst([...byKey.values()], (group) => group.location.external) };
+  return {
+    ok: true,
+    value: inModuleFirst([...byKey.values()], (group) => group.location.external),
+  };
 }
 
 function capCallers(groups: readonly CallerGroup[]): {
@@ -236,7 +262,12 @@ function capCallers(groups: readonly CallerGroup[]): {
 } {
   const kept = groups.slice(0, CALLERS_LIMIT).map((group) => {
     const sites = group.sites.slice(0, REFERENCE_SITES_PER_FILE_LIMIT);
-    return { location: group.location, moduleScope: group.moduleScope, sites, truncated: group.sites.length - sites.length };
+    return {
+      location: group.location,
+      moduleScope: group.moduleScope,
+      sites,
+      truncated: group.sites.length - sites.length,
+    };
   });
   const sitesTruncated = kept.reduce((total, group) => total + group.truncated, 0);
   return { capped: kept, callersTruncated: groups.length - kept.length, sitesTruncated };
@@ -274,7 +305,8 @@ async function buildCallers(
   );
   return named.map((entry) => {
     // A source-file item is module scope whatever the outline holds at 0:0; an external row keeps its own reason.
-    const row = entry.moduleScope && !entry.location.external ? { ...entry, ...MODULE_SCOPE_ROW } : entry;
+    const row =
+      entry.moduleScope && !entry.location.external ? { ...entry, ...MODULE_SCOPE_ROW } : entry;
     return { ...namedRow(row), callSites: entry.sites, callSitesTruncated: entry.truncated };
   });
 }
@@ -283,30 +315,39 @@ function callerText(row: TsCallerRow): string {
   const name = row.name ?? "<unnamed>";
   const kind = row.kind ?? "?";
   const external = row.external ? " outside the workspace" : "";
-  const tail = row.callSitesTruncated > 0 ? `, ${row.callSitesTruncated} call site(s) not listed` : "";
-  return `  ${name} (${kind}) ${row.file}:${row.line}${external}${row.reason ? ` - ${row.reason}` : ""}${tail}`;
+  const tail =
+    row.callSitesTruncated > 0 ? `, ${String(row.callSitesTruncated)} call site(s) not listed` : "";
+  return `  ${name} (${kind}) ${row.file}:${String(row.line)}${external}${row.reason ? ` - ${row.reason}` : ""}${tail}`;
 }
 
 function siteText(site: TsCallSite): string {
-  const column = site.column === null ? "" : `:${site.column}`;
-  return `    called at ${site.line}${column}`;
+  const column = site.column === null ? "" : `:${String(site.column)}`;
+  return `    called at ${String(site.line)}${column}`;
 }
 
 /** The same JSON, phrased once for a reader who will not parse it. */
 function humanSummary(payload: TsFindCallersPayload): HumanSummary {
   const { resolved, totalCallers, callers, callersTruncated, scope } = payload;
   const sites = callers.reduce((total, row) => total + row.callSitesTruncated, 0);
-  const listing = callers.map((row) => [callerText(row), ...row.callSites.map(siteText)].join("\n")).join("\n");
+  const listing = callers
+    .map((row) => [callerText(row), ...row.callSites.map(siteText)].join("\n"))
+    .join("\n");
   const tail = capsText([
-    callersTruncated > 0 ? `${callersTruncated} caller(s) dropped by the ${CALLERS_LIMIT}-caller cap` : undefined,
+    callersTruncated > 0
+      ? `${String(callersTruncated)} caller(s) dropped by the ${String(CALLERS_LIMIT)}-caller cap`
+      : undefined,
     sites > 0
-      ? `${sites} call site(s) dropped by the ${REFERENCE_SITES_PER_FILE_LIMIT}-sites-per-caller cap`
+      ? `${String(sites)} call site(s) dropped by the ${String(REFERENCE_SITES_PER_FILE_LIMIT)}-sites-per-caller cap`
       : undefined,
   ]);
   const head =
-    `Callers of ${resolved.kind} "${resolved.name}" (${resolved.file}:${resolved.line})${tsScopeText(scope)} ` +
-    `- ${callers.length} caller(s) listed from ${totalCallers} found${tail}.`;
-  return summarised(head, scope, `limits: ${scope.limits.join(", ")}${listing === "" ? "" : `\n${listing}`}`);
+    `Callers of ${resolved.kind} "${resolved.name}" (${resolved.file}:${String(resolved.line)})${tsScopeText(scope)} ` +
+    `- ${String(callers.length)} caller(s) listed from ${String(totalCallers)} found${tail}.`;
+  return summarised(
+    head,
+    scope,
+    `limits: ${scope.limits.join(", ")}${listing === "" ? "" : `\n${listing}`}`,
+  );
 }
 
 export async function runTsFindCallers(

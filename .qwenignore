@@ -1,0 +1,18 @@
+# Secret files hidden from Qwen's file and search tools (gitignore syntax).
+# Copy to the repo root as .qwenignore; add the repo's own secret paths below.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+secrets/
+credentials
+credentials.json
+credentials.yml
+credentials.yaml
+credentials.toml
+credentials.ini
+id_rsa*
+id_ed25519*

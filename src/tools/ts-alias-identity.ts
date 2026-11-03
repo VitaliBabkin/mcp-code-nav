@@ -29,34 +29,57 @@ export interface SubjectIdentity {
   readonly reExport?: boolean;
 }
 
-const positionKey = (at: ReportedLocation): string => `${at.key}:${at.line}:${at.character}`;
+type PlacedLocation = ReportedLocation & { readonly character: number };
 
-export async function subjectIdentity(tool: string, query: TsQuery, symbol: string): Promise<SubjectIdentity> {
+const positionKey = (at: PlacedLocation): string =>
+  `${at.key}:${String(at.line)}:${String(at.character)}`;
+
+export async function subjectIdentity(
+  tool: string,
+  query: TsQuery,
+  symbol: string,
+): Promise<SubjectIdentity> {
   const { subject } = query;
-  const isBindingCandidate = symbolKindName(subject.entry.kind) === "variable" && query.symbols.includes(subject.entry);
+  const isBindingCandidate =
+    symbolKindName(subject.entry.kind) === "variable" && query.symbols.includes(subject.entry);
   if (!isBindingCandidate) return { own: subjectPositions(subject) };
 
   const params = { textDocument: textDocumentId(query.file), position: subject.position };
   const asked = async (method: string): Promise<unknown> =>
-    await withinBudget(query.session.request<unknown>(method, params).catch(() => undefined), query.budget);
+    await withinBudget(
+      query.session.request<unknown>(method, params).catch(() => undefined),
+      query.budget,
+    );
 
   const signature = readSymbolDescription(await asked("textDocument/hover")).signature;
   if (signature === undefined) return { own: new Set() };
   if (!signature.trimStart().startsWith("(alias)")) return { own: subjectPositions(subject) };
 
   const answered = await asked("textDocument/definition");
-  const list = answered !== null && typeof answered === "object" && !Array.isArray(answered) ? [answered] : answered;
+  const list =
+    answered !== null && typeof answered === "object" && !Array.isArray(answered)
+      ? [answered]
+      : answered;
   const targets = toReported("tsgo", tool, list, tsFileExternal(query.workspaceRoot), symbol);
   if (!targets.ok) return { own: new Set() };
-  const placed = targets.value.filter((target) => target.character !== undefined);
+  const placed = targets.value.filter(
+    (target): target is PlacedLocation => target.character !== undefined,
+  );
   const reExport = signature.split("\n").some((line) => line.trimEnd().startsWith("export "));
   return { own: new Set(placed.map(positionKey)), target: placed[0], reExport };
 }
 
-function declaresAt(entries: readonly LspDocumentSymbol[], line: number, character: number): boolean {
+function declaresAt(
+  entries: readonly LspDocumentSymbol[],
+  line: number,
+  character: number,
+): boolean {
   return entries.some((entry) => {
     const start = entry.selectionRange?.start;
-    return (start?.line === line && start.character === character) || declaresAt(entry.children ?? [], line, character);
+    return (
+      (start?.line === line && start.character === character) ||
+      declaresAt(entry.children ?? [], line, character)
+    );
   });
 }
 
@@ -75,7 +98,12 @@ export async function renamedImportOf(
 ): Promise<TsResolvedSymbol["renamedImportOf"]> {
   const { target, own } = identity;
   if (target === undefined || own.size === 0) return undefined;
-  if (raw.some((location) => own.has(`${location.key}:${location.line}:${location.character ?? "-"}`))) return undefined;
+  if (
+    raw.some((location) =>
+      own.has(`${location.key}:${String(location.line)}:${String(location.character ?? "-")}`),
+    )
+  )
+    return undefined;
   let symbol: string | null = null;
   let module = false;
   if (!target.external && target.character !== undefined) {
@@ -86,10 +114,19 @@ export async function renamedImportOf(
     if (outline !== undefined && outline !== null) {
       const declared = declaresAt(outline, target.line, target.character);
       if (declared) {
-        symbol = tsRowSpeller()(target.file, outline, { line: target.line, character: target.character }).name;
+        symbol = tsRowSpeller()(target.file, outline, {
+          line: target.line,
+          character: target.character,
+        }).name;
       }
       module = !declared && target.line === 0 && target.character === 0;
     }
   }
-  return { symbol, file: target.file, line: target.rowLine, module, reExport: identity.reExport === true };
+  return {
+    symbol,
+    file: target.file,
+    line: target.rowLine,
+    module,
+    reExport: identity.reExport === true,
+  };
 }

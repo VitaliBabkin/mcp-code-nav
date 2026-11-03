@@ -9,7 +9,11 @@ import { containingRoot } from "../paths/path-containment.js";
  */
 export type ModuleRootOutcome =
   | { readonly kind: "found"; readonly moduleRoot: string; readonly goWork: string | null }
-  | { readonly kind: "outside-roots"; readonly moduleRoot: string; readonly declaredRoots: readonly string[] }
+  | {
+      readonly kind: "outside-roots";
+      readonly moduleRoot: string;
+      readonly declaredRoots: readonly string[];
+    }
   | { readonly kind: "not-in-module"; readonly searchedFrom: string };
 
 const GO_MOD = "go.mod";

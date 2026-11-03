@@ -77,7 +77,12 @@ const NO_EXPORT =
 
 describe("the named constants", () => {
   it("are the cache and head byte limits and the two sibling bounds", () => {
-    expect({ CMAKE_CACHE_MAX_BYTES, DB_HEAD_BYTES, SIBLING_MAX_LISTINGS, SIBLING_MAX_CANDIDATES }).toEqual({
+    expect({
+      CMAKE_CACHE_MAX_BYTES,
+      DB_HEAD_BYTES,
+      SIBLING_MAX_LISTINGS,
+      SIBLING_MAX_CANDIDATES,
+    }).toEqual({
       CMAKE_CACHE_MAX_BYTES: 1_048_576,
       DB_HEAD_BYTES: 65_536,
       SIBLING_MAX_LISTINGS: 64,
@@ -89,7 +94,9 @@ describe("the named constants", () => {
 describe("the generator sentence", () => {
   it("names a Visual Studio generator after variant 2's body, whatever the export switch says", async () => {
     const root = makeRoot();
-    const readFile = files({ [cacheAt(root)]: cacheOf("CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON", VS) });
+    const readFile = files({
+      [cacheAt(root)]: cacheOf("CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON", VS),
+    });
 
     await expect(describeMissingCompileDb(root, { readFile })).resolves.toBe(
       searchedEverything(root, 1) + generatorSentence("Visual Studio 18 2026"),
@@ -120,8 +127,12 @@ describe("the generator sentence", () => {
   it("adds nothing when the export switch is a CMake truth value, in any case", async () => {
     const root = makeRoot();
     for (const value of ["ON", "1", "YES", "TRUE", "Y", "on", "True", "yes"]) {
-      const readFile = files({ [cacheAt(root)]: cacheOf(NINJA, `CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=${value}`) });
-      await expect(describeMissingCompileDb(root, { readFile }), value).resolves.toBe(searchedEverything(root, 1));
+      const readFile = files({
+        [cacheAt(root)]: cacheOf(NINJA, `CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=${value}`),
+      });
+      await expect(describeMissingCompileDb(root, { readFile }), value).resolves.toBe(
+        searchedEverything(root, 1),
+      );
     }
   });
 
@@ -144,7 +155,9 @@ describe("the generator sentence", () => {
       },
     ];
     for (const readFile of cases) {
-      await expect(describeMissingCompileDb(root, { readFile })).resolves.toBe(searchedEverything(root, 1));
+      await expect(describeMissingCompileDb(root, { readFile })).resolves.toBe(
+        searchedEverything(root, 1),
+      );
     }
   });
 
@@ -155,9 +168,12 @@ describe("the generator sentence", () => {
       asked.push(maxBytes);
       return `${VS}\n${"#".repeat(CMAKE_CACHE_MAX_BYTES)}`;
     };
-    const atBound: ReadFile = async () => `${VS}\n${"#".repeat(CMAKE_CACHE_MAX_BYTES - VS.length - 1)}`;
+    const atBound: ReadFile = async () =>
+      `${VS}\n${"#".repeat(CMAKE_CACHE_MAX_BYTES - VS.length - 1)}`;
 
-    await expect(describeMissingCompileDb(root, { readFile: oversized })).resolves.toBe(searchedEverything(root, 1));
+    await expect(describeMissingCompileDb(root, { readFile: oversized })).resolves.toBe(
+      searchedEverything(root, 1),
+    );
     expect(asked).toEqual([CMAKE_CACHE_MAX_BYTES + 1]);
     await expect(describeMissingCompileDb(root, { readFile: atBound })).resolves.toBe(
       searchedEverything(root, 1) + generatorSentence("Visual Studio 18 2026"),
@@ -174,7 +190,9 @@ describe("the generator sentence", () => {
     const refused = makeRoot();
     const asked: string[] = [];
     const readFile = files(
-      Object.fromEntries([withCandidate, unreadable, absent, refused].map((root) => [cacheAt(root), cacheOf(VS)])),
+      Object.fromEntries(
+        [withCandidate, unreadable, absent, refused].map((root) => [cacheAt(root), cacheOf(VS)]),
+      ),
       asked,
     );
     const refusing: ReaddirFn = async (dir) => {
@@ -208,7 +226,9 @@ describe("the generator sentence", () => {
         isDirectory: () => true,
       }));
 
-    await expect(describeMissingCompileDb(root, { readFile, readdir: wide, now: () => 0 })).resolves.toBe(
+    await expect(
+      describeMissingCompileDb(root, { readFile, readdir: wide, now: () => 0 }),
+    ).resolves.toBe(
       searchedEverything(root, HINT_MAX_DIRS) +
         stoppedAt(`${HINT_MAX_DIRS} directories`) +
         generatorSentence("Visual Studio 18 2026"),
@@ -240,7 +260,8 @@ function putSibling(dir: string, db: string | undefined): void {
   if (db !== undefined) writeFileSync(join(dir, DB), db);
 }
 
-const nativeDb = (directory: string): string => `[{"directory": ${JSON.stringify(directory)}, "file": "a.cpp"}]`;
+const nativeDb = (directory: string): string =>
+  `[{"directory": ${JSON.stringify(directory)}, "file": "a.cpp"}]`;
 
 const nativeSentence = (...dirs: readonly string[]): string =>
   ` Sibling build directories that hold one from this host: ${dirs.map((dir) => `"${dir}"`).join(", ")}. ` +
@@ -313,7 +334,9 @@ describe("the sibling search", () => {
     const readFile: ReadFile = async (path) =>
       path === cacheAt(tree.root) ? cacheOf(NINJA) : `[{"directory": ${JSON.stringify(tmpdir())}}]`;
 
-    await expect(describeMissingCompileDb(tree.root, { readdir: refusing, readFile })).resolves.toBe(
+    await expect(
+      describeMissingCompileDb(tree.root, { readdir: refusing, readFile }),
+    ).resolves.toBe(
       `${headAt(tree.root)}. That directory's own listing could not be read (EACCES), ` +
         "so nothing below it was searched." +
         NO_EXPORT +
@@ -385,7 +408,9 @@ describe("the sibling search", () => {
         : [];
     };
 
-    await expect(describeMissingCompileDb(tree.root, { readdir })).resolves.toBe(searchedEverything(tree.root, 1));
+    await expect(describeMissingCompileDb(tree.root, { readdir })).resolves.toBe(
+      searchedEverything(tree.root, 1),
+    );
     expect(reads).toEqual([tree.root, tree.parent, tree.at("plain")]);
   });
 
@@ -417,13 +442,16 @@ describe("the sibling bounds", () => {
 
     const text = await describeMissingCompileDb(tree.root, { readdir, now: () => 0 });
 
-    expect(reads.filter((dir) => dir !== tree.root && dir !== tree.parent)).toHaveLength(SIBLING_MAX_LISTINGS);
+    expect(reads.filter((dir) => dir !== tree.root && dir !== tree.parent)).toHaveLength(
+      SIBLING_MAX_LISTINGS,
+    );
     expect(text).toBe(searchedEverything(tree.root, 1) + siblingsStoppedAt("64 directories"));
   });
 
   it("names no bound for exactly 64 siblings", async () => {
     const tree = buildTree();
-    const readdir: ReaddirFn = async (dir) => (dir === tree.parent ? siblingNames(SIBLING_MAX_LISTINGS) : []);
+    const readdir: ReaddirFn = async (dir) =>
+      dir === tree.parent ? siblingNames(SIBLING_MAX_LISTINGS) : [];
 
     await expect(describeMissingCompileDb(tree.root, { readdir, now: () => 0 })).resolves.toBe(
       searchedEverything(tree.root, 1),
@@ -436,7 +464,9 @@ describe("the sibling bounds", () => {
     const readings = [0, 0, 400, 500, 1000];
     let index = 0;
 
-    const text = await describeMissingCompileDb(tree.root, { now: () => readings[index++] ?? 1000 });
+    const text = await describeMissingCompileDb(tree.root, {
+      now: () => readings[index++] ?? 1000,
+    });
 
     expect(text).toBe(searchedEverything(tree.root, 1) + siblingsStoppedAt(`${HINT_MAX_MS} ms`));
   });
@@ -463,7 +493,9 @@ describe("the sibling bounds", () => {
       return readdirReal(dir, { withFileTypes: true });
     };
 
-    await expect(describeMissingCompileDb(tree.root, { readdir })).resolves.toBe(searchedEverything(tree.root, 1));
+    await expect(describeMissingCompileDb(tree.root, { readdir })).resolves.toBe(
+      searchedEverything(tree.root, 1),
+    );
   });
 
   it("skips a sibling whose own listing fails and still offers the next", async () => {

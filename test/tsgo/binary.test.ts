@@ -117,7 +117,11 @@ afterEach(() => {
 describe("resolveTsgoBinary's override", () => {
   it("uses the override as the executable and asks --version of it when no package beside it states one", async () => {
     const override = join(tmp, "native", "tsc.exe");
-    const host = fakeHost({ override, present: [override], answers: { [override]: ran("Version 7.0.2\n") } });
+    const host = fakeHost({
+      override,
+      present: [override],
+      answers: { [override]: ran("Version 7.0.2\n") },
+    });
 
     await expect(resolveTsgoBinary(host.deps)).resolves.toEqual({
       binary: { executable: override, version: "7.0.2", source: "override" },
@@ -126,12 +130,24 @@ describe("resolveTsgoBinary's override", () => {
   });
 
   it("takes the version from the package the override sits in, which costs no process at all", async () => {
-    const override = join(tmp, "node_modules", "@typescript", "typescript-win32-x64", "lib", "tsc.exe");
+    const override = join(
+      tmp,
+      "node_modules",
+      "@typescript",
+      "typescript-win32-x64",
+      "lib",
+      "tsc.exe",
+    );
     const packageDir = dirname(dirname(override));
     const host = fakeHost({
       override,
       present: [override],
-      manifests: { [join(packageDir, "package.json")]: { name: "@typescript/typescript-win32-x64", version: "7.0.2" } },
+      manifests: {
+        [join(packageDir, "package.json")]: {
+          name: "@typescript/typescript-win32-x64",
+          version: "7.0.2",
+        },
+      },
     });
 
     await expect(resolveTsgoBinary(host.deps)).resolves.toEqual({
@@ -144,18 +160,31 @@ describe("resolveTsgoBinary's override", () => {
     ["Version 7.0.2\n", "7.0.2"],
     ["tsgo version 7.0.2\n", "7.0.2"],
     ["7.0.2-insiders.3\n", "7.0.2-insiders.3"],
-  ])("falls back to --version, reading a print of %s as %s", async (stdout: string, version: string) => {
-    const override = join(tmp, "native", "tsc.exe");
-    const host = fakeHost({ override, present: [override], answers: { [override]: ran(stdout) } });
+  ])(
+    "falls back to --version, reading a print of %s as %s",
+    async (stdout: string, version: string) => {
+      const override = join(tmp, "native", "tsc.exe");
+      const host = fakeHost({
+        override,
+        present: [override],
+        answers: { [override]: ran(stdout) },
+      });
 
-    await expect(resolveTsgoBinary(host.deps)).resolves.toMatchObject({ binary: { version } });
-  });
+      await expect(resolveTsgoBinary(host.deps)).resolves.toMatchObject({ binary: { version } });
+    },
+  );
 
   it("reads the version from what the override printed on stderr as readily as on stdout", async () => {
     const override = join(tmp, "native", "tsc");
-    const host = fakeHost({ override, present: [override], answers: { [override]: ran("", "Version 7.0.2\n") } });
+    const host = fakeHost({
+      override,
+      present: [override],
+      answers: { [override]: ran("", "Version 7.0.2\n") },
+    });
 
-    await expect(resolveTsgoBinary(host.deps)).resolves.toMatchObject({ binary: { version: "7.0.2" } });
+    await expect(resolveTsgoBinary(host.deps)).resolves.toMatchObject({
+      binary: { version: "7.0.2" },
+    });
   });
 
   it("refuses an override that states no version beside it and none to --version", async () => {
@@ -163,7 +192,9 @@ describe("resolveTsgoBinary's override", () => {
     const host = fakeHost({ override, present: [override], answers: { [override]: ran("") } });
 
     await expect(resolveTsgoBinary(host.deps)).resolves.toEqual({
-      unavailable: missText(`${OVERRIDE_NAME}="${override}" states no version beside it or to --version`),
+      unavailable: missText(
+        `${OVERRIDE_NAME}="${override}" states no version beside it or to --version`,
+      ),
       attempted: override,
     });
   });
@@ -183,7 +214,9 @@ describe("resolveTsgoBinary's override", () => {
     const root = join(tmp, "node_modules");
     const host = fakeHost({ override: "", answers: { npm: ran(root) }, present: [root] });
 
-    await expect(resolveTsgoBinary(host.deps)).resolves.toMatchObject({ unavailable: expect.any(String) });
+    await expect(resolveTsgoBinary(host.deps)).resolves.toMatchObject({
+      unavailable: expect.any(String),
+    });
     expect(host.calls).toEqual([{ executable: "npm", args: ["root", "-g"], cwd: process.cwd() }]);
   });
 
@@ -195,7 +228,10 @@ describe("resolveTsgoBinary's override", () => {
       { config: TSGO_IDENTITY, attempted: override, fromOverride: true },
       "ENOENT",
     );
-    await expect(resolveTsgoBinary(host.deps)).resolves.toEqual({ unavailable: expected, attempted: override });
+    await expect(resolveTsgoBinary(host.deps)).resolves.toEqual({
+      unavailable: expected,
+      attempted: override,
+    });
     // The same sentence a failed spawn of the located binary carries, so a miss and a start failure cannot
     // name different fixes; and nothing was execed — neither a version question nor an `npm root -g` fallback.
     expect(expected).toBe(
@@ -213,12 +249,17 @@ describe("resolveTsgoBinary's global typescript@7 lookup", () => {
     const host = fakeHost({ answers: { npm: ran(`${root}\n`) }, present: [root] });
 
     // No `typescript` package.json here, so the answer is a miss; what matters is the one question it cost.
-    await expect(resolveTsgoBinary(host.deps)).resolves.toMatchObject({ unavailable: expect.any(String) });
+    await expect(resolveTsgoBinary(host.deps)).resolves.toMatchObject({
+      unavailable: expect.any(String),
+    });
     expect(host.calls).toEqual([{ executable: "npm", args: ["root", "-g"], cwd: process.cwd() }]);
   });
 
   it("asks for the global root without the prefix a launcher such as `npm --prefix` exports to its children", async () => {
-    const saved = { lower: process.env.npm_config_prefix, global: process.env.npm_config_global_prefix };
+    const saved = {
+      lower: process.env.npm_config_prefix,
+      global: process.env.npm_config_global_prefix,
+    };
     process.env.npm_config_prefix = join(tmp, "worktree");
     process.env.npm_config_global_prefix = join(tmp, "worktree");
     try {
@@ -227,8 +268,12 @@ describe("resolveTsgoBinary's global typescript@7 lookup", () => {
 
       const env = host.envs[0];
       expect(env).toBeDefined();
-      expect(Object.keys(env ?? {}).map((key) => key.toLowerCase())).not.toContain("npm_config_prefix");
-      expect(Object.keys(env ?? {}).map((key) => key.toLowerCase())).not.toContain("npm_config_global_prefix");
+      expect(Object.keys(env ?? {}).map((key) => key.toLowerCase())).not.toContain(
+        "npm_config_prefix",
+      );
+      expect(Object.keys(env ?? {}).map((key) => key.toLowerCase())).not.toContain(
+        "npm_config_global_prefix",
+      );
       // Only those two are dropped: the rest of the environment is what `npm` needs to run at all.
       expect(env?.PATH ?? env?.Path).toBe(process.env.PATH ?? process.env.Path);
     } finally {
@@ -263,7 +308,12 @@ describe("resolveTsgoBinary's global typescript@7 lookup", () => {
   it("names the platform package and its executable by the host's platform and architecture", async () => {
     const root = join(tmp, "npm", "node_modules");
     const typescriptDir = join(root, "typescript");
-    const platformDir = join(typescriptDir, "node_modules", "@typescript", "typescript-linux-arm64");
+    const platformDir = join(
+      typescriptDir,
+      "node_modules",
+      "@typescript",
+      "typescript-linux-arm64",
+    );
     const executable = join(platformDir, "lib", "tsc");
     const host = fakeHost({
       platform: "linux",
@@ -324,7 +374,12 @@ describe("resolveTsgoBinary's global typescript@7 lookup", () => {
     const typescriptDir = join(root, "typescript");
     // Two directories above the global root (`npm root -g` answers `<tmp>/npm/node_modules`), so this is the
     // fourth candidate the walk reaches, not the nested one or the hoisted sibling of `typescript`.
-    const ancestorDir = join(dirname(dirname(root)), "node_modules", "@typescript", "typescript-win32-x64");
+    const ancestorDir = join(
+      dirname(dirname(root)),
+      "node_modules",
+      "@typescript",
+      "typescript-win32-x64",
+    );
     const host = fakeHost({
       answers: { npm: ran(`${root}\n`) },
       present: [root, join(ancestorDir, "lib", "tsc.exe")],
@@ -371,7 +426,9 @@ describe("resolveTsgoBinary's global typescript@7 lookup", () => {
     const host = fakeHost({ answers: { npm: ran(`${gone}\n`) }, present: [] });
 
     await expect(resolveTsgoBinary(host.deps)).resolves.toEqual({
-      unavailable: missText(`\`npm root -g\` answered "${gone}", which is not a directory this server can read`),
+      unavailable: missText(
+        `\`npm root -g\` answered "${gone}", which is not a directory this server can read`,
+      ),
       attempted: join(gone, "typescript"),
     });
   });
@@ -381,7 +438,9 @@ describe("resolveTsgoBinary's global typescript@7 lookup", () => {
     const host = fakeHost({ answers: { npm: ran(`${root}\n`) }, present: [root] });
 
     await expect(resolveTsgoBinary(host.deps)).resolves.toEqual({
-      unavailable: missText(`the global package directory "${root}" has no readable typescript/package.json`),
+      unavailable: missText(
+        `the global package directory "${root}" has no readable typescript/package.json`,
+      ),
       attempted: join(root, "typescript", "package.json"),
     });
   });
@@ -392,7 +451,9 @@ describe("resolveTsgoBinary's global typescript@7 lookup", () => {
     const host = fakeHost({
       answers: { npm: ran(`${root}\n`) },
       present: [root],
-      manifests: { [join(typescriptDir, "package.json")]: { name: "typescript", version: "5.9.3" } },
+      manifests: {
+        [join(typescriptDir, "package.json")]: { name: "typescript", version: "5.9.3" },
+      },
     });
 
     await expect(resolveTsgoBinary(host.deps)).resolves.toEqual({
@@ -415,7 +476,9 @@ describe("resolveTsgoBinary's global typescript@7 lookup", () => {
       });
 
       await expect(resolveTsgoBinary(host.deps)).resolves.toEqual({
-        unavailable: missText(`the typescript package at "${typescriptDir}" states no version this server can read`),
+        unavailable: missText(
+          `the typescript package at "${typescriptDir}" states no version this server can read`,
+        ),
         attempted: typescriptDir,
       });
     },
@@ -450,7 +513,9 @@ describe("resolveTsgoBinary's global typescript@7 lookup", () => {
     const host = fakeHost({
       answers: { npm: ran(`${root}\n`) },
       present: [root],
-      manifests: { [join(typescriptDir, "package.json")]: { name: "typescript", version: "7.0.2" } },
+      manifests: {
+        [join(typescriptDir, "package.json")]: { name: "typescript", version: "7.0.2" },
+      },
     });
 
     await expect(resolveTsgoBinary(host.deps)).resolves.toEqual({

@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   check:
-    name: Lint, typecheck, test (${{ matrix.os }}, node ${{ matrix.node }})
+    name: Format, lint, typecheck, test (${{ matrix.os }}, node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -27,6 +27,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test

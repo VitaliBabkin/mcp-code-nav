@@ -31,7 +31,10 @@ function registeredText(register: (server: McpServer) => void): Registered {
   return {
     description: config.description ?? "",
     parameters: Object.fromEntries(
-      Object.entries(config.inputSchema ?? {}).map(([name, schema]) => [name, schema.description ?? ""]),
+      Object.entries(config.inputSchema ?? {}).map(([name, schema]) => [
+        name,
+        schema.description ?? "",
+      ]),
     ),
   };
 }
@@ -57,7 +60,9 @@ const GO_TOOLS = [
 function textChars(tools: readonly Registered[]): number {
   return tools.reduce(
     (total, tool) =>
-      total + tool.description.length + Object.values(tool.parameters).reduce((sum, text) => sum + text.length, 0),
+      total +
+      tool.description.length +
+      Object.values(tool.parameters).reduce((sum, text) => sum + text.length, 0),
     0,
   );
 }
@@ -70,8 +75,10 @@ function contextTokens(tools: readonly Registered[]): number {
 const SOURCE_ROOTS =
   "Absolute directories bounding this call, at least one; the path you pass and its npm workspace must lie " +
   "inside one of them.";
-const TIME_BUDGET = "Ceiling in ms, default 60000; a workspace's first call also waits for its projects to load.";
-const FILE = "The file declaring the symbol: absolute, or relative to exactly one sourceRoots entry.";
+const TIME_BUDGET =
+  "Ceiling in ms, default 60000; a workspace's first call also waits for its projects to load.";
+const FILE =
+  "The file declaring the symbol: absolute, or relative to exactly one sourceRoots entry.";
 const SYMBOL =
   "Name as declared in `file`: top-level, or a dotted path through classes, interfaces, enums and namespaces " +
   "(`ExecDriver.run`, `Ns.Inner.x`).";
@@ -91,7 +98,8 @@ describe("the texts pinned verbatim", () => {
       parameters: {
         sourceRoots: SOURCE_ROOTS,
         file: "TypeScript or JavaScript file: absolute, or relative to exactly one sourceRoots entry.",
-        depth: "0: top-level entries only. 1 (default): also the members of classes, interfaces, enums and namespaces.",
+        depth:
+          "0: top-level entries only. 1 (default): also the members of classes, interfaces, enums and namespaces.",
         timeBudgetMs: TIME_BUDGET,
       },
     });
@@ -107,7 +115,8 @@ describe("the texts pinned verbatim", () => {
         sourceRoots: SOURCE_ROOTS,
         file: FILE,
         symbol: SYMBOL,
-        includeDeclaration: "Also list the declaration itself. Import and re-export lines are always listed.",
+        includeDeclaration:
+          "Also list the declaration itself. Import and re-export lines are always listed.",
         timeBudgetMs: TIME_BUDGET,
       },
     });
@@ -137,7 +146,12 @@ describe("the texts pinned verbatim", () => {
         "implement a method or property, from tsgo's type checker, which follows `implements` and `extends`. " +
         "The subject itself is never a row. A type that matches only structurally, without naming the subject, " +
         `is never listed, and every answer says so. ${UNCOVERED_SENTENCE} An empty listing is a real answer.`,
-      parameters: { sourceRoots: SOURCE_ROOTS, file: FILE, symbol: SYMBOL, timeBudgetMs: TIME_BUDGET },
+      parameters: {
+        sourceRoots: SOURCE_ROOTS,
+        file: FILE,
+        symbol: SYMBOL,
+        timeBudgetMs: TIME_BUDGET,
+      },
     });
   });
 
@@ -169,15 +183,18 @@ describe("the size of the TS text against the budget", () => {
   const go = GO_TOOLS.map(registeredText);
 
   it("holds the five TS definitions to 4,800 characters, about 2.75k tokens by the `/context` estimator", () => {
-    expect(textChars(ts), `ts ${contextTokens(ts)}, go ${contextTokens(go)} tokens by /context`).toBeLessThanOrEqual(
-      4_800,
-    );
+    expect(
+      textChars(ts),
+      `ts ${contextTokens(ts)}, go ${contextTokens(go)} tokens by /context`,
+    ).toBeLessThanOrEqual(4_800);
     expect(contextTokens(ts)).toBeLessThanOrEqual(2_800);
   });
 
   it("states every TS tool in the routing map and the prerequisite sentence, within the 2,000-char ceiling", () => {
     for (const name of Object.keys(TS_TOOLS)) expect(SERVER_INSTRUCTIONS).toContain(name);
-    expect(SERVER_INSTRUCTIONS).toContain("or a TypeScript interface or class: ts_find_implementations");
+    expect(SERVER_INSTRUCTIONS).toContain(
+      "or a TypeScript interface or class: ts_find_implementations",
+    );
     expect(SERVER_INSTRUCTIONS).toContain(
       "TS tools need the TypeScript 7 native server (global `typescript@7`, or MCP_CODE_NAV_TSGO set to its " +
         "executable) and answer for the npm workspace holding the path you name; files no tsconfig project " +

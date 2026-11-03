@@ -40,7 +40,10 @@ describe("computeUncoveredSources", () => {
   });
 
   it("counts zero, and says so with an empty file list, when every source is compiled", () => {
-    expect(computeUncoveredSources(["/repo/a.cpp"], ["/repo/a.cpp"])).toEqual({ count: 0, files: [] });
+    expect(computeUncoveredSources(["/repo/a.cpp"], ["/repo/a.cpp"])).toEqual({
+      count: 0,
+      files: [],
+    });
   });
 
   it("counts zero when there is nothing to claim about at all", () => {
@@ -49,13 +52,19 @@ describe("computeUncoveredSources", () => {
   });
 
   it("is indifferent to database entries the walk never reached", () => {
-    const result = computeUncoveredSources(["/repo/a.cpp", "/elsewhere/x.cpp", "/vendor/y.cc"], ["/repo/a.cpp"]);
+    const result = computeUncoveredSources(
+      ["/repo/a.cpp", "/elsewhere/x.cpp", "/vendor/y.cc"],
+      ["/repo/a.cpp"],
+    );
     expect(result).toEqual({ count: 0, files: [] });
   });
 
   it("resolves both sides, so a database spelling carrying . or .. still counts as compiled", () => {
     const absolute = resolve("src/a.cpp");
-    expect(computeUncoveredSources(["./src/../src/a.cpp"], [absolute])).toEqual({ count: 0, files: [] });
+    expect(computeUncoveredSources(["./src/../src/a.cpp"], [absolute])).toEqual({
+      count: 0,
+      files: [],
+    });
     // A different file is still a different file, however both are spelled.
     expect(computeUncoveredSources(["./src/../src/a.cpp"], ["/repo/src/a.cpp"])).toEqual({
       count: 1,
@@ -77,7 +86,10 @@ describe("computeUncoveredSources", () => {
   });
 
   it("keeps `count` exact while `files` stops at the cap, in normalised-key order", () => {
-    const sources = Array.from({ length: 25 }, (_, i) => `/repo/src/f${String(i).padStart(2, "0")}.cpp`);
+    const sources = Array.from(
+      { length: 25 },
+      (_, i) => `/repo/src/f${String(i).padStart(2, "0")}.cpp`,
+    );
     const result = computeUncoveredSources([], sources.reverse());
     expect(result.count).toBe(25);
     expect(result.files).toHaveLength(UNCOVERED_SOURCES_LIMIT);
@@ -99,10 +111,9 @@ describe("computeUncoveredSources", () => {
 
 describe("unlistedTranslationUnits", () => {
   it("keeps the caller's order and spelling, and drops what the database compiles", () => {
-    expect(unlistedTranslationUnits(["/repo/z.cpp", "/repo/a.cpp", "/repo/b.cpp"], ["/repo/b.cpp"])).toEqual([
-      "/repo/z.cpp",
-      "/repo/a.cpp",
-    ]);
+    expect(
+      unlistedTranslationUnits(["/repo/z.cpp", "/repo/a.cpp", "/repo/b.cpp"], ["/repo/b.cpp"]),
+    ).toEqual(["/repo/z.cpp", "/repo/a.cpp"]);
   });
 
   it("reports one entry per physical file, so a named file spelled twice is not two blind spots", () => {
@@ -123,12 +134,16 @@ describe("filterIgnoredSources", () => {
     // "vendor/*" is written against /repo. Keyed to /build the relative path starts with ".." and the
     // pattern could never match, so a vendored source would be reported as a blind spot forever.
     const sources = ["/repo/vendor/x.cpp", "/repo/src/a.cpp"];
-    expect(filterIgnoredSources(sources, ["/build", "/repo"], ["vendor/*"])).toEqual(["/repo/src/a.cpp"]);
+    expect(filterIgnoredSources(sources, ["/build", "/repo"], ["vendor/*"])).toEqual([
+      "/repo/src/a.cpp",
+    ]);
   });
 
   it("keys a source under roots[0] to roots[0]", () => {
     const sources = ["/build/generated/a.cpp", "/build/src/b.cpp"];
-    expect(filterIgnoredSources(sources, ["/build"], ["generated/*"])).toEqual(["/build/src/b.cpp"]);
+    expect(filterIgnoredSources(sources, ["/build"], ["generated/*"])).toEqual([
+      "/build/src/b.cpp",
+    ]);
   });
 
   it("matches case-sensitively, because isIgnoredPath does", () => {
@@ -170,13 +185,26 @@ describe("uncoveredSourcesBlock", () => {
     for (const [brokenWalk, reason] of refused) {
       let reads = 0;
       const block = uncoveredSourcesBlock(
-        facts({ walk: brokenWalk, readIgnoredPaths: () => { reads++; return []; } }),
+        facts({
+          walk: brokenWalk,
+          readIgnoredPaths: () => {
+            reads++;
+            return [];
+          },
+        }),
       );
       expect(block).toEqual({ uncoveredSourcesUnavailable: reason });
       expect(reads).toBe(0);
     }
     let reached = 0;
-    uncoveredSourcesBlock(facts({ readIgnoredPaths: () => { reached++; return []; } }));
+    uncoveredSourcesBlock(
+      facts({
+        readIgnoredPaths: () => {
+          reached++;
+          return [];
+        },
+      }),
+    );
     // Once, and only once: the filter reads the patterns it was handed, not the disk.
     expect(reached).toBe(1);
   });
@@ -223,7 +251,9 @@ describe("uncoveredSourcesBlock", () => {
 
   it("refuses to claim anything when the walk hit its entry bound, whatever else it collected", () => {
     const block = uncoveredSourcesBlock(
-      facts({ walk: walk({ fingerprint: undefined, reason: "bounded", sourceTus: ["/repo/x.cpp"] }) }),
+      facts({
+        walk: walk({ fingerprint: undefined, reason: "bounded", sourceTus: ["/repo/x.cpp"] }),
+      }),
     );
     expect(block).toEqual({ uncoveredSourcesUnavailable: "walk-bounded" });
   });

@@ -22,8 +22,11 @@ describe("clangdNoDatabaseConfig", () => {
     expect(clangdNoDatabaseConfig.argv("/p")).toEqual([
       "--compile-commands-dir=/p",
       "--background-index=false",
+      "--pch-storage=disk",
+      expect.stringMatching(/^-j=[1-9]\d*$/),
       "--log=error",
     ]);
+    expect(clangdNoDatabaseConfig.argv("/p")).not.toContain("--background-index-priority=low");
   });
 
   it("admits only the lifecycle and the outline", () => {
@@ -40,7 +43,7 @@ describe("clangdNoDatabaseConfig", () => {
   });
 
   it("leaves the database-backed config as it was", () => {
-    expect(clangdConfig.argv("/p")).toEqual(["--compile-commands-dir=/p", "--background-index=true", "--log=error"]);
+    expect(clangdConfig.argv("/p")).toContain("--background-index=true");
     expect(clangdConfig.allowedRequests.has("workspace/symbol")).toBe(true);
     expect(clangdConfig.indexSnapshot).toBeDefined();
   });

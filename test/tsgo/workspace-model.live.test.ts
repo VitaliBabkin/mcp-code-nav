@@ -4,7 +4,12 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { afterEach, describe, expect } from "vitest";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { tsgoConfig } from "../../src/lsp/server-config.js";
-import { buildProjectMap, dropProjectMap, type ProjectMap, type TsProject } from "../../src/tsgo/project-map.js";
+import {
+  buildProjectMap,
+  dropProjectMap,
+  type ProjectMap,
+  type TsProject,
+} from "../../src/tsgo/project-map.js";
 import { unreadableConfigReason } from "../../src/tsgo/config-graph.js";
 import {
   takeWorkspaceSnapshot,
@@ -64,7 +69,12 @@ const goodEntryFile = join(unprovableRoot, "good", "entry.ts");
 const goodUsesFile = join(unprovableRoot, "good", "uses.ts");
 
 /** The configs the map must name, in the order the `references` lists them. */
-const PROJECT_CONFIGS = ["tsconfig.json", "tsconfig.app.json", "tsconfig.node.json", "configs/member.json"];
+const PROJECT_CONFIGS = [
+  "tsconfig.json",
+  "tsconfig.app.json",
+  "tsconfig.node.json",
+  "configs/member.json",
+];
 /** The two files `extends` reaches, which a project may never be made from. */
 const EXTENDS_ONLY = ["tsconfig.base.json", "compiler-options.json"];
 /** Every file in the fixture — which is exactly what the walk must claim it saw. */
@@ -104,7 +114,8 @@ const managers: LspSessionManager[] = [];
 
 /** One manager per case, kept so `afterEach` disposes what a throwing assertion never reached. */
 function freshManager(log?: TsgoProcessLog): LspSessionManager {
-  const manager = log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
+  const manager =
+    log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
   managers.push(manager);
   return manager;
 }
@@ -113,11 +124,19 @@ afterEach(() => {
   while (managers.length > 0) managers.pop()?.disposeAll();
 });
 
-function ask(manager: LspSessionManager, roots: string[], file: string, symbol: string): Promise<Result> {
-  return runTsFindReferences(
-    manager,
-    { sourceRoots: roots, file, symbol, includeDeclaration: false, timeBudgetMs: CALL_BUDGET_MS },
-  );
+function ask(
+  manager: LspSessionManager,
+  roots: string[],
+  file: string,
+  symbol: string,
+): Promise<Result> {
+  return runTsFindReferences(manager, {
+    sourceRoots: roots,
+    file,
+    symbol,
+    includeDeclaration: false,
+    timeBudgetMs: CALL_BUDGET_MS,
+  });
 }
 
 function payload(result: Result): TsFindReferencesPayload {
@@ -168,13 +187,21 @@ function projectFor(map: ProjectMap, root: string, config: string): TsProject {
   if (found !== undefined) return found;
   throw new Error(
     `"${config}" is not a project of "${root}"; the map holds ` +
-      `${JSON.stringify(namesUnder(root, mapped.projects.map((project) => project.config)))} and failed ` +
+      `${JSON.stringify(
+        namesUnder(
+          root,
+          mapped.projects.map((project) => project.config),
+        ),
+      )} and failed ` +
       `${JSON.stringify(mapped.failed)}`,
   );
 }
 
 /** The walk's entries, or a failure quoting what the walk said it could not finish. */
-function requireWalked(root: string): { entries: Map<string, string>; unresolved: readonly string[] } {
+function requireWalked(root: string): {
+  entries: Map<string, string>;
+  unresolved: readonly string[];
+} {
   const walked = walkWorkspace(root);
   if (walked === undefined) {
     throw new Error(`the walk of "${root}" did not complete: ${workspaceSnapshotReason(root)}`);
@@ -183,7 +210,8 @@ function requireWalked(root: string): { entries: Map<string, string>; unresolved
 }
 
 function requireProjects(scope: TsNavigationScope): TsProjectsBlock {
-  if (!("projects" in scope)) throw new Error(`no project map was reported: ${scope.projectsUnavailable}`);
+  if (!("projects" in scope))
+    throw new Error(`no project map was reported: ${scope.projectsUnavailable}`);
   return scope.projects;
 }
 
@@ -202,7 +230,8 @@ function requireReloaded(scope: TsNavigationScope): string {
 }
 
 /** Every file the walk proved it saw, which is what a run must leave exactly as it found it. */
-const treeStamps = (root: string): Map<string, string> => stampsOf([...requireWalked(root).entries.keys()]);
+const treeStamps = (root: string): Map<string, string> =>
+  stampsOf([...requireWalked(root).entries.keys()]);
 
 /** A copy of a fixture tree under a fresh temp directory, returned with that copy's own root. */
 function copyFixture(root: string): { dir: string; copied: string } {
@@ -255,15 +284,22 @@ describe("the TypeScript workspace model against the real tsgo", () => {
 
       // A referenced config is a project whatever it is called, and the solution config is a project
       // although it lists nothing. `references` order is the order the owner rule searches in.
-      expect(namesUnder(workspaceRoot, map.projects.map((project) => project.config))).toEqual(
-        [...PROJECT_CONFIGS].sort(),
+      expect(
+        namesUnder(
+          workspaceRoot,
+          map.projects.map((project) => project.config),
+        ),
+      ).toEqual([...PROJECT_CONFIGS].sort());
+      expect(map.projects.map((project) => under(workspaceRoot, project.config))).toEqual(
+        PROJECT_CONFIGS,
       );
-      expect(map.projects.map((project) => under(workspaceRoot, project.config))).toEqual(PROJECT_CONFIGS);
       expect(map.failed).toEqual([]);
 
       // The same four through the tool, because `count` is projects plus failures and `configs` is the
       // mapped half of them.
-      const scope = payload(await ask(freshManager(), [workspaceRoot], storeFile, "Store.run")).scope;
+      const scope = payload(
+        await ask(freshManager(), [workspaceRoot], storeFile, "Store.run"),
+      ).scope;
       const projects = requireProjects(scope);
       expect(projects.count).toBe(map.projects.length + map.failed.length);
       expect(namesUnder(workspaceRoot, projects.configs)).toEqual([...PROJECT_CONFIGS].sort());
@@ -275,7 +311,10 @@ describe("the TypeScript workspace model against the real tsgo", () => {
     "refuses tsconfig.base.json and compiler-options.json as projects, and anchors the solution config on nothing",
     async () => {
       const map = await liveProjectMap(workspaceRoot);
-      const configs = namesUnder(workspaceRoot, requireMapped(map).projects.map((project) => project.config));
+      const configs = namesUnder(
+        workspaceRoot,
+        requireMapped(map).projects.map((project) => project.config),
+      );
       for (const extendsOnly of EXTENDS_ONLY) {
         // `extends` configures a project; it does not make one — the language service's own rule.
         expect(configs).not.toContain(extendsOnly);
@@ -308,9 +347,9 @@ describe("the TypeScript workspace model against the real tsgo", () => {
       expect(under(workspaceRoot, projectFor(map, workspaceRoot, "tsconfig.app.json").anchor)).toBe(
         "src/app-only.ts",
       );
-      expect(under(workspaceRoot, projectFor(map, workspaceRoot, "configs/member.json").anchor)).toBe(
-        "packages/ui/src/widget.ts",
-      );
+      expect(
+        under(workspaceRoot, projectFor(map, workspaceRoot, "configs/member.json").anchor),
+      ).toBe("packages/ui/src/widget.ts");
       expect(namesUnder(workspaceRoot, requireMapped(map).uncovered)).toEqual(UNCOVERED);
     },
     CALL_BUDGET_MS,
@@ -324,16 +363,36 @@ describe("the TypeScript workspace model against the real tsgo", () => {
       // in the node project, `widget.ts` in the referenced member project. A missing row is a project whose
       // anchor was never opened — or was dropped — on the process that answered.
       const subjects = [
-        { declaring: storeFile, symbol: "Store.run", consumer: appOnlyFile, in: "appReport", total: 1 },
-        { declaring: storeFile, symbol: "Store.flush", consumer: nodeUsesFile, in: "nodeFlush", total: 1 },
+        {
+          declaring: storeFile,
+          symbol: "Store.run",
+          consumer: appOnlyFile,
+          in: "appReport",
+          total: 1,
+        },
+        {
+          declaring: storeFile,
+          symbol: "Store.flush",
+          consumer: nodeUsesFile,
+          in: "nodeFlush",
+          total: 1,
+        },
         // The widget's import line is a row too: its specifier and its one use.
-        { declaring: sharedFile, symbol: "SHARED_LABEL", consumer: widgetFile, in: "widgetLabel", total: 2 },
+        {
+          declaring: sharedFile,
+          symbol: "SHARED_LABEL",
+          consumer: widgetFile,
+          in: "widgetLabel",
+          total: 2,
+        },
       ] as const;
 
       const readAll = async (): Promise<TsFindReferencesPayload[]> => {
         const answers: TsFindReferencesPayload[] = [];
         for (const subject of subjects) {
-          answers.push(payload(await ask(manager, [workspaceRoot], subject.declaring, subject.symbol)));
+          answers.push(
+            payload(await ask(manager, [workspaceRoot], subject.declaring, subject.symbol)),
+          );
         }
         return answers;
       };
@@ -342,7 +401,9 @@ describe("the TypeScript workspace model against the real tsgo", () => {
 
       // `packages/ui/loose.ts` is a source no project lists, so opening it gives tsgo an inferred project to
       // swap in — the stated exception, and the eviction the measured server behaviour could not measure.
-      expect((await ask(manager, [workspaceRoot], looseTsFile, "LOOSE_MEMBER")).isError).toBeFalsy();
+      expect(
+        (await ask(manager, [workspaceRoot], looseTsFile, "LOOSE_MEMBER")).isError,
+      ).toBeFalsy();
 
       const after = await readAll();
       for (const [index, subject] of subjects.entries()) {
@@ -385,10 +446,12 @@ describe("the TypeScript workspace model against the real tsgo", () => {
         const created = payload(await ask(manager, [copied], copiedStore, "Store.run"));
         expect(created.scope.freshness).toMatchObject({ kind: "pushed", changedFiles: 1 });
         expect(created.totalReferences).toBe(2);
-        expect(namesUnder(copied, created.files.map((group) => group.file))).toEqual([
-          "src/app-only.ts",
-          "src/zz-extra.ts",
-        ]);
+        expect(
+          namesUnder(
+            copied,
+            created.files.map((group) => group.file),
+          ),
+        ).toEqual(["src/app-only.ts", "src/zz-extra.ts"]);
         expect(groupOf(created, extra)?.sites[0]?.in).toBe("zzExtra");
         expect(groupOf(created, extra)?.sites[0]?.line).toBe(lineOf(extra, "return store.run();"));
         // A created path is structural, so the map is rebuilt and the new file is listed by the app project:
@@ -399,7 +462,12 @@ describe("the TypeScript workspace model against the real tsgo", () => {
         const deleted = payload(await ask(manager, [copied], copiedStore, "Store.run"));
         expect(deleted.scope.freshness).toMatchObject({ kind: "pushed", changedFiles: 1 });
         expect(deleted.totalReferences).toBe(1);
-        expect(namesUnder(copied, deleted.files.map((group) => group.file))).toEqual(["src/app-only.ts"]);
+        expect(
+          namesUnder(
+            copied,
+            deleted.files.map((group) => group.file),
+          ),
+        ).toEqual(["src/app-only.ts"]);
       } finally {
         manager.disposeAll();
         dropProjectMap(copied);
@@ -458,18 +526,24 @@ describe("the TypeScript workspace model against the real tsgo", () => {
         // Neither a source nor a config by name: the resolution rule is the only reason this is held.
         expect(requireWalked(copied).entries.has(options)).toBe(true);
 
-        const first = payload(await ask(manager, [copied], join(copied, "src", "store.ts"), "Store.run"));
+        const first = payload(
+          await ask(manager, [copied], join(copied, "src", "store.ts"), "Store.run"),
+        );
         expect(first.scope.freshness.kind).toBe("unchanged");
 
         // A no-op option. The claim is that the edit is SEEN, not that it changes what a project means.
-        const parsed = JSON.parse(readFileSync(options, "utf-8")) as { compilerOptions?: Record<string, unknown> };
+        const parsed = JSON.parse(readFileSync(options, "utf-8")) as {
+          compilerOptions?: Record<string, unknown>;
+        };
         expect(parsed.compilerOptions).toBeDefined();
         writeFileSync(
           options,
           `${JSON.stringify({ compilerOptions: { ...parsed.compilerOptions, pretty: false } }, null, 2)}\n`,
         );
 
-        const second = payload(await ask(manager, [copied], join(copied, "src", "store.ts"), "Store.run"));
+        const second = payload(
+          await ask(manager, [copied], join(copied, "src", "store.ts"), "Store.run"),
+        );
         expect(second.scope.freshness).toMatchObject({ kind: "pushed", changedFiles: 1 });
       } finally {
         manager.disposeAll();
@@ -488,15 +562,19 @@ describe("the TypeScript workspace model against the real tsgo", () => {
       const expected = await firstErrorLine(brokenConfig);
       const map = requireMapped(await liveProjectMap(failedRoot));
 
-      expect(namesUnder(failedRoot, map.projects.map((project) => project.config))).toEqual([
-        "tsconfig.good.json",
-        "tsconfig.json",
-      ]);
+      expect(
+        namesUnder(
+          failedRoot,
+          map.projects.map((project) => project.config),
+        ),
+      ).toEqual(["tsconfig.good.json", "tsconfig.json"]);
       expect(map.failed).toEqual([{ config: brokenConfig, reason: expected }]);
 
       // The solution config reads nothing; the good project's one source is its own to anchor on.
       expect(projectFor(map, failedRoot, "tsconfig.json").anchor).toBeNull();
-      expect(under(failedRoot, projectFor(map, failedRoot, "tsconfig.good.json").anchor)).toBe("src/a.ts");
+      expect(under(failedRoot, projectFor(map, failedRoot, "tsconfig.good.json").anchor)).toBe(
+        "src/a.ts",
+      );
       expect(map.uncovered).toEqual([]);
     },
     CALL_BUDGET_MS,
@@ -532,7 +610,10 @@ describe("the TypeScript workspace model against the real tsgo", () => {
       // The walk is one that also returns what it could not resolve, so the map
       // is built from the paths it DID see. Withholding the snapshot makes every call reload; it does not make
       // the workspace's projects unknown.
-      expect(workspaceWalkedPaths(unprovableRoot)?.length, "the walk saw the files it tracked").toBeGreaterThan(0);
+      expect(
+        workspaceWalkedPaths(unprovableRoot)?.length,
+        "the walk saw the files it tracked",
+      ).toBeGreaterThan(0);
 
       const log = tsgoProcessLog();
       const manager = freshManager(log);
@@ -540,7 +621,9 @@ describe("the TypeScript workspace model against the real tsgo", () => {
         // The first call of a session cannot know: the freshness check compares a baseline the spawn has not
         // taken yet. Every call after it reloads and maps again with it.
         const warm = payload(await ask(manager, [unprovableRoot], unprovableSource, "B"));
-        console.info(`first call of a fresh session answered freshness "${warm.scope.freshness.kind}"`);
+        console.info(
+          `first call of a fresh session answered freshness "${warm.scope.freshness.kind}"`,
+        );
         expect(requireProjects(warm.scope).count).toBe(3);
 
         for (const call of [2, 3]) {
@@ -552,19 +635,29 @@ describe("the TypeScript workspace model against the real tsgo", () => {
           // Live: a config this server cannot read is still a project the language service will try
           // to load, so it is in `projects.failed` with that read error. It could never get there on the real
           // server while an unreadable config also left the map unbuildable.
-          expect(namesUnder(unprovableRoot, projects.failed.map((failure) => failure.config)))
-            .toContain("tsconfig.unreadable.json");
-          expect(projects.failed.map((failure) => failure.reason)).toContain(unreadableConfigReason(unreadableConfig));
+          expect(
+            namesUnder(
+              unprovableRoot,
+              projects.failed.map((failure) => failure.config),
+            ),
+          ).toContain("tsconfig.unreadable.json");
+          expect(projects.failed.map((failure) => failure.reason)).toContain(
+            unreadableConfigReason(unreadableConfig),
+          );
           // tsc cannot follow the dangling `extends` either, so the config that
           // carries it fails its listing through the ordinary path, with the compiler's line as its reason.
-          expect(projects.failed.some((failure) => /error TS\d+/.test(failure.reason)), JSON.stringify(projects.failed))
-            .toBe(true);
+          expect(
+            projects.failed.some((failure) => /error TS\d+/.test(failure.reason)),
+            JSON.stringify(projects.failed),
+          ).toBe(true);
           // Three projects exist, two of them broken; the third lists fine and is the one this answer anchors,
           // which is what is meant by "the map is still built from the paths the walk did see".
-          expect(namesUnder(unprovableRoot, projects.failed.map((failure) => failure.config))).toEqual([
-            "tsconfig.json",
-            "tsconfig.unreadable.json",
-          ]);
+          expect(
+            namesUnder(
+              unprovableRoot,
+              projects.failed.map((failure) => failure.config),
+            ),
+          ).toEqual(["tsconfig.json", "tsconfig.unreadable.json"]);
           expect(namesUnder(unprovableRoot, projects.configs)).toEqual(["tsconfig.good.json"]);
           expect(projects.count).toBe(3);
           expect(scope.limits).toContain("projects-not-loaded");
@@ -600,14 +693,25 @@ describe("the TypeScript workspace model against the real tsgo", () => {
         const scope = answer.scope;
 
         expect(requireReloaded(scope)).toContain("gone.json");
-        expect(namesUnder(unprovableRoot, requireProjects(scope).configs)).toEqual(["tsconfig.good.json"]);
+        expect(namesUnder(unprovableRoot, requireProjects(scope).configs)).toEqual([
+          "tsconfig.good.json",
+        ]);
         // Two of this fixture's three projects did not load, and the answer says so — while the third still
         // answers in full. The code states a narrowing; it does not empty the answer.
         expect(scope.limits).toContain("projects-not-loaded");
         // The import line of `goodName` and its one call.
         expect(answer.totalReferences).toBe(2);
         const uses = groupOf(answer, goodUsesFile);
-        expect(uses === undefined ? `<no group; the answer holds ${JSON.stringify(namesUnder(unprovableRoot, answer.files.map((group) => group.file)))}>` : under(unprovableRoot, uses.file)).toBe("good/uses.ts");
+        expect(
+          uses === undefined
+            ? `<no group; the answer holds ${JSON.stringify(
+                namesUnder(
+                  unprovableRoot,
+                  answer.files.map((group) => group.file),
+                ),
+              )}>`
+            : under(unprovableRoot, uses.file),
+        ).toBe("good/uses.ts");
         expect(uses?.count).toBe(2);
         expect(uses?.sites.map((site) => site.line)).toEqual([
           lineOf(goodUsesFile, "import { goodName }"),
@@ -617,7 +721,9 @@ describe("the TypeScript workspace model against the real tsgo", () => {
 
         // The project was loaded by opening a file of it on the answering process — the whole proof —
         // and the reload really did cost a new child, which is the stated price.
-        expect(log.opened.map((opened) => under(unprovableRoot, opened.file))).toContain("good/entry.ts");
+        expect(log.opened.map((opened) => under(unprovableRoot, opened.file))).toContain(
+          "good/entry.ts",
+        );
         expect(log.pids.length).toBeGreaterThanOrEqual(2);
       } finally {
         manager.disposeAll();
@@ -643,9 +749,9 @@ describe("the TypeScript workspace model against the real tsgo", () => {
       }
 
       const snapshot = takeWorkspaceSnapshot(workspaceRoot);
-      expect(snapshot === undefined ? "<no snapshot>" : namesUnder(workspaceRoot, [...snapshot.keys()])).toEqual(
-        WORKSPACE_ENTRIES,
-      );
+      expect(
+        snapshot === undefined ? "<no snapshot>" : namesUnder(workspaceRoot, [...snapshot.keys()]),
+      ).toEqual(WORKSPACE_ENTRIES);
       expect(workspaceSnapshotReason(workspaceRoot)).toBeUndefined();
     },
     CALL_BUDGET_MS,
@@ -658,13 +764,17 @@ describe("the TypeScript workspace model against the real tsgo", () => {
       expect(samePath(wide.scope.workspaceRoot, resolve(workspaceRoot))).toBe(true);
       expect(wide.scope.enclosingWorkspace).toBeNull();
       // The member package's consumer is inside this root, so its project is one of those loaded.
-      expect(namesUnder(workspaceRoot, requireProjects(wide.scope).configs)).toContain("configs/member.json");
+      expect(namesUnder(workspaceRoot, requireProjects(wide.scope).configs)).toContain(
+        "configs/member.json",
+      );
       expect(wide.scope.limits).toContain("one-workspace");
 
       const narrow = payload(await ask(freshManager(), [memberPackage], widgetFile, "widgetLabel"));
       expect(samePath(narrow.scope.workspaceRoot, resolve(memberPackage))).toBe(true);
       // `go.work`'s treatment: the wider workspace is named as what was NOT spanned, never rooted at.
-      expect(samePath(narrow.scope.enclosingWorkspace ?? undefined, resolve(workspaceRoot))).toBe(true);
+      expect(samePath(narrow.scope.enclosingWorkspace ?? undefined, resolve(workspaceRoot))).toBe(
+        true,
+      );
       // No config inside the package, so no map, and the answer says that instead of claiming a project set.
       expect("projects" in narrow.scope).toBe(false);
       expect(narrow.scope.projectsUnavailable).toContain("jsconfig");
@@ -705,7 +815,9 @@ describe("the TypeScript workspace model against the real tsgo", () => {
         expect(projects.configs.length).toBeLessThanOrEqual(20);
         expect(projects.configs.length).toBe(projects.count - projects.failed.length);
         expect(uncovered.directories.length).toBeLessThanOrEqual(20);
-        expect(uncovered.directories.reduce((sum, one) => sum + one.count, 0)).toBe(uncovered.count);
+        expect(uncovered.directories.reduce((sum, one) => sum + one.count, 0)).toBe(
+          uncovered.count,
+        );
         expect(uncovered.directoriesTruncated).toBe(0);
         expect(uncovered.mentioning.files.length).toBeLessThanOrEqual(20);
         expect(uncovered.count).toBe(UNCOVERED.length);

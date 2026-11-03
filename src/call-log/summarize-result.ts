@@ -126,7 +126,10 @@ function derive(
  * The C++ root the answer carries or the caller named; a Go answer names its module and a TS answer its
  * workspace, else the first declared root.
  */
-function projectOf(scope: Record<string, unknown> | undefined, args: Readonly<Record<string, LoggedArgValue>>) {
+function projectOf(
+  scope: Record<string, unknown> | undefined,
+  args: Readonly<Record<string, LoggedArgValue>>,
+) {
   const root =
     textOf(scope ?? {}, "projectRoot") ??
     textOf(args, "projectRoot") ??
@@ -163,13 +166,15 @@ function loggedArgValue(value: unknown): LoggedArgValue | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "boolean") return value;
   if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
-    return (value as string[]).slice(0, MAX_ARG_ARRAY_ENTRIES);
+    return value.slice(0, MAX_ARG_ARRAY_ENTRIES);
   }
   return undefined;
 }
 
 function stringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 function oneOf<T extends string>(allowed: readonly T[], value: unknown): T | null {
@@ -182,7 +187,7 @@ function textOf(container: Record<string, unknown>, key: string): string | null 
 }
 
 function firstString(value: unknown): string | null {
-  const [first] = Array.isArray(value) ? value : [];
+  const first: unknown = Array.isArray(value) ? value[0] : undefined;
   return typeof first === "string" && first !== "" ? first : null;
 }
 

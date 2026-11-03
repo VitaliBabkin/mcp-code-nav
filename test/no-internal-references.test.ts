@@ -9,17 +9,35 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FORBIDDEN =
   /\bADR\b|docs\/adr|\bRuling\b|\bthe[ ]design\b|\bacceptance item\b|beat Go|\bthis workspace\b|vitali|\.ai\//i;
 
-const TEXT_EXTENSIONS = new Set([".ts", ".js", ".mjs", ".json", ".md", ".yml", ".yaml", ".go", ".h", ".hpp", ".cpp", ".txt"]);
+const TEXT_EXTENSIONS = new Set([
+  ".ts",
+  ".js",
+  ".mjs",
+  ".json",
+  ".md",
+  ".yml",
+  ".yaml",
+  ".go",
+  ".h",
+  ".hpp",
+  ".cpp",
+  ".txt",
+]);
 const SKIPPED_DIRECTORIES = new Set(["node_modules", ".git"]);
 const SCANNED_ROOTS = ["src", "test", "scripts", "docs", ".github"];
 const SCANNED_TOP_LEVEL = /\.md$|^package\.json$/;
 
 /** A match may be allowed only with a reason; the key is `<repo-relative path>` and the pattern is the allowed line. */
-const ALLOWED: readonly { readonly file: string; readonly line: RegExp; readonly reason: string }[] = [
+const ALLOWED: readonly {
+  readonly file: string;
+  readonly line: RegExp;
+  readonly reason: string;
+}[] = [
   {
     file: "package.json",
     line: /"author":/,
-    reason: "the package author field names the publisher; it is the public name chosen for the release",
+    reason:
+      "the package author field names the publisher; it is the public name chosen for the release",
   },
   ...["package.json", "README.md", "docs/WORKFLOW.md"].map((file) => ({
     file,
@@ -34,12 +52,15 @@ function* textFiles(directory: string): Generator<string> {
     const path = join(directory, name);
     const stats = statSync(path);
     if (stats.isDirectory()) yield* textFiles(path);
-    else if (stats.size < 2_000_000 && TEXT_EXTENSIONS.has(name.slice(name.lastIndexOf(".")))) yield path;
+    else if (stats.size < 2_000_000 && TEXT_EXTENSIONS.has(name.slice(name.lastIndexOf("."))))
+      yield path;
   }
 }
 
 function scannedFiles(): string[] {
-  const top = readdirSync(root).filter((name) => SCANNED_TOP_LEVEL.test(name)).map((name) => join(root, name));
+  const top = readdirSync(root)
+    .filter((name) => SCANNED_TOP_LEVEL.test(name))
+    .map((name) => join(root, name));
   const trees = SCANNED_ROOTS.map((name) => join(root, name)).flatMap((dir) => {
     try {
       return [...textFiles(dir)];

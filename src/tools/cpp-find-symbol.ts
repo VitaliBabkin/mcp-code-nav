@@ -79,11 +79,15 @@ async function describeDeclaration(
   declaration: CppDeclaration,
   outside: BoundaryTest,
 ): Promise<SymbolDescription> {
-  if (declaration.namePosition === undefined) return { descriptionUnavailable: noPositionReason(declaration) };
+  if (declaration.namePosition === undefined)
+    return { descriptionUnavailable: noPositionReason(declaration) };
   if (outside(declaration.file)) return { descriptionUnavailable: OUTSIDE_BOUNDARY_REASON };
   try {
     const hover = await session.withTransientDocument(declaration.file, (asking) =>
-      asking.send<unknown>("textDocument/hover", { textDocument: textDocumentId(asking.openedAs), position: declaration.namePosition }),
+      asking.send<unknown>("textDocument/hover", {
+        textDocument: textDocumentId(asking.openedAs),
+        position: declaration.namePosition,
+      }),
     );
     return readSymbolDescription(hover);
   } catch (e) {
@@ -146,10 +150,12 @@ export async function runCppFindSymbol(sessions: LspSessionManager, raw: CppFind
     // index-backed part of this answer, so it is the whole window the stated index state covers; the drift
     // walk and its push go first, because that push is how clangd hears about the disk at all.
     const reading = await session.indexDriftReading(input.sourceRoots);
-    const { value: target, index } = await session.withIndexWindow(async (): Promise<Step<CppTarget>> =>
-      cppQuestionDeclaration(TOOL, input, resolved.value, (query) =>
-        session.request<unknown>("workspace/symbol", { query }),
-      ));
+    const { value: target, index } = await session.withIndexWindow(
+      async (): Promise<Step<CppTarget>> =>
+        cppQuestionDeclaration(TOOL, input, resolved.value, (query) =>
+          session.request<unknown>("workspace/symbol", { query }),
+        ),
+    );
     if (!target.ok) return errorResult(target.error);
     if (target.value.declaration === undefined) {
       return errorResult(

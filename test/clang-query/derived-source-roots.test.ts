@@ -18,8 +18,9 @@ const derived = (root: string, tusOutsideRoots = 0): SourceRootDerivation => ({
   root,
   tusOutsideRoots,
 });
-const none = (reason: "compile-db-unlistable" | "sources-under-project-root" | "no-ancestor-holds-sources") =>
-  ({ kind: "none", reason }) as const;
+const none = (
+  reason: "compile-db-unlistable" | "sources-under-project-root" | "no-ancestor-holds-sources",
+) => ({ kind: "none", reason }) as const;
 
 describe("the ascent bound", () => {
   it("is four levels", () => {
@@ -31,21 +32,27 @@ describe("deriveSourceRoot", () => {
   it("lands on the repository for the usual out-of-tree layout, repo/build/preset", () => {
     const projectRoot = at("work", "repo", "build", "preset");
 
-    expect(deriveSourceRoot(projectRoot, [at("work", "repo", "src", "a.cpp")])).toEqual(derived(at("work", "repo")));
+    expect(deriveSourceRoot(projectRoot, [at("work", "repo", "src", "a.cpp")])).toEqual(
+      derived(at("work", "repo")),
+    );
   });
 
   it("passes over `out` and `build` ancestors: out/build/x64-Debug gives the repository, at level 3", () => {
     const projectRoot = at("work", "repo", "out", "build", "x64-Debug");
 
-    expect(deriveSourceRoot(projectRoot, [at("work", "repo", "src", "a.cpp")])).toEqual(derived(at("work", "repo")));
+    expect(deriveSourceRoot(projectRoot, [at("work", "repo", "src", "a.cpp")])).toEqual(
+      derived(at("work", "repo")),
+    );
   });
 
   it("passes over `.claude`: .claude/worktrees/v2/build/p gives v2", () => {
     const projectRoot = at("work", "repo", ".claude", "worktrees", "v2", "build", "p");
 
-    expect(deriveSourceRoot(projectRoot, [at("work", "repo", ".claude", "worktrees", "v2", "src", "a.cpp")])).toEqual(
-      derived(at("work", "repo", ".claude", "worktrees", "v2")),
-    );
+    expect(
+      deriveSourceRoot(projectRoot, [
+        at("work", "repo", ".claude", "worktrees", "v2", "src", "a.cpp"),
+      ]),
+    ).toEqual(derived(at("work", "repo", ".claude", "worktrees", "v2")));
   });
 
   it("never lands on a build directory that holds a TU: repo/build/_deps/x.cpp beside repo/src/y.cpp gives repo", () => {
@@ -68,7 +75,9 @@ describe("deriveSourceRoot", () => {
     const projectRoot = at("tmp", "a", "build");
 
     // Within the four levels and holding a TU, so `tmp` is a derived root: that is intended, not a defect.
-    expect(deriveSourceRoot(projectRoot, [at("tmp", "b", "src", "x.cpp")])).toEqual(derived(at("tmp")));
+    expect(deriveSourceRoot(projectRoot, [at("tmp", "b", "src", "x.cpp")])).toEqual(
+      derived(at("tmp")),
+    );
   });
 
   it("is not a failure when every TU is under projectRoot (an in-source build)", () => {
@@ -80,7 +89,9 @@ describe("deriveSourceRoot", () => {
   });
 
   it("is not a failure for an empty database", () => {
-    expect(deriveSourceRoot(at("work", "repo", "build"), [])).toEqual(none("sources-under-project-root"));
+    expect(deriveSourceRoot(at("work", "repo", "build"), [])).toEqual(
+      none("sources-under-project-root"),
+    );
   });
 
   it("finds nothing for a Docker-style database whose paths sit under no ancestor", () => {
@@ -103,13 +114,17 @@ describe("deriveSourceRoot", () => {
   it("never yields a filesystem root, for a projectRoot one level below it", () => {
     const projectRoot = at("proj");
 
-    expect(deriveSourceRoot(projectRoot, [at("elsewhere", "a.cpp")])).toEqual(none("no-ancestor-holds-sources"));
+    expect(deriveSourceRoot(projectRoot, [at("elsewhere", "a.cpp")])).toEqual(
+      none("no-ancestor-holds-sources"),
+    );
   });
 
   it("never yields a filesystem root, even when the ascent would reach it inside four levels", () => {
     const projectRoot = at("a", "build");
 
-    expect(deriveSourceRoot(projectRoot, [at("z", "a.cpp")])).toEqual(none("no-ancestor-holds-sources"));
+    expect(deriveSourceRoot(projectRoot, [at("z", "a.cpp")])).toEqual(
+      none("no-ancestor-holds-sources"),
+    );
   });
 
   it("names one root only: a sibling repository's TU does not widen it and is counted", () => {
@@ -133,14 +148,21 @@ describe("deriveSourceRoot", () => {
     expect(deriveSourceRoot(projectRoot, tus)).toEqual(derived(at("work", "repo")));
   });
 
-  it.skipIf(process.platform !== "win32")("contains win32 spellings that differ only in case", () => {
-    const projectRoot = at("Work", "Repo", "build", "preset");
+  it.skipIf(process.platform !== "win32")(
+    "contains win32 spellings that differ only in case",
+    () => {
+      const projectRoot = at("Work", "Repo", "build", "preset");
 
-    expect(deriveSourceRoot(projectRoot, [at("work", "repo", "SRC", "a.cpp")])).toEqual(derived(at("Work", "Repo")));
-  });
+      expect(deriveSourceRoot(projectRoot, [at("work", "repo", "SRC", "a.cpp")])).toEqual(
+        derived(at("Work", "Repo")),
+      );
+    },
+  );
 
   it("answers compile-db-unlistable when the TU list is unavailable", () => {
-    expect(deriveSourceRoot(at("work", "repo", "build"), undefined)).toEqual(none("compile-db-unlistable"));
+    expect(deriveSourceRoot(at("work", "repo", "build"), undefined)).toEqual(
+      none("compile-db-unlistable"),
+    );
   });
 });
 

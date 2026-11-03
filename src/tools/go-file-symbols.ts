@@ -17,8 +17,9 @@ const DEFAULT_TIME_BUDGET_MS = 60_000;
 
 export const GoFileSymbolsInput = z.object({
   sourceRoots: GoSourceRootsSchema,
-  file: PathInput
-    .describe("Go source file: absolute, or relative - it must exist under exactly one sourceRoots entry."),
+  file: PathInput.describe(
+    "Go source file: absolute, or relative - it must exist under exactly one sourceRoots entry.",
+  ),
   depth: z
     .number()
     .int()
@@ -46,13 +47,14 @@ export async function runGoFileSymbols(sessions: LspSessionManager, input: GoFil
     if (outline === undefined) {
       return errorResult(
         `${TOOL} failed: gopls did not answer for "${file}" within its ` +
-          `${budget.ceilingMs} ms budget. The module rooted at "${moduleRoot}" may still be loading ` +
+          `${String(budget.ceilingMs)} ms budget. The module rooted at "${moduleRoot}" may still be loading ` +
           "its packages; raise timeBudgetMs or call again, and do not read this as an empty file.",
       );
     }
     // gopls's documentSymbol is syntactic and never premature, so an empty outline is a real answer
     // about an empty file rather than an index that has not caught up.
-    const symbols: OutlineSymbol[] = outline.state === "ok" ? toOutline(outline.symbols, input.depth) : [];
+    const symbols: OutlineSymbol[] =
+      outline.state === "ok" ? toOutline(outline.symbols, input.depth) : [];
     return successResult({ symbols });
   } catch (e) {
     return errorResult(`${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`);

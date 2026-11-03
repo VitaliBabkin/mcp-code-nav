@@ -1,10 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { clangdConfig, goplsConfig, tsgoConfig, type LanguageServerConfig } from "../../src/lsp/server-config.js";
+import {
+  clangdConfig,
+  goplsConfig,
+  tsgoConfig,
+  type LanguageServerConfig,
+} from "../../src/lsp/server-config.js";
 import type { TsgoBinary } from "../../src/tsgo/binary.js";
 import { fakeServer, sessionOver, uriOf } from "../helpers/fake-lsp.js";
 
 /** A located native server; the suite never resolves a real one. */
-const BINARY: TsgoBinary = { executable: "C:/fake/lib/tsc.exe", version: "7.0.2", source: "global" };
+const BINARY: TsgoBinary = {
+  executable: "C:/fake/lib/tsc.exe",
+  version: "7.0.2",
+  source: "global",
+};
 
 const TSGO = tsgoConfig(BINARY);
 
@@ -34,7 +43,10 @@ function configuration(params: unknown): unknown[] {
 }
 
 /** What a section that can carry the settings is answered: acquisition off, and the hover length at its ceiling. */
-const TYPE_ACQUISITION_OFF = { disableAutomaticTypeAcquisition: true, maximumHoverLength: 2_147_483_647 };
+const TYPE_ACQUISITION_OFF = {
+  disableAutomaticTypeAcquisition: true,
+  maximumHoverLength: 2_147_483_647,
+};
 
 describe("tsgoConfig", () => {
   it("is one tsc.exe --lsp --stdio named by the located executable, with no warmth and no progress to wait for", () => {
@@ -42,9 +54,10 @@ describe("tsgoConfig", () => {
     expect(TSGO.command).toBe("C:/fake/lib/tsc.exe");
     expect(TSGO.argv("/any/workspace")).toEqual(["--lsp", "--stdio"]);
     expect(TSGO.argv("D:/other/workspace")).toEqual(["--lsp", "--stdio"]);
-    expect(tsgoConfig({ executable: "/usr/local/lib/tsc", version: "7.0.2", source: "override" }).command).toBe(
-      "/usr/local/lib/tsc",
-    );
+    expect(
+      tsgoConfig({ executable: "/usr/local/lib/tsc", version: "7.0.2", source: "override" })
+        .command,
+    ).toBe("/usr/local/lib/tsc");
     expect(TSGO.childEnv).toEqual({});
     expect(TSGO.documentSymbolNeedsWarmth).toBe(false);
     expect(TSGO.readinessProof).toBe("documents-opened");
@@ -69,7 +82,11 @@ describe("tsgoConfig", () => {
     "refuses %s through request(), naming the whole allow-list, and the connection never sees it",
     async (method) => {
       const server = fakeServer({ respond: () => [] });
-      const session = sessionOver(server, { root: "/proj", config: TSGO, readFile: () => "export const x = 1;\n" });
+      const session = sessionOver(server, {
+        root: "/proj",
+        config: TSGO,
+        readFile: () => "export const x = 1;\n",
+      });
       await expect(session.request<unknown>(method, DOCUMENT_PARAMS)).rejects.toThrow(
         new RegExp(`tsgo will not be asked for "${method.replace("/", "\\/")}"`),
       );
@@ -85,8 +102,14 @@ describe("tsgoConfig", () => {
 
   it("lets textDocument/implementation through, which is the method clangd's config keeps out", async () => {
     const server = fakeServer({ respond: () => [] });
-    const session = sessionOver(server, { root: "/proj", config: TSGO, readFile: () => "export const x = 1;\n" });
-    await expect(session.request<unknown>("textDocument/implementation", DOCUMENT_PARAMS)).resolves.toEqual([]);
+    const session = sessionOver(server, {
+      root: "/proj",
+      config: TSGO,
+      readFile: () => "export const x = 1;\n",
+    });
+    await expect(
+      session.request<unknown>("textDocument/implementation", DOCUMENT_PARAMS),
+    ).resolves.toEqual([]);
     expect(server.methods).toEqual(["initialize", "textDocument/implementation"]);
   });
 
@@ -108,7 +131,11 @@ describe("tsgoConfig", () => {
 
   it("sends those capabilities and the workspace root as initialize params", async () => {
     const server = fakeServer({ respond: () => [] });
-    const session = sessionOver(server, { root: "/proj", config: TSGO, readFile: () => "export const x = 1;\n" });
+    const session = sessionOver(server, {
+      root: "/proj",
+      config: TSGO,
+      readFile: () => "export const x = 1;\n",
+    });
     await session.documentSymbol("/proj/a.ts");
     expect(initializeParams(TSGO, "/proj").rootUri).toBe(uriOf("/proj"));
     expect(server.requests[0]?.[1]).toMatchObject({
@@ -128,15 +155,27 @@ describe("tsgoConfig", () => {
   });
 
   it("registers the config's server-request table on the connection the session starts", async () => {
-    const server = fakeServer({ respond: (method) => (method === "textDocument/documentSymbol" ? [] : {}) });
-    const session = sessionOver(server, { root: "/proj", config: TSGO, readFile: () => "export const x = 1;\n" });
+    const server = fakeServer({
+      respond: (method) => (method === "textDocument/documentSymbol" ? [] : {}),
+    });
+    const session = sessionOver(server, {
+      root: "/proj",
+      config: TSGO,
+      readFile: () => "export const x = 1;\n",
+    });
     await session.documentSymbol("/proj/a.ts");
     expect(server.registeredRequestHandlers).toContain("workspace/configuration");
     expect(server.registeredRequestHandlers).toContain("client/registerCapability");
 
     // The table is what the session registers: a config that carries none leaves only the progress handler.
-    const gopls = fakeServer({ respond: (method) => (method === "textDocument/documentSymbol" ? [] : {}) });
-    const goplsSession = sessionOver(gopls, { root: "/mod", config: goplsConfig, readFile: () => "package main\n" });
+    const gopls = fakeServer({
+      respond: (method) => (method === "textDocument/documentSymbol" ? [] : {}),
+    });
+    const goplsSession = sessionOver(gopls, {
+      root: "/mod",
+      config: goplsConfig,
+      readFile: () => "package main\n",
+    });
     await goplsSession.documentSymbol("/mod/a.go");
     expect(gopls.registeredRequestHandlers).not.toContain("workspace/configuration");
     expect(gopls.registeredRequestHandlers).not.toContain("client/registerCapability");
@@ -167,17 +206,32 @@ describe("tsgoConfig", () => {
       ],
     });
     expect(answer).toHaveLength(4);
-    expect(answer).toEqual([TYPE_ACQUISITION_OFF, TYPE_ACQUISITION_OFF, TYPE_ACQUISITION_OFF, null]);
+    expect(answer).toEqual([
+      TYPE_ACQUISITION_OFF,
+      TYPE_ACQUISITION_OFF,
+      TYPE_ACQUISITION_OFF,
+      null,
+    ]);
   });
 
   it("answers the request tsgo 7.0.2 really sends, whose items are keyed `section` and not `configurationSection`", () => {
     // Measured live against a large real-world workspace: reading only the specification's field name
     // answers `[null,null,null,null]` and acquisition is never told to stay off.
     const answer = configuration({
-      items: [{ section: "js/ts" }, { section: "typescript" }, { section: "javascript" }, { section: "editor" }],
+      items: [
+        { section: "js/ts" },
+        { section: "typescript" },
+        { section: "javascript" },
+        { section: "editor" },
+      ],
     });
 
-    expect(answer).toEqual([TYPE_ACQUISITION_OFF, TYPE_ACQUISITION_OFF, TYPE_ACQUISITION_OFF, null]);
+    expect(answer).toEqual([
+      TYPE_ACQUISITION_OFF,
+      TYPE_ACQUISITION_OFF,
+      TYPE_ACQUISITION_OFF,
+      null,
+    ]);
   });
 
   it("answers an item set it cannot see through with no values at all", () => {
@@ -187,7 +241,9 @@ describe("tsgoConfig", () => {
   it("declines the file-watching registration with a plain null", () => {
     expect(
       TSGO.serverRequests?.["client/registerCapability"]?.({
-        registrations: [{ id: "1", method: "workspace/didChangeWatchedFiles", registerOptions: { watchers: [] } }],
+        registrations: [
+          { id: "1", method: "workspace/didChangeWatchedFiles", registerOptions: { watchers: [] } },
+        ],
       }),
     ).toBeNull();
   });

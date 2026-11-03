@@ -99,10 +99,29 @@ describe("filenameExcluded", () => {
 
 describe("the compiled-in port lists", () => {
   it("knows every operating system and architecture Go's syslist names", () => {
-    for (const goos of ["aix", "hurd", "js", "nacl", "plan9", "wasip1", "zos", "illumos", "dragonfly"]) {
+    for (const goos of [
+      "aix",
+      "hurd",
+      "js",
+      "nacl",
+      "plan9",
+      "wasip1",
+      "zos",
+      "illumos",
+      "dragonfly",
+    ]) {
       expect(PORTS.goos.has(goos)).toBe(true);
     }
-    for (const goarch of ["386", "wasm", "mips64p32le", "s390x", "riscv64", "loong64", "armbe", "arm64be"]) {
+    for (const goarch of [
+      "386",
+      "wasm",
+      "mips64p32le",
+      "s390x",
+      "riscv64",
+      "loong64",
+      "armbe",
+      "arm64be",
+    ]) {
       expect(PORTS.goarch.has(goarch)).toBe(true);
     }
   });
@@ -142,7 +161,11 @@ describe("osArchExcluded", () => {
     const files = Array.from({ length: OS_ARCH_EXCLUDED_LIMIT + 5 }, (_unused, index) =>
       at(`f${String(index).padStart(3, "0")}_linux.go`),
     );
-    const block = osArchExcluded([...files, at("keep.go"), at("disk_windows.go")], host("windows"), PORTS);
+    const block = osArchExcluded(
+      [...files, at("keep.go"), at("disk_windows.go")],
+      host("windows"),
+      PORTS,
+    );
     expect(block.count).toBe(files.length);
     expect(block.files).toHaveLength(OS_ARCH_EXCLUDED_LIMIT);
     expect(block.namedFileExcluded).toBe(false);
@@ -166,9 +189,15 @@ describe("osArchExcluded", () => {
 
   it("says when the caller's own file is in the set, and when it is not", () => {
     const files = [at("storage.go"), at("disk_linux.go")];
-    expect(osArchExcluded(files, host("windows"), PORTS, at("disk_linux.go")).namedFileExcluded).toBe(true);
-    expect(osArchExcluded(files, host("windows"), PORTS, at("storage.go")).namedFileExcluded).toBe(false);
+    expect(
+      osArchExcluded(files, host("windows"), PORTS, at("disk_linux.go")).namedFileExcluded,
+    ).toBe(true);
+    expect(osArchExcluded(files, host("windows"), PORTS, at("storage.go")).namedFileExcluded).toBe(
+      false,
+    );
     // A file the module walk never reported is not in the set, whatever its name looks like.
-    expect(osArchExcluded(files, host("windows"), PORTS, at("elsewhere_linux.go")).namedFileExcluded).toBe(false);
+    expect(
+      osArchExcluded(files, host("windows"), PORTS, at("elsewhere_linux.go")).namedFileExcluded,
+    ).toBe(false);
   });
 });

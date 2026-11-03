@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { LspDocumentSymbol } from "../../src/clangd/outline.js";
-import { clangdConfig, goplsConfig, type LanguageServerConfig } from "../../src/lsp/server-config.js";
+import {
+  clangdConfig,
+  goplsConfig,
+  type LanguageServerConfig,
+} from "../../src/lsp/server-config.js";
 import { fakeServer, sessionOver } from "../helpers/fake-lsp.js";
 import { sym } from "../helpers/fake-clangd.js";
 
@@ -21,7 +25,10 @@ const CALL_HIERARCHY_PARAMS = { item: { name: "Get", kind: 6, uri: "file:///proj
 
 const WORKSPACE_SYMBOL_PARAMS = { query: "Get" };
 
-function started(config: LanguageServerConfig, respond: (method: string, params: unknown) => unknown = () => [SYMBOL]) {
+function started(
+  config: LanguageServerConfig,
+  respond: (method: string, params: unknown) => unknown = () => [SYMBOL],
+) {
   const server = fakeServer({ respond });
   const session = sessionOver(server, { root: "/proj", config, readFile: () => "content" });
   return { server, session };
@@ -85,32 +92,34 @@ describe("the one guarded send()", () => {
   it("admits workspace/symbol under both configs and implementation under gopls alone", async () => {
     for (const config of [clangdConfig, goplsConfig]) {
       const { server, session } = started(config);
-      await expect(session.request<unknown>("workspace/symbol", WORKSPACE_SYMBOL_PARAMS)).resolves.toEqual([
-        SYMBOL,
-      ]);
+      await expect(
+        session.request<unknown>("workspace/symbol", WORKSPACE_SYMBOL_PARAMS),
+      ).resolves.toEqual([SYMBOL]);
       expect(server.methods).toEqual(["initialize", "workspace/symbol"]);
     }
 
     const refused = started(clangdConfig);
-    await expect(refused.session.request<unknown>("textDocument/implementation", IMPLEMENTATION_PARAMS)).rejects.toThrow(
-      /clangd will not be asked for "textDocument\/implementation"/,
-    );
+    await expect(
+      refused.session.request<unknown>("textDocument/implementation", IMPLEMENTATION_PARAMS),
+    ).rejects.toThrow(/clangd will not be asked for "textDocument\/implementation"/);
     expect(refused.server.methods).toEqual([]);
   });
 
   it("lets textDocument/hover through request() under both configs", async () => {
     for (const config of [clangdConfig, goplsConfig]) {
       const { server, session } = started(config);
-      await expect(session.request<unknown>("textDocument/hover", IMPLEMENTATION_PARAMS)).resolves.toEqual([SYMBOL]);
+      await expect(
+        session.request<unknown>("textDocument/hover", IMPLEMENTATION_PARAMS),
+      ).resolves.toEqual([SYMBOL]);
       expect(server.methods).toEqual(["initialize", "textDocument/hover"]);
     }
   });
 
   it("refuses textDocument/implementation under the clangd config, and the connection never sees it", async () => {
     const { server, session } = started(clangdConfig);
-    await expect(session.request("textDocument/implementation", IMPLEMENTATION_PARAMS)).rejects.toThrow(
-      /clangd will not be asked for "textDocument\/implementation"/,
-    );
+    await expect(
+      session.request("textDocument/implementation", IMPLEMENTATION_PARAMS),
+    ).rejects.toThrow(/clangd will not be asked for "textDocument\/implementation"/);
     expect(server.methods).not.toContain("textDocument/implementation");
     // Refused before the connection was touched, so not even the lifecycle request went out.
     expect(server.methods).toEqual([]);
@@ -121,9 +130,9 @@ describe("the one guarded send()", () => {
     await session.documentSymbolTransient("/proj/a.cpp");
     expect(server.methods).toEqual(["initialize", "textDocument/documentSymbol"]);
 
-    await expect(session.request("textDocument/implementation", IMPLEMENTATION_PARAMS)).rejects.toThrow(
-      /clangd will not be asked for "textDocument\/implementation"/,
-    );
+    await expect(
+      session.request("textDocument/implementation", IMPLEMENTATION_PARAMS),
+    ).rejects.toThrow(/clangd will not be asked for "textDocument\/implementation"/);
     expect(server.methods).toEqual(["initialize", "textDocument/documentSymbol"]);
   });
 
@@ -133,7 +142,9 @@ describe("the one guarded send()", () => {
       await session.documentSymbol("/proj/a");
       expect(server.methods[0]).toBe("initialize");
       expect(server.requests[0]?.[1]).toMatchObject({
-        capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
+        capabilities: {
+          textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } },
+        },
       });
     }
   });
@@ -151,15 +162,18 @@ describe("the one guarded send()", () => {
     // gopls answers markdown unasked, so nothing is declared to it and its initialize params do not move.
     const gopls = started(goplsConfig);
     await gopls.session.documentSymbol("/proj/a.go");
-    const goplsCapabilities = (gopls.server.requests[0]?.[1] as { capabilities: { textDocument?: Record<string, unknown> } })
-      .capabilities;
+    const goplsCapabilities = (
+      gopls.server.requests[0]?.[1] as { capabilities: { textDocument?: Record<string, unknown> } }
+    ).capabilities;
     expect(goplsCapabilities.textDocument?.hover).toBeUndefined();
   });
 
   it("keeps clangd's compile database in the initialize params and gopls without initializationOptions", async () => {
     const clangd = started(clangdConfig);
     await clangd.session.documentSymbol("/proj/a.cpp");
-    expect(clangd.server.requests[0]?.[1]).toMatchObject({ initializationOptions: { compilationDatabasePath: "/proj" } });
+    expect(clangd.server.requests[0]?.[1]).toMatchObject({
+      initializationOptions: { compilationDatabasePath: "/proj" },
+    });
 
     const gopls = started(goplsConfig);
     await gopls.session.documentSymbol("/proj/a.go");
@@ -180,7 +194,9 @@ describe("the one guarded send()", () => {
 
   it("lets textDocument/implementation through request() under the gopls config", async () => {
     const { server, session } = started(goplsConfig);
-    await expect(session.request<LspDocumentSymbol[]>("textDocument/implementation", IMPLEMENTATION_PARAMS)).resolves.toEqual([SYMBOL]);
+    await expect(
+      session.request<LspDocumentSymbol[]>("textDocument/implementation", IMPLEMENTATION_PARAMS),
+    ).resolves.toEqual([SYMBOL]);
     // The refused method above started nothing; an allowed one starts the session it needs.
     expect(server.methods).toEqual(["initialize", "textDocument/implementation"]);
   });
@@ -188,7 +204,12 @@ describe("the one guarded send()", () => {
   it("reports a confident empty for a server whose config needs no warmth, without retrying", async () => {
     const sleep = vi.fn(async () => {});
     const server = fakeServer({ respond: () => [] });
-    const session = sessionOver(server, { root: "/proj", config: goplsConfig, readFile: () => "content", sleep });
+    const session = sessionOver(server, {
+      root: "/proj",
+      config: goplsConfig,
+      readFile: () => "content",
+      sleep,
+    });
     expect(await session.documentSymbol("/proj/a.go")).toEqual({ state: "empty" });
     expect(sleep).not.toHaveBeenCalled();
   });

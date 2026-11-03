@@ -9,7 +9,8 @@ import { readIdentity } from "./build-identity.js";
 
 const SERVER_NAME = "mcp-code-nav";
 const BANNER_MARKER = `// MCPBUILD: ${SERVER_NAME}`;
-const CREATE_REQUIRE = "import{createRequire as __codeNavCreateRequire}from 'module';const require=__codeNavCreateRequire(import.meta.url);";
+const CREATE_REQUIRE =
+  "import{createRequire as __codeNavCreateRequire}from 'module';const require=__codeNavCreateRequire(import.meta.url);";
 
 /** The git-derived identity; a source archive without a git history is stamped with the package version instead. */
 function resolveIdentity(): string {
@@ -17,7 +18,9 @@ function resolveIdentity(): string {
     return readIdentity(process.cwd());
   } catch (error) {
     const manifest = JSON.parse(readFileSync("package.json", "utf8")) as { version?: string };
-    console.warn(`No git identity (${error instanceof Error ? error.message : String(error)}); using the package version.`);
+    console.warn(
+      `No git identity (${error instanceof Error ? error.message : String(error)}); using the package version.`,
+    );
     return `${manifest.version ?? "0.0.0"}+nogit`;
   }
 }

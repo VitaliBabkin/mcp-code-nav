@@ -32,7 +32,11 @@ import type { ProjectFailure, TsProject } from "../../src/tsgo/project-map.js";
 import { fakeServer, sessionOver } from "../helpers/fake-lsp.js";
 
 /** What the located package says the executable is; one case has the answering process say something else. */
-const BINARY: TsgoBinary = { executable: "C:/fake/lib/tsc.exe", version: "7.0.2", source: "global" };
+const BINARY: TsgoBinary = {
+  executable: "C:/fake/lib/tsc.exe",
+  version: "7.0.2",
+  source: "global",
+};
 const SERVER_VERSION = "7.0.2";
 
 /** A reference answer for an interface, with nothing dropped by a cap. */
@@ -55,7 +59,8 @@ const inWorkspace = (...parts: string[]): string => join(tmp, ...parts);
 const mainFile = (): string => inWorkspace("src", "main.ts");
 
 /** The sentence a workspace over the project bound is answered with. */
-const noMap = (root: string): string => `"${root}" holds 33 tsconfig projects, over the 32 this server maps`;
+const noMap = (root: string): string =>
+  `"${root}" holds 33 tsconfig projects, over the 32 this server maps`;
 
 /** The reason a reload happens for, in its own words. */
 const reloadedBecause = (root: string, spec: string, config: string): FreshnessOutcome => ({
@@ -91,7 +96,16 @@ function subjectAt(file: string, kind: string): TsSubject {
     selectionRange: { start: { line: 0, character: 17 } },
   };
   const position: Position = { line: 0, character: 17 };
-  return { symbol: "Storage", entries: [entry], entry, kind, file, line: 1, position, spelling: "Storage" };
+  return {
+    symbol: "Storage",
+    entries: [entry],
+    entry,
+    kind,
+    file,
+    line: 1,
+    position,
+    spelling: "Storage",
+  };
 }
 
 /** Writes `<root>/node_modules/typescript/package.json`, where the workspace's own compiler is read from. */
@@ -107,7 +121,10 @@ function workspaceTypeScript(body: unknown): void {
  * below is the answering process's own answer and not a value this file could have written anywhere. The
  * uncovered block reads text, so a path a case wants mentioned gets its body written here.
  */
-async function scopeOf(facts: Facts = {}, flags: TsScopeFlags = NO_FLAGS): Promise<TsNavigationScope> {
+async function scopeOf(
+  facts: Facts = {},
+  flags: TsScopeFlags = NO_FLAGS,
+): Promise<TsNavigationScope> {
   const file = facts.file ?? mainFile();
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, "export interface Storage {}\n");
@@ -162,13 +179,15 @@ function loadedProject(): TsProject {
 
 /** The loaded-project block of a scope that proved one. */
 function projectsOf(scope: TsNavigationScope): TsProjectsBlock {
-  if (!("projects" in scope)) throw new Error(`this scope names no loaded projects: ${JSON.stringify(scope)}`);
+  if (!("projects" in scope))
+    throw new Error(`this scope names no loaded projects: ${JSON.stringify(scope)}`);
   return scope.projects;
 }
 
 /** The uncovered block of a scope that proved one. */
 function uncoveredOf(scope: TsNavigationScope): TsUncoveredBlock {
-  if (!("uncoveredSources" in scope)) throw new Error(`this scope gives no uncovered block: ${JSON.stringify(scope)}`);
+  if (!("uncoveredSources" in scope))
+    throw new Error(`this scope gives no uncovered block: ${JSON.stringify(scope)}`);
   return scope.uncoveredSources;
 }
 
@@ -234,9 +253,18 @@ describe("tsNavigationScope", () => {
     // ownership reason now belongs to a project with an unowned member, which is the map's own test.
     const failure: ProjectFailure = { config: broken, reason: "the listing gave no exit code" };
 
-    const scope = await scopeOf({ projects: [kept], failed: [failure], uncovered: [inWorkspace("test", "a.ts")] });
+    const scope = await scopeOf({
+      projects: [kept],
+      failed: [failure],
+      uncovered: [inWorkspace("test", "a.ts")],
+    });
 
-    expect(projectsOf(scope)).toEqual({ count: 2, configs: [kept.config], failed: [failure], subsumed: [] });
+    expect(projectsOf(scope)).toEqual({
+      count: 2,
+      configs: [kept.config],
+      failed: [failure],
+      subsumed: [],
+    });
     // A listing that failed says nothing about the files it would have named, so with one in the set "no
     // project includes this file" is unprovable rather than answered with a set that quietly omits a project.
     expect(scope).not.toHaveProperty("uncoveredSources");
@@ -246,7 +274,10 @@ describe("tsNavigationScope", () => {
     expect(scope.limits).toEqual(["one-workspace", "projects-not-loaded"]);
 
     const other = inWorkspace("packages", "node", "tsconfig.json");
-    const two = await scopeOf({ projects: [kept], failed: [failure, { config: other, reason: "the listing exited with code 2" }] });
+    const two = await scopeOf({
+      projects: [kept],
+      failed: [failure, { config: other, reason: "the listing exited with code 2" }],
+    });
     expect(two.limits).toEqual(["one-workspace", "projects-not-loaded"]);
     expect(unavailableOf(two)).toBe(
       `the project listings for "${broken}", "${other}" failed, so which sources no project includes is not known`,
@@ -337,7 +368,11 @@ describe("tsNavigationScope", () => {
       projects: [kept],
       failed: [{ config: broken, reason: "the listing exited with code 2" }],
     });
-    expect(both.limits).toEqual(["one-workspace", "projects-not-loaded", "workspace-typescript-differs"]);
+    expect(both.limits).toEqual([
+      "one-workspace",
+      "projects-not-loaded",
+      "workspace-typescript-differs",
+    ]);
   });
 
   it("states the differing compiler before what the answer is missing, as the table's order has it", async () => {
@@ -483,7 +518,10 @@ describe("tsNavigationScope", () => {
       return { config: inWorkspace(directory, "tsconfig.json"), anchor, members: [anchor] };
     });
     const failed: ProjectFailure[] = [
-      { config: inWorkspace("broken-a", "tsconfig.json"), reason: "the listing exited with code 2" },
+      {
+        config: inWorkspace("broken-a", "tsconfig.json"),
+        reason: "the listing exited with code 2",
+      },
       { config: inWorkspace("broken-b", "tsconfig.json"), reason: "the listing gave no exit code" },
     ];
 
@@ -493,7 +531,9 @@ describe("tsNavigationScope", () => {
     // that moved the count would make the field a fact about the listing rather than about the workspace.
     expect(projectsOf(scope).count).toBe(27);
     expect(projectsOf(scope).configs).toHaveLength(20);
-    expect(projectsOf(scope).configs).toEqual(projects.slice(0, 20).map((project) => project.config));
+    expect(projectsOf(scope).configs).toEqual(
+      projects.slice(0, 20).map((project) => project.config),
+    );
     expect(projectsOf(scope).failed).toEqual(failed);
     expect(scope.limits).toEqual(["one-workspace", "projects-not-loaded"]);
   });
@@ -509,7 +549,12 @@ describe("tsNavigationScope", () => {
     //: it is counted and named up to the same twenty as `configs`, while
     // `count` stays the exact size of the project set. Nothing failed to load, so no `projects-not-loaded`, and
     // the uncovered set stays provable rather than becoming an unprovable one.
-    expect(projectsOf(scope)).toEqual({ count: 21, configs: [], failed: [], subsumed: subsumed.slice(0, 20) });
+    expect(projectsOf(scope)).toEqual({
+      count: 21,
+      configs: [],
+      failed: [],
+      subsumed: subsumed.slice(0, 20),
+    });
     expect(projectsOf(scope).subsumed).toHaveLength(20);
     expect(uncoveredOf(scope)).toEqual(noUncovered("Storage"));
     expect(scope.limits).toEqual(["one-workspace"]);
@@ -544,7 +589,10 @@ describe("tsNavigationScope", () => {
   });
 
   it("caps the directory list at twenty, largest group first, with the rest counted in directoriesTruncated", async () => {
-    const dirs = Array.from({ length: 23 }, (_unused, index) => `d${String(index + 1).padStart(2, "0")}`);
+    const dirs = Array.from(
+      { length: 23 },
+      (_unused, index) => `d${String(index + 1).padStart(2, "0")}`,
+    );
     const orphaned = dirs.map((directory) => inWorkspace(directory, "a.ts"));
     // The biggest group is the lexically last directory, so only the ordering by count can show it.
     const big = [inWorkspace("zz", "a.ts"), inWorkspace("zz", "b.ts"), inWorkspace("zz", "c.ts")];
@@ -586,15 +634,18 @@ describe("tsNavigationScope", () => {
     ];
     expect(uncovered).toHaveLength(72);
     const bodies = Object.fromEntries(
-      uncovered
-        .filter((path) => path !== unreadable)
-        .map((path) => [path, SILENT]),
+      uncovered.filter((path) => path !== unreadable).map((path) => [path, SILENT]),
     );
     bodies[driverTest] = "new ExecDriver();\nExecDriver.run();\n// ExecDriver\n";
     bodies[jobTools] = "const d = new ExecDriver();\nd.stop(ExecDriver);\n";
     bodies[huge] = "x".repeat(1_048_577);
 
-    const scope = await scopeOf({ projects: [loadedProject()], uncovered, bodies, mentionName: "ExecDriver" });
+    const scope = await scopeOf({
+      projects: [loadedProject()],
+      uncovered,
+      bodies,
+      mentionName: "ExecDriver",
+    });
 
     expect(uncoveredOf(scope)).toEqual({
       count: 72,
@@ -636,7 +687,10 @@ describe("tsNavigationScope", () => {
     );
     // File n holds the name on n lines, so the order the cap keeps is the line count, not the path.
     const bodies = Object.fromEntries(
-      orphaned.map((path, index) => [path, Array.from({ length: index + 1 }, () => "Storage.get();").join("\n")]),
+      orphaned.map((path, index) => [
+        path,
+        Array.from({ length: index + 1 }, () => "Storage.get();").join("\n"),
+      ]),
     );
 
     const scope = await scopeOf({ projects: [loadedProject()], uncovered: orphaned, bodies });
@@ -648,7 +702,9 @@ describe("tsNavigationScope", () => {
     expect(mentioning.filesTruncated).toBe(3);
     expect(mentioning.unchecked).toBe(0);
     expect(tsUncoveredLine(scope)).toContain('23 of them contain "Storage"');
-    expect(tsUncoveredLine(scope)).toContain(", and 3 more files in the directories above. Do not report");
+    expect(tsUncoveredLine(scope)).toContain(
+      ", and 3 more files in the directories above. Do not report",
+    );
   });
 
   it("serialises a mention as { file, matchingLines } with no lines key, and the cap is shown as filesTruncated", async () => {
@@ -687,7 +743,13 @@ describe("tsNavigationScope", () => {
       bodies: { [orphan]: "Storage.get();\n" },
       budgetMs: 0,
     });
-    expect(uncoveredOf(scope).mentioning).toEqual({ name: "Storage", count: 0, files: [], filesTruncated: 0, unchecked: 1 });
+    expect(uncoveredOf(scope).mentioning).toEqual({
+      name: "Storage",
+      count: 0,
+      files: [],
+      filesTruncated: 0,
+      unchecked: 1,
+    });
     expect(scope.limits).toEqual(["one-workspace", "uncovered-sources-present"]);
   });
 
@@ -706,7 +768,10 @@ describe("tsNavigationScope", () => {
         { projects: [kept], uncovered: [inWorkspace("test", "a.ts")] },
         { capped: true, correspondingMethods: true },
       ),
-      await scopeOf({ projects: [kept], freshness: reloadedBecause(tmp, "./gone.json", kept.config) }),
+      await scopeOf({
+        projects: [kept],
+        freshness: reloadedBecause(tmp, "./gone.json", kept.config),
+      }),
     ];
 
     // `one-workspace` holds on every answer on purpose: a scope statement that lists only what varies states
@@ -740,7 +805,12 @@ describe("tsUncoveredText and tsScopeText", () => {
     );
     expect(tsUncoveredText(withOrphans)).toBe("");
 
-    const namedToo = await scopeOf({ projects: [loadedProject()], uncovered: orphaned, bodies, file: named });
+    const namedToo = await scopeOf({
+      projects: [loadedProject()],
+      uncovered: orphaned,
+      bodies,
+      file: named,
+    });
     expect(tsUncoveredLine(namedToo)).toContain(
       "were not searched (scripts 1, test 1), the named file among them. 1 of them contain",
     );
@@ -755,7 +825,11 @@ describe("tsUncoveredText and tsScopeText", () => {
 
     // Variant A with an unreadable file: the `could not be checked` tail sits before the instruction.
     rmSync(build);
-    const withUnread = await scopeOf({ projects: [loadedProject()], uncovered: orphaned, bodies: { [named]: bodies[named] } });
+    const withUnread = await scopeOf({
+      projects: [loadedProject()],
+      uncovered: orphaned,
+      bodies: { [named]: bodies[named] },
+    });
     expect(tsUncoveredLine(withUnread)).toBe(
       "INCOMPLETE: 2 file(s) no tsconfig project includes were not searched (scripts 1, test 1). " +
         `1 of them contain "Storage" and may hold more results - grep "Storage" in: ${named} (2 matching lines). ` +
@@ -764,7 +838,11 @@ describe("tsUncoveredText and tsScopeText", () => {
 
     // Variant B: nothing matches among the files it could read, one it could not.
     rmSync(named);
-    const unchecked = await scopeOf({ projects: [loadedProject()], uncovered: orphaned, bodies: { [build]: SILENT } });
+    const unchecked = await scopeOf({
+      projects: [loadedProject()],
+      uncovered: orphaned,
+      bodies: { [build]: SILENT },
+    });
     expect(tsUncoveredLine(unchecked)).toBe(
       "INCOMPLETE: 2 file(s) no tsconfig project includes were not searched (scripts 1, test 1). " +
         `None of the checked files contains "Storage"; 1 file(s) could not be checked - grep them for "Storage". ${TAIL}`,

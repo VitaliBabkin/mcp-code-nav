@@ -29,7 +29,11 @@ export class SweepCache {
    * Cached outcomes for this query under `fingerprint`. A fingerprint mismatch drops the whole
    * `projectRoot` entry (every query) before returning empty.
    */
-  lookup(projectRoot: string, qualifiedName: string, fingerprint: string): ReadonlyMap<string, TuOutcome> {
+  lookup(
+    projectRoot: string,
+    qualifiedName: string,
+    fingerprint: string,
+  ): ReadonlyMap<string, TuOutcome> {
     const key = resolve(projectRoot);
     const project = this.projects.get(key);
     if (!project) return EMPTY_TU_OUTCOMES;
@@ -41,7 +45,13 @@ export class SweepCache {
   }
 
   /** Records one TU's outcome. A TU interrupted by the time budget or a cancellation is never stored. */
-  store(projectRoot: string, qualifiedName: string, fingerprint: string, tu: string, outcome: TuOutcome): void {
+  store(
+    projectRoot: string,
+    qualifiedName: string,
+    fingerprint: string,
+    tu: string,
+    outcome: TuOutcome,
+  ): void {
     const key = resolve(projectRoot);
     let project = this.projects.get(key);
     if (!project || project.fingerprint !== fingerprint) {

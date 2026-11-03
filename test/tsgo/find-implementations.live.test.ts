@@ -3,7 +3,10 @@ import { join, relative, sep } from "node:path";
 import { afterEach, describe, expect } from "vitest";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { walkWorkspace } from "../../src/tsgo/workspace-snapshot.js";
-import { runTsFindImplementations, type TsFindImplementationsPayload } from "../../src/tools/ts-find-implementations.js";
+import {
+  runTsFindImplementations,
+  type TsFindImplementationsPayload,
+} from "../../src/tools/ts-find-implementations.js";
 import type { TsNavigationScope } from "../../src/tools/ts-navigation-shared.js";
 import {
   CALL_BUDGET_MS,
@@ -39,7 +42,8 @@ const managers: LspSessionManager[] = [];
 
 /** One manager per case, kept so `afterEach` disposes what a throwing assertion never reached. */
 function freshManager(log?: TsgoProcessLog): LspSessionManager {
-  const manager = log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
+  const manager =
+    log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
   managers.push(manager);
   return manager;
 }
@@ -49,7 +53,12 @@ afterEach(() => {
 });
 
 function ask(manager: LspSessionManager, symbol: string, file = handlerFile): Promise<Result> {
-  return runTsFindImplementations(manager, { sourceRoots: [workspaceRoot], file, symbol, timeBudgetMs: CALL_BUDGET_MS });
+  return runTsFindImplementations(manager, {
+    sourceRoots: [workspaceRoot],
+    file,
+    symbol,
+    timeBudgetMs: CALL_BUDGET_MS,
+  });
 }
 
 function payload(result: Result): TsFindImplementationsPayload {
@@ -79,7 +88,8 @@ function namesOf(answer: TsFindImplementationsPayload): (string | null)[] {
 /** Every row as `<name> (<kind>) <file>:<line>`, which is what a failure has to show to be actionable. */
 function listed(answer: TsFindImplementationsPayload): string[] {
   return answer.implementations.map(
-    (row) => `${row.name ?? "<unnamed>"} (${row.kind ?? "?"}) ${under(workspaceRoot, row.file)}:${row.line}`,
+    (row) =>
+      `${row.name ?? "<unnamed>"} (${row.kind ?? "?"}) ${under(workspaceRoot, row.file)}:${row.line}`,
   );
 }
 
@@ -90,8 +100,13 @@ function rowOf(answer: TsFindImplementationsPayload, name: string): string {
   return `${row.kind} ${under(workspaceRoot, row.file)}:${row.line}`;
 }
 
-function requireProjects(scope: TsNavigationScope): { count: number; configs: readonly string[]; failed: readonly { config: string; reason: string }[] } {
-  if (!("projects" in scope)) throw new Error(`no project map was reported: ${scope.projectsUnavailable}`);
+function requireProjects(scope: TsNavigationScope): {
+  count: number;
+  configs: readonly string[];
+  failed: readonly { config: string; reason: string }[];
+} {
+  if (!("projects" in scope))
+    throw new Error(`no project map was reported: ${scope.projectsUnavailable}`);
   return scope.projects;
 }
 
@@ -145,13 +160,20 @@ describe("ts_find_implementations against the real tsgo", () => {
             );
           }
           expect(answer.truncated).toBe(0);
-          expect(answer.implementations.every((row) => !row.external && row.reason === undefined)).toBe(true);
+          expect(
+            answer.implementations.every((row) => !row.external && row.reason === undefined),
+          ).toBe(true);
 
           // the measured server behaviour: a class that satisfies `Handler` member for member and never names it is not reported at
           // all — and every answer this tool gives says so, whatever it listed.
           expect(namesOf(answer)).not.toContain("Structural");
-          expect(linesOf(handlerFile).some((line) => line.includes("export class Structural"))).toBe(true);
-          expect(answer.scope.limits).toEqual(["one-workspace", "structural-implementers-not-reported"]);
+          expect(
+            linesOf(handlerFile).some((line) => line.includes("export class Structural")),
+          ).toBe(true);
+          expect(answer.scope.limits).toEqual([
+            "one-workspace",
+            "structural-implementers-not-reported",
+          ]);
 
           const projects = requireProjects(answer.scope);
           expect(projects.failed).toEqual([]);
@@ -181,7 +203,9 @@ describe("ts_find_implementations against the real tsgo", () => {
         // the subject, so this tool drops it (mocked pin: "never lists the subject among its own
         // implementations"); what is left is the derivation, which is the question.
         expect([...namesOf(answer)].sort()).toEqual(["Both"]);
-        expect(rowOf(answer, "Both")).toBe(`class src/handler.ts:${lineOf(handlerFile, "export class Both")}`);
+        expect(rowOf(answer, "Both")).toBe(
+          `class src/handler.ts:${lineOf(handlerFile, "export class Both")}`,
+        );
         expect(rowOf(answer, "Base")).toBe("<no row named Base>");
         expect(answer.truncated).toBe(0);
         expect(answer.scope.limits).toContain("structural-implementers-not-reported");
@@ -200,11 +224,17 @@ describe("ts_find_implementations against the real tsgo", () => {
         const answer = payload(await ask(manager, "Handler.handle"));
         recordAnswer("implementations-Handler.handle", answer.implementations);
         expect(answer.resolved).toMatchObject({ name: "Handler.handle", kind: "method" });
-        expect(answer.resolved.line).toBe(lineAfter(handlerFile, "export interface Handler", "handle(job: string)"));
+        expect(answer.resolved.line).toBe(
+          lineAfter(handlerFile, "export interface Handler", "handle(job: string)"),
+        );
         // A method subject answers with MEMBER rows, one per implementing declaration, each named by the
         // row rule so it reads back as this tool's own `symbol`. Without these, `[]`, the classes, or a row-
         // spelling regression would all pass this case.
-        expect([...namesOf(answer)].sort()).toEqual(["Base.handle", "Both.handle", "Direct.handle"]);
+        expect([...namesOf(answer)].sort()).toEqual([
+          "Base.handle",
+          "Both.handle",
+          "Direct.handle",
+        ]);
         for (const [name, anchor] of [
           ["Base.handle", "export class Base"],
           ["Both.handle", "export class Both"],
@@ -215,7 +245,9 @@ describe("ts_find_implementations against the real tsgo", () => {
           );
         }
         expect(answer.truncated).toBe(0);
-        expect(answer.implementations.every((row) => !row.external && row.reason === undefined)).toBe(true);
+        expect(
+          answer.implementations.every((row) => !row.external && row.reason === undefined),
+        ).toBe(true);
         expect(answer.scope.limits).toContain("structural-implementers-not-reported");
       } finally {
         manager.disposeAll();
@@ -233,7 +265,9 @@ describe("ts_find_implementations against the real tsgo", () => {
         const result = await ask(manager, "LABEL");
         expect(result.isError).toBe(true);
         expect(textOf(result)).toContain('ts_find_implementations failed: "LABEL" is a variable');
-        expect(textOf(result)).toContain("only an interface, class, method or property has implementations");
+        expect(textOf(result)).toContain(
+          "only an interface, class, method or property has implementations",
+        );
         expect(result).not.toHaveProperty("structuredContent");
         // The gate is this server's own read of the outline, so it can refuse before anything is asked.
         expect(log.methods).toEqual(["initialize", "textDocument/documentSymbol"]);
@@ -267,7 +301,10 @@ describe("ts_find_implementations against the real tsgo", () => {
         expect(requireProjects(answer.scope).failed).toEqual([]);
         // The empty is the answer, and the code beside it says which kind of empty: not "nothing satisfies
         // this", but "nothing that NAMES it", because a structural satisfier is invisible to the request.
-        expect(answer.scope.limits).toEqual(["one-workspace", "structural-implementers-not-reported"]);
+        expect(answer.scope.limits).toEqual([
+          "one-workspace",
+          "structural-implementers-not-reported",
+        ]);
         expect(textOf(result)).toContain("- 0 row(s)");
       } finally {
         manager.disposeAll();
