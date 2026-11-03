@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -11,24 +10,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect } from "vitest";
+import { itIfClangd } from "../helpers/clangd-live.js";
 import { clangdConfig } from "../../src/lsp/server-config.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { LspSession } from "../../src/lsp/session.js";
 import { runCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
 import { resultView } from "../helpers/tool-result.js";
-
-// clangd is optional on this host in exactly the way gopls is, so the suite skips rather than failing with
-// the symptom it exists to detect. `MCP_CODE_NAV_CLANGD` overrides, as it does at runtime.
-function isClangdAvailable(): boolean {
-  try {
-    execFileSync(process.env.MCP_CODE_NAV_CLANGD ?? "clangd", ["--version"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-const itIfClangd = isClangdAvailable() ? it : it.skip;
 
 /**
  * One header with a virtual template class and one translation unit per name deriving from it: enough

@@ -2,7 +2,6 @@
 // managers a run leaves behind, and the result accessors.
 
 import { execFileSync } from "node:child_process";
-import { rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { it } from "vitest";
@@ -10,7 +9,7 @@ import { LspSessionManager } from "../../src/lsp/session-manager.js";
 
 /** gopls is optional on this host in exactly the way clangd is, so the suite skips rather than failing
  *  with the symptom it is meant to detect. `MCP_CODE_NAV_GOPLS` overrides, as it does at runtime. */
-function isGoplsAvailable(): boolean {
+export function isGoplsAvailable(): boolean {
   try {
     execFileSync(process.env.MCP_CODE_NAV_GOPLS ?? "gopls", ["version"], { stdio: "ignore" });
     return true;
@@ -47,23 +46,4 @@ export function disposeGoLiveManagers(): void {
   while (managers.length > 0) managers.pop()?.disposeAll();
 }
 
-/** Paths as gopls spelled them after `fileURLToPath`, compared on the footing the OS compares them. */
-export function samePath(a: string | undefined, b: string): boolean {
-  if (a === undefined) return false;
-  const normalise = (path: string) => path.replace(/\\/g, "/").toLowerCase();
-  return normalise(a) === normalise(b);
-}
-
-/** `child.kill()` does not wait for the exit, and on Windows the module root is gopls's working
- *  directory, so the OS keeps the handle locked briefly after `disposeAll()`. */
-export async function removeTree(dir: string): Promise<void> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      rmSync(dir, { recursive: true, force: true });
-      return;
-    } catch (e) {
-      if (attempt >= 9) throw e;
-      await new Promise((done) => setTimeout(done, 300));
-    }
-  }
-}
+export { removeTree, samePath } from "./fixture-text.js";

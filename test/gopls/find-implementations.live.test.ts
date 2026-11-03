@@ -1,26 +1,20 @@
-import { execFileSync } from "node:child_process";
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect } from "vitest";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { runGoFindImplementations } from "../../src/tools/go-find-implementations.js";
 import { IMPLEMENTATIONS_LIMIT } from "../../src/tools/navigation-limits.js";
+import {
+  disposeGoLiveManagers,
+  freshManager,
+  itIfGoplsAvailable,
+  removeTree,
+  samePath,
+} from "../helpers/go-live.js";
 import { removeFileNamingHolder } from "../helpers/remove-with-holder.js";
 import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
-
-// gopls is optional on this host in exactly the way clangd is, so the suite skips rather than failing
-// with the symptom it is meant to detect. `MCP_CODE_NAV_GOPLS` overrides, as it does at runtime.
-function isGoplsAvailable(): boolean {
-  try {
-    execFileSync(process.env.MCP_CODE_NAV_GOPLS ?? "gopls", ["version"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-const itIfGoplsAvailable = isGoplsAvailable() ? it : it.skip;
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures");
 const implRoot = join(fixtures, "go-implementations");
@@ -74,16 +68,6 @@ interface Payload {
   };
 }
 
-const managers: LspSessionManager[] = [];
-
-function freshManager(): LspSessionManager {
-  // No wiring: `goplsConfig` names the module walk that proves its package graph, exactly as in
-  // `src/index.ts`.
-  const manager = new LspSessionManager();
-  managers.push(manager);
-  return manager;
-}
-
 function ask(
   manager: LspSessionManager,
   roots: string[],
@@ -102,13 +86,6 @@ function payloadOf(result: Result): Payload {
   return payloadAs<Payload>(result, "go_find_implementations");
 }
 
-/** Paths as gopls spelled them after `fileURLToPath`, compared on the footing the OS compares them. */
-function samePath(a: string | undefined, b: string): boolean {
-  if (a === undefined) return false;
-  const normalise = (path: string) => path.replace(/\\/g, "/").toLowerCase();
-  return normalise(a) === normalise(b);
-}
-
 function namedRows(payload: Payload): string[] {
   return payload.implementations
     .map((row) => row.name)
@@ -121,23 +98,7 @@ function namesPath(files: readonly string[] | undefined, path: string): boolean 
   return (files ?? []).some((file) => samePath(file, path));
 }
 
-/** `child.kill()` does not wait for the exit, and on Windows the module root is gopls's working
- * directory, so the OS keeps the handle locked briefly after `disposeAll()`. */
-async function removeTree(dir: string): Promise<void> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      rmSync(dir, { recursive: true, force: true });
-      return;
-    } catch (e) {
-      if (attempt >= 9) throw e;
-      await new Promise((done) => setTimeout(done, 300));
-    }
-  }
-}
-
-afterEach(() => {
-  while (managers.length > 0) managers.pop()?.disposeAll();
-});
+afterEach(disposeGoLiveManagers);
 
 /**
  * Live-binary suite for the `go_find_implementations` against a real `gopls` (excluded from

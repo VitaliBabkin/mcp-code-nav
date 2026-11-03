@@ -1,6 +1,7 @@
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { readFileSync } from "node:fs";
 import { describe, expect } from "vitest";
+import { pathKey, samePath, under as underRoot } from "../helpers/fixture-text.js";
 import {
   defaultTsExec,
   type TsgoBinary,
@@ -68,6 +69,8 @@ import {
  */
 
 const root = join(fixtures, "ts-workspace-jsconfig");
+
+const under = (path: string | null | undefined): string => underRoot(root, path);
 const tsConfig = join(root, "tsconfig.json");
 const jsConfig = join(root, "jsconfig.json");
 const sharedFile = join(root, "src", "both-configs.ts");
@@ -87,29 +90,6 @@ const IS_DECLARATION_FILE = /\.d\.[cm]?ts$/i;
 const IN_NODE_MODULES = /[\\/]node_modules[\\/]/i;
 
 // ---------------------------------------------------------------- fixture scaffolding
-
-/** Paths compared the way the map compares them: separators normalised, case folded on this OS. */
-const pathKey = (path: string): string => path.replace(/\\/g, "/").toLowerCase();
-
-function samePath(a: string | null | undefined, b: string): boolean {
-  return a !== undefined && a !== null && pathKey(a) === pathKey(b);
-}
-
-/** `path` under the fixture root in forward slashes; its own spelling when it is not under it at all. */
-function under(path: string | null | undefined): string {
-  if (path === undefined || path === null) return "<none>";
-  const rel = relative(root, path);
-  if (!rel.startsWith("..")) return rel.split(sep).join("/");
-  // The same directory spelled with another drive-letter case is still under it: `relative` would call that an
-  // escape, and the map compares the two case-folded.
-  const key = pathKey(root);
-  return pathKey(path).startsWith(`${key}/`)
-    ? path
-        .slice(key.length + 1)
-        .split("\\")
-        .join("/")
-    : path;
-}
 
 function namesUnder(paths: readonly string[]): string[] {
   return paths.map((path) => under(path)).sort();

@@ -15,6 +15,8 @@ import {
   type LspProcess,
   type SpawnLsp,
 } from "../../src/lsp/process.js";
+import { LspSessionManager } from "../../src/lsp/session-manager.js";
+import { walkWorkspace } from "../../src/tsgo/workspace-snapshot.js";
 import { resolveTsgoBinary, defaultTsExec, type TsgoBinary } from "../../src/tsgo/binary.js";
 import type { LanguageServerConfig, SpawnAttempt } from "../../src/lsp/server-config.js";
 
@@ -306,6 +308,29 @@ export function stampsOf(paths: readonly string[]): Map<string, string> {
   const stamps = new Map<string, string>();
   for (const path of paths) stamps.set(path, fileStamp(path) ?? "unreadable");
   return stamps;
+}
+
+/** Every file the walk of `root` proved it saw: what a run must leave exactly as it found it. */
+export function treeStamps(root: string): Map<string, string> {
+  const walked = walkWorkspace(root);
+  if (walked === undefined) throw new Error(`the walk of "${root}" did not complete`);
+  return stampsOf([...walked.entries.keys()]);
+}
+
+const managers: LspSessionManager[] = [];
+
+/** One manager per case, kept so the file's `afterEach` can dispose what a throwing assertion never reached.
+ *  With a `log`, the session spawns through it. */
+export function freshManager(log?: TsgoProcessLog): LspSessionManager {
+  const manager =
+    log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
+  managers.push(manager);
+  return manager;
+}
+
+/** Disposes every manager `freshManager` made; each file calls this from its own `afterEach`. */
+export function disposeTsgoLiveManagers(): void {
+  while (managers.length > 0) managers.pop()?.disposeAll();
 }
 
 export interface ListingResult {

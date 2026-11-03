@@ -1,8 +1,8 @@
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect } from "vitest";
+import { itIfClangd } from "../helpers/clangd-live.js";
 import { collapseLineBreaks } from "../helpers/markdown.js";
 import { flattenOutline } from "../../src/clangd/outline.js";
 import { textDocumentId } from "../../src/lsp/document-uri.js";
@@ -12,18 +12,6 @@ import { clangdConfig } from "../../src/lsp/server-config.js";
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import { runCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
 import { payloadAs } from "../helpers/tool-result.js";
-
-// clangd is optional on this host in exactly the way gopls is, so the suite skips rather than failing with
-// the symptom it exists to detect. `MCP_CODE_NAV_CLANGD` overrides, as it does at runtime.
-function isClangdAvailable(): boolean {
-  try {
-    execFileSync(process.env.MCP_CODE_NAV_CLANGD ?? "clangd", ["--version"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-const itIfClangd = isClangdAvailable() ? it : it.skip;
 
 /**
  * 1-based lines: `///` doc comment on 3, `class Widget {` on 4, the method's doc comment on 6,

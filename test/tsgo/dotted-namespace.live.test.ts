@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect } from "vitest";
+import { lineOf, linesOf } from "../helpers/fixture-text.js";
 import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { pathKey } from "../../src/paths/path-containment.js";
@@ -13,7 +13,14 @@ import {
   type TsFindReferencesPayload,
 } from "../../src/tools/ts-find-references.js";
 import { runTsFindSymbol, type TsFindSymbolPayload } from "../../src/tools/ts-find-symbol.js";
-import { CALL_BUDGET_MS, fixtures, itIfTsgoAvailable, recordAnswer } from "../helpers/tsgo-live.js";
+import {
+  CALL_BUDGET_MS,
+  fixtures,
+  itIfTsgoAvailable,
+  recordAnswer,
+  freshManager,
+  disposeTsgoLiveManagers,
+} from "../helpers/tsgo-live.js";
 
 /**
  * Live against the real TypeScript 7 native server, over
@@ -29,26 +36,7 @@ const useFile = join(workspaceRoot, "src", "use.ts");
 const mergedFile = join(workspaceRoot, "src", "merged.ts");
 const mergedUseFile = join(workspaceRoot, "src", "merged-use.ts");
 
-const managers: LspSessionManager[] = [];
-
-function freshManager(): LspSessionManager {
-  const manager = new LspSessionManager();
-  managers.push(manager);
-  return manager;
-}
-
-afterEach(() => {
-  while (managers.length > 0) managers.pop()?.disposeAll();
-});
-
-const linesOf = (file: string): string[] => readFileSync(file, "utf-8").split(/\r?\n/);
-
-/** The 1-based line holding `needle`, or a failure naming the fixture that lost it. */
-function lineOf(file: string, needle: string): number {
-  const index = linesOf(file).findIndex((line) => line.includes(needle));
-  if (index < 0) throw new Error(`the fixture no longer holds "${needle}" in ${file}`);
-  return index + 1;
-}
+afterEach(disposeTsgoLiveManagers);
 
 /** The 1-based column of `token` in the line holding `line`, so an expected site is read from the fixture's text. */
 function columnOf(file: string, line: string, token: string): number {

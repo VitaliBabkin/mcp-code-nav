@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
-import { join, relative, sep } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { join } from "node:path";
+import { afterEach, describe, expect } from "vitest";
+import { lineOf, under } from "../helpers/fixture-text.js";
 import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import {
@@ -14,6 +14,8 @@ import {
   itIfTsgoAvailable,
   tsFixtureRoot,
   type LiveResult,
+  freshManager,
+  disposeTsgoLiveManagers,
 } from "../helpers/tsgo-live.js";
 
 /**
@@ -32,34 +34,7 @@ const keeperFile = join(workspaceRoot, "src", "keeper.ts");
 const barrelFile = join(workspaceRoot, "src", "barrel.ts");
 const outsideFile = join(workspaceRoot, "test", "outside.ts");
 
-const managers: LspSessionManager[] = [];
-
-function freshManager(): LspSessionManager {
-  const manager = new LspSessionManager();
-  managers.push(manager);
-  return manager;
-}
-
-afterEach(() => {
-  while (managers.length > 0) managers.pop()?.disposeAll();
-});
-
-function linesOf(file: string): string[] {
-  return readFileSync(file, "utf-8").split(/\r?\n/);
-}
-
-/** The 1-based line a text sits on, or a failure naming the file that no longer carries it. */
-function lineOf(file: string, needle: string): number {
-  const index = linesOf(file).findIndex((line) => line.includes(needle));
-  if (index < 0) throw new Error(`"${needle}" is no longer in ${file}`);
-  return index + 1;
-}
-
-/** `path` under `root` in forward slashes; its own spelling when it is not under it at all. */
-function under(root: string, path: string): string {
-  const rel = relative(root, path);
-  return rel.startsWith("..") ? path : rel.split(sep).join("/");
-}
+afterEach(disposeTsgoLiveManagers);
 
 function references(
   manager: LspSessionManager,
