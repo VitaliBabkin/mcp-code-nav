@@ -31,7 +31,7 @@ export const CallRecord = z.object({
   tool: z.string().max(80),
   lang: z.string().nullable(),
   project: z.string().nullable(),
-  args: z.record(ArgValue),
+  args: z.record(z.string(), ArgValue),
   argKeys: z.array(z.string()),
   argsDropped: z.boolean().optional(),
   ms: z.number().int().nonnegative(),

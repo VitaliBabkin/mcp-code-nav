@@ -41,7 +41,7 @@ const PatternSchema = z
   .superRefine((pattern, ctx) => {
     const violation = limitViolation(pattern);
     if (violation !== undefined)
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `ignoredPaths pattern ${violation}` });
+      ctx.addIssue({ code: "custom", message: `ignoredPaths pattern ${violation}` });
   });
 
 const ConfigSchema = z.object({
