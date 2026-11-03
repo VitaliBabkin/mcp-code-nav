@@ -23,18 +23,21 @@ const itIfClangd = isClangdAvailable() ? it : it.skip;
 /**
  * clangd truncates a reference answer at `--limit-references` (1000 unless told otherwise) and says nothing
  * about it, so a symbol used more often than that would come back short with a count that reads as exact.
- * The fixture calls one function from more sites than that default.
+ * One function is called once from each of more callers than that default, and another is called more often
+ * than that default from a single caller.
  */
-const CALLERS = 11;
-const CALLS_PER_CALLER = 100;
-const TOTAL_CALLS = CALLERS * CALLS_PER_CALLER;
+const DISTINCT_CALLERS = 1100;
+const BURST_CALLS = 1100;
 
-const TICK_H = "#pragma once\nvoid tick();\n";
-const TICK_CPP = '#include "tick.h"\nvoid tick() {}\n';
+const CALLEES_H = "#pragma once\nvoid tick();\nvoid burst();\n";
+const CALLEES_CPP = '#include "callees.h"\nvoid tick() {}\nvoid burst() {}\n';
 const usesCpp = (): string => {
-  const body = "  tick();\n".repeat(CALLS_PER_CALLER);
-  const fns = Array.from({ length: CALLERS }, (_, i) => `void caller${String(i)}() {\n${body}}\n`);
-  return `#include "tick.h"\n${fns.join("")}`;
+  const distinct = Array.from(
+    { length: DISTINCT_CALLERS },
+    (_, i) => `void caller${String(i)}() {\n  tick();\n}\n`,
+  );
+  const burster = `void burster() {\n${"  burst();\n".repeat(BURST_CALLS)}}\n`;
+  return `#include "callees.h"\n${[...distinct, burster].join("")}`;
 };
 
 type Answer<P> = { isError?: boolean; content: { text: string }[]; structuredContent?: P };
@@ -54,9 +57,9 @@ describe("a symbol used more often than clangd's default reference limit", () =>
     sourceDir = join(tmp, "src");
     mkdirSync(buildDir, { recursive: true });
     mkdirSync(sourceDir, { recursive: true });
-    header = join(sourceDir, "tick.h");
-    writeFileSync(header, TICK_H);
-    const units = { "tick.cpp": TICK_CPP, "uses.cpp": usesCpp() };
+    header = join(sourceDir, "callees.h");
+    writeFileSync(header, CALLEES_H);
+    const units = { "callees.cpp": CALLEES_CPP, "uses.cpp": usesCpp() };
     for (const [name, text] of Object.entries(units)) writeFileSync(join(sourceDir, name), text);
     writeFileSync(
       join(buildDir, "compile_commands.json"),
@@ -102,41 +105,56 @@ describe("a symbol used more often than clangd's default reference limit", () =>
     }
   }
 
-  const input = () => ({
+  const input = (name: string) => ({
     projectRoot: buildDir,
     sourceRoots: [sourceDir],
-    name: "tick",
+    name,
     file: header,
   });
 
   itIfClangd(
     "counts every reference, past the 1000 clangd would stop at by default",
     async () => {
-      const payload = await settled(
-        () =>
-          runCppFindReferences(manager, input() as never) as Promise<
-            Answer<CppFindReferencesPayload>
-          >,
-      );
-      // The out-of-line definition in tick.cpp is a declaration, so the count is the call sites alone.
-      expect(payload.totalReferences).toBe(TOTAL_CALLS);
+      for (const name of ["tick", "burst"]) {
+        const payload = await settled(
+          () =>
+            runCppFindReferences(manager, input(name) as never) as Promise<
+              Answer<CppFindReferencesPayload>
+            >,
+        );
+        // The out-of-line definition in callees.cpp is a declaration, so the count is the call sites alone.
+        expect(payload.totalReferences, name).toBe(1100);
+      }
     },
     120_000,
   );
 
   itIfClangd(
-    "counts every call site across every caller",
+    "counts every distinct caller of one function",
     async () => {
       const payload = await settled(
         () =>
-          runCppFindCallers(manager, input() as never) as Promise<Answer<CppFindCallersPayload>>,
+          runCppFindCallers(manager, input("tick") as never) as Promise<
+            Answer<CppFindCallersPayload>
+          >,
       );
-      expect(payload.totalCallers).toBe(CALLERS);
-      const sites = payload.callers.reduce(
-        (sum, row) => sum + row.callSites.length + row.callSitesTruncated,
-        0,
+      expect(payload.totalCallers).toBe(DISTINCT_CALLERS);
+    },
+    120_000,
+  );
+
+  itIfClangd(
+    "counts every call site of one caller",
+    async () => {
+      const payload = await settled(
+        () =>
+          runCppFindCallers(manager, input("burst") as never) as Promise<
+            Answer<CppFindCallersPayload>
+          >,
       );
-      expect(sites).toBe(TOTAL_CALLS);
+      expect(payload.totalCallers).toBe(1);
+      const [row] = payload.callers;
+      expect((row?.callSites.length ?? 0) + (row?.callSitesTruncated ?? 0)).toBe(BURST_CALLS);
     },
     120_000,
   );

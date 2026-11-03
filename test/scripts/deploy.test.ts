@@ -21,9 +21,9 @@ const SUBPROCESS_TEST_TIMEOUT_MS = 30_000;
 
 /**
  * vitest checks a synchronous test's budget only after it returns, so a hung child would wedge the run instead of
- * failing one test; each spawn carries its own kill deadline below that budget.
+ * failing one test; each spawn carries its own kill deadline, sized so the four spawns of one test fit that budget.
  */
-const SPAWN_TIMEOUT_MS = 20_000;
+const SPAWN_TIMEOUT_MS = 7_000;
 
 const stamped = (identity: string): string =>
   `// MCPBUILD: mcp-code-nav ${identity}\nconsole.log("server");\n`;
