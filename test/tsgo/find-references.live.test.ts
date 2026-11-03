@@ -2,7 +2,7 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from "node:os";
 import { basename, join, relative, sep } from "node:path";
 import { afterEach, describe, expect } from "vitest";
-import { resultView } from "../helpers/tool-result.js";
+import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { dropProjectMap } from "../../src/tsgo/project-map.js";
 import { walkWorkspace } from "../../src/tsgo/workspace-snapshot.js";
@@ -20,10 +20,8 @@ import {
   CALL_BUDGET_MS,
   fixtures,
   itIfTsgoAvailable,
-  payloadOf,
   requireTsgo,
   stampsOf,
-  textOf,
   tsgoProcessLog,
   type TsgoProcessLog,
 } from "../helpers/tsgo-live.js";
@@ -87,7 +85,7 @@ function ask(
 }
 
 function payload(result: Result): TsFindReferencesPayload {
-  return payloadOf<TsFindReferencesPayload>(result, "ts_find_references");
+  return payloadAs<TsFindReferencesPayload>(result, "ts_find_references");
 }
 
 function samePath(a: string | undefined, b: string): boolean {

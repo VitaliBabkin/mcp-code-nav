@@ -16,7 +16,7 @@ import {
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import type { OutlineSymbol } from "../../src/clangd/outline.js";
 import { runCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
-import { payloadOf, resultView } from "../helpers/tool-result.js";
+import { payloadOf, resultView, textOf } from "../helpers/tool-result.js";
 
 // clangd is optional on this host in exactly the way gopls is, so the suite skips rather than failing with
 // the symptom it exists to detect. `MCP_CODE_NAV_CLANGD` overrides, as it does at runtime.
@@ -159,8 +159,6 @@ interface Answer<P> {
   structuredContent?: P;
   content: readonly { text?: string }[];
 }
-
-const textOf = (answer: Answer<unknown>): string => answer.content[0]?.text ?? "";
 
 /** Rows and groups arrive in the order clangd's index happened to finish, so compare them sorted. */
 const sorted = (lines: readonly string[]): string[] => [...lines].sort();

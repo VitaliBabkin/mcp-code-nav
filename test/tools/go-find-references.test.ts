@@ -12,19 +12,15 @@ import {
   buildGoToolHarness,
   cleanupGoToolHarnesses,
   countOf,
-  limitsOf,
   missingGoplsSpawn,
   openedPaths,
-  payload,
   requestFor,
   runUntilBudgetExpires,
-  scopeOf,
   symbol,
-  textOf,
   type GoToolHarness,
   type GoToolHarnessOptions,
 } from "../helpers/go-tool-harness.js";
-import { resultView } from "../helpers/tool-result.js";
+import { limitsOf, recordOf, resultView, scopeOf, textOf } from "../helpers/tool-result.js";
 
 type Result = ReturnType<typeof resultView<Awaited<ReturnType<typeof runGoFindReferences>>>>;
 type Input = {
@@ -96,7 +92,7 @@ function harness(options: HarnessOptions = {}): Harness {
 }
 
 function filesOf(result: Result): FileGroup[] {
-  return payload(result).files as FileGroup[];
+  return recordOf(result).files as FileGroup[];
 }
 
 /** How many outline requests the fake saw, which is how many files the naming fan-out read. */
@@ -129,7 +125,7 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run();
     expect(out.isError).toBeFalsy();
-    expect(payload(out)).toEqual({
+    expect(recordOf(out)).toEqual({
       resolved: { name: "Storage", kind: "interface", file: h.file, line: 14 },
       totalReferences: 3,
       files: [
@@ -210,10 +206,10 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run();
     const files = filesOf(out);
-    expect(payload(out).totalReferences).toBe(manySites.length + manyFiles.length);
+    expect(recordOf(out).totalReferences).toBe(manySites.length + manyFiles.length);
     expect(files).toHaveLength(REFERENCE_FILES_LIMIT);
     // 43 groups answered (pg plus one per external file), 40 listed.
-    expect(payload(out).filesTruncated).toBe(3);
+    expect(recordOf(out).filesTruncated).toBe(3);
     // The exact per-file count survives the site cap, which narrows only what is listed.
     expect(files[0]).toMatchObject({
       file: pg,
@@ -225,7 +221,7 @@ describe("runGoFindReferences", () => {
     expect(limitsOf(out)).toContain("listing-capped");
     const listed = files.reduce((total, group) => total + (group.count as number), 0);
     // Each dropped group held exactly one site, so the exact total is the listed counts plus those groups.
-    expect(payload(out).totalReferences).toBe(listed + (payload(out).filesTruncated as number));
+    expect(recordOf(out).totalReferences).toBe(listed + (recordOf(out).filesTruncated as number));
     // Naming stopped at the sites that survived the caps, so no dropped group was ever opened.
     expect(documentSymbolCount(h.server)).toBe(3);
     expect(h.session.getOpenedFiles()).toEqual([h.file]);
@@ -243,7 +239,7 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run();
     const files = filesOf(out);
-    expect(payload(out).totalReferences).toBe(externalFirst.length + 1);
+    expect(recordOf(out).totalReferences).toBe(externalFirst.length + 1);
     expect(files).toHaveLength(REFERENCE_FILES_LIMIT);
     // The in-module group was reported last and still survived; the dropped ones are all external.
     expect(files[0]).toMatchObject({
@@ -254,7 +250,7 @@ describe("runGoFindReferences", () => {
     });
     expect(files.filter((group) => !group.external)).toHaveLength(1);
     expect(files.slice(1).every((group) => group.external)).toBe(true);
-    expect(payload(out).filesTruncated).toBe(3);
+    expect(recordOf(out).filesTruncated).toBe(3);
   });
 
   it("carries listing-capped when only the per-file site cap bites, with the group's count still exact", async () => {
@@ -266,8 +262,8 @@ describe("runGoFindReferences", () => {
     await h.ready();
 
     const out = await h.run();
-    expect(payload(out).totalReferences).toBe(many);
-    expect(payload(out).filesTruncated).toBe(0);
+    expect(recordOf(out).totalReferences).toBe(many);
+    expect(recordOf(out).filesTruncated).toBe(0);
     expect(filesOf(out)).toHaveLength(1);
     expect(filesOf(out)[0]).toMatchObject({ file: pg, count: many, sitesTruncated: 5 });
     expect(filesOf(out)[0]?.sites as Site[]).toHaveLength(REFERENCE_SITES_PER_FILE_LIMIT);
@@ -281,9 +277,9 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run();
     expect(out.isError).toBeFalsy();
-    expect(payload(out).totalReferences).toBe(0);
+    expect(recordOf(out).totalReferences).toBe(0);
     expect(filesOf(out)).toEqual([]);
-    expect(payload(out).filesTruncated).toBe(0);
+    expect(recordOf(out).filesTruncated).toBe(0);
     expect(textOf(out)).toContain("0 reference(s)");
     expect(textOf(out)).not.toMatch(/cannot be proven complete/);
   });
@@ -391,7 +387,7 @@ describe("runGoFindReferences", () => {
     ]) {
       const out = await h.run({ symbol: spelling });
       expect(out.isError, `${spelling}: ${textOf(out)}`).toBeFalsy();
-      expect(payload(out).resolved).toMatchObject({ name: "(*Store[K, V]).Get", kind: "method" });
+      expect(recordOf(out).resolved).toMatchObject({ name: "(*Store[K, V]).Get", kind: "method" });
     }
   });
 
@@ -404,7 +400,7 @@ describe("runGoFindReferences", () => {
 
     const first = await h.run({ symbol: "A.Get" });
     expect(first.isError, textOf(first)).toBeFalsy();
-    expect(payload(first).resolved).toMatchObject({ name: "(*A[K, V]).Get" });
+    expect(recordOf(first).resolved).toMatchObject({ name: "(*A[K, V]).Get" });
 
     const bare = await h.run({ symbol: "Get" });
     expect(bare.isError).toBe(true);

@@ -9,6 +9,7 @@ import { LspSession } from "../../src/lsp/session.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { clangdConfig } from "../../src/lsp/server-config.js";
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
+import { payloadAs, textOf } from "../helpers/tool-result.js";
 
 // clangd is optional on this host in exactly the way gopls is, so the suite skips rather than failing with
 // the symptom it exists to detect. `MCP_CODE_NAV_CLANGD` overrides, as it does at runtime.
@@ -94,17 +95,8 @@ interface HoverPayload {
   descriptionUnavailable?: string;
 }
 
-const textOf = (result: { content: readonly { text?: string }[] }): string =>
-  result.content[0]?.text ?? "";
-
-const payloadOf = (result: {
-  content: readonly { text?: string }[];
-  structuredContent?: unknown;
-  isError?: boolean;
-}): HoverPayload => {
-  expect(result.isError, textOf(result)).toBeFalsy();
-  return result.structuredContent as HoverPayload;
-};
+const payloadOf = (result: Parameters<typeof payloadAs>[0]): HoverPayload =>
+  payloadAs<HoverPayload>(result, "cpp_find_symbol");
 
 describe("a template declaration's description against a real clangd binary", () => {
   let projectRoot: string;

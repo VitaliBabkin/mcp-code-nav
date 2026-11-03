@@ -19,7 +19,7 @@ import { runCppFindReferences } from "../../src/tools/cpp-find-references.js";
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import { SweepCache } from "../../src/clang-query/sweep-cache.js";
 import { noopServerHandlers } from "../helpers/fake-clangd.js";
-import { payloadOf, resultView } from "../helpers/tool-result.js";
+import { fieldOf, payloadOf, resultView, textOf } from "../helpers/tool-result.js";
 
 // `cpp_file_symbols` outlines from a default-flags parse when projectRoot holds no database,
 // and says so; an empty parse proves nothing; the other four C++ tools keep refusing.
@@ -40,14 +40,6 @@ interface Result {
   readonly content: readonly { readonly text?: string }[];
   readonly structuredContent?: unknown;
 }
-const textOf = (result: Result): string => result.content[0]?.text ?? "";
-
-/** A field of the degraded answer that the tool's declared payload type does not name; the test reads it at runtime. */
-function fieldOf(value: unknown, key: string): unknown {
-  if (typeof value !== "object" || value === null) return undefined;
-  return Object.getOwnPropertyDescriptor(value, key)?.value;
-}
-
 describe("cpp_file_symbols without a compile database", () => {
   let base: string;
   let projectRoot: string;

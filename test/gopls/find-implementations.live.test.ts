@@ -8,7 +8,7 @@ import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { runGoFindImplementations } from "../../src/tools/go-find-implementations.js";
 import { IMPLEMENTATIONS_LIMIT } from "../../src/tools/navigation-limits.js";
 import { removeFileNamingHolder } from "../helpers/remove-with-holder.js";
-import { resultView } from "../helpers/tool-result.js";
+import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 
 // gopls is optional on this host in exactly the way clangd is, so the suite skips rather than failing
 // with the symptom it is meant to detect. `MCP_CODE_NAV_GOPLS` overrides, as it does at runtime.
@@ -98,15 +98,8 @@ function ask(
   });
 }
 
-function textOf(result: Result): string {
-  return result.content[0]?.text ?? "";
-}
-
 function payloadOf(result: Result): Payload {
-  const { isError, structuredContent } = resultView(result);
-  expect(isError, `go_find_implementations failed: ${textOf(result)}`).toBeFalsy();
-  // The handler's payload type is not the test's `Payload` interface, which states the fields these cases read.
-  return structuredContent as Payload;
+  return payloadAs<Payload>(result, "go_find_implementations");
 }
 
 /** Paths as gopls spelled them after `fileURLToPath`, compared on the footing the OS compares them. */

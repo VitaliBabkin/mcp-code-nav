@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { afterEach, describe, expect } from "vitest";
-import { resultView } from "../helpers/tool-result.js";
+import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { walkWorkspace } from "../../src/tsgo/workspace-snapshot.js";
 import {
@@ -13,10 +13,8 @@ import {
   CALL_BUDGET_MS,
   fixtures,
   itIfTsgoAvailable,
-  payloadOf,
   recordAnswer,
   stampsOf,
-  textOf,
   tsgoProcessLog,
   type TsgoProcessLog,
 } from "../helpers/tsgo-live.js";
@@ -63,7 +61,7 @@ function ask(manager: LspSessionManager, symbol: string, file = handlerFile): Pr
 }
 
 function payload(result: Result): TsFindImplementationsPayload {
-  return payloadOf<TsFindImplementationsPayload>(result, "ts_find_implementations");
+  return payloadAs<TsFindImplementationsPayload>(result, "ts_find_implementations");
 }
 
 const linesOf = (file: string): string[] => readFileSync(file, "utf-8").split(/\r?\n/);

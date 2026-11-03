@@ -28,7 +28,7 @@ import {
   type TsQueryDeps,
 } from "../../src/tools/ts-navigation-shared.js";
 import { budgetOf } from "../../src/tools/budget.js";
-import { resultView } from "../helpers/tool-result.js";
+import { resultView, textOf } from "../helpers/tool-result.js";
 import { unexpectedAnswerText, WORKSPACE_SYMBOL_ANSWER } from "../../src/tools/lsp-locations.js";
 import { resolveTsgoBinary, type TsgoBinary, type TsExecFn } from "../../src/tsgo/binary.js";
 import { dropProjectMap } from "../../src/tsgo/project-map.js";
@@ -131,10 +131,6 @@ function harness(listing: "ok" | "fails" = "ok"): Harness {
     deps: { resolveBinary: async () => ({ binary: BINARY }), exec },
     base: () => ({ sourceRoots: [ws], file: main, timeBudgetMs: 60_000 }),
   };
-}
-
-function textOf(answer: Answer): string {
-  return answer.content?.[0]?.text ?? "";
 }
 
 function classOf(text: string): string {

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { afterEach, describe, expect } from "vitest";
-import { resultView } from "../helpers/tool-result.js";
+import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 import { tsgoConfig } from "../../src/lsp/server-config.js";
 import { pathKey } from "../../src/paths/path-containment.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
@@ -20,11 +20,9 @@ import {
   fixtures,
   isAcquisitionProcess,
   itIfTsgoAvailable,
-  payloadOf,
   recordAnswer,
   requireTsgo,
   stampsOf,
-  textOf,
   tsgoProcessLog,
 } from "../helpers/tsgo-live.js";
 
@@ -75,7 +73,7 @@ function ask(
 }
 
 function payload(result: Result): TsFindSymbolPayload {
-  return payloadOf<TsFindSymbolPayload>(result, "ts_find_symbol");
+  return payloadAs<TsFindSymbolPayload>(result, "ts_find_symbol");
 }
 
 const linesOf = (file: string): string[] => readFileSync(file, "utf-8").split(/\r?\n/);

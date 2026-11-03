@@ -27,7 +27,7 @@ import type { TsQueryDeps } from "../../src/tools/ts-navigation-shared.js";
 import type { TsgoBinary, TsExecFn } from "../../src/tsgo/binary.js";
 import { dropProjectMap } from "../../src/tsgo/project-map.js";
 import { fakeServer, pathOfDocumentId, uriOf, type FakeServer } from "../helpers/fake-lsp.js";
-import { resultView } from "../helpers/tool-result.js";
+import { limitsOf, recordOf, resultView, scopeOf, textOf } from "../helpers/tool-result.js";
 
 type Result = Awaited<ReturnType<typeof runTsFindCallers>>;
 type Input = {
@@ -338,24 +338,8 @@ function harness(): Harness {
   };
 }
 
-function payload(result: Result): Record<string, unknown> {
-  return (result as { structuredContent?: Record<string, unknown> }).structuredContent ?? {};
-}
-
-function scopeOf(result: Result): Record<string, unknown> {
-  return payload(result).scope as Record<string, unknown>;
-}
-
-function limitsOf(result: Result): string[] {
-  return scopeOf(result).limits as string[];
-}
-
 function rowsOf(result: Result): Row[] {
-  return payload(result).callers as Row[];
-}
-
-function textOf(result: Result): string {
-  return (result.content ?? [])[0]?.text ?? "";
+  return recordOf(result).callers as Row[];
 }
 
 function countOf(server: FakeServer, method: string): number {
@@ -469,7 +453,7 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run();
     expect(resultView(out).isError, textOf(out)).toBeFalsy();
-    expect(payload(out).callers).toEqual([]);
+    expect(recordOf(out).callers).toEqual([]);
     expect((scopeOf(out) as { uncoveredSources: unknown }).uncoveredSources).toEqual({
       count: 1,
       grepRequired: true,
@@ -493,7 +477,7 @@ describe("runTsFindCallers", () => {
     // The same two lines are structuredContent's first key, with no limits line and no rows.
     const structured = (out as { structuredContent?: object }).structuredContent;
     expect(JSON.stringify(structured).startsWith('{"summary":"')).toBe(true);
-    expect(payload(out).summary).toBe(lines.slice(0, 2).join("\n"));
+    expect(recordOf(out).summary).toBe(lines.slice(0, 2).join("\n"));
     expect(scopeOf(out).uncoveredSources).toMatchObject({ grepRequired: true });
   });
 
@@ -508,7 +492,7 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run();
     expect(resultView(out).isError, textOf(out)).toBeFalsy();
-    expect(payload(out)).toEqual({
+    expect(recordOf(out)).toEqual({
       summary: expect.any(String),
       resolved: { name: "Driver.run", kind: "method", file: h.main, line: 5 },
       totalCallers: 2,
@@ -559,7 +543,7 @@ describe("runTsFindCallers", () => {
     ]);
 
     const out = await h.run();
-    expect(Object.keys(payload(out))).toEqual([
+    expect(Object.keys(recordOf(out))).toEqual([
       "summary",
       "resolved",
       "totalCallers",
@@ -567,7 +551,7 @@ describe("runTsFindCallers", () => {
       "callersTruncated",
       "scope",
     ]);
-    expect(Object.keys(payload(out).resolved as object)).toEqual(["name", "kind", "file", "line"]);
+    expect(Object.keys(recordOf(out).resolved as object)).toEqual(["name", "kind", "file", "line"]);
     expect(Object.keys(rowsOf(out)[0] ?? {})).toEqual([
       "name",
       "kind",
@@ -592,7 +576,7 @@ describe("runTsFindCallers", () => {
       "uncoveredSources",
       "limits",
     ]);
-    expect(JSON.stringify(payload(out))).not.toContain("direction");
+    expect(JSON.stringify(recordOf(out))).not.toContain("direction");
   });
 
   it("merges one declaration reported twice into one row carrying every call site", async () => {
@@ -606,7 +590,7 @@ describe("runTsFindCallers", () => {
     const out = await h.run();
     // One row per CALLING DECLARATION, and `totalCallers` counts those rows: the same declaration reported
     // twice with different ranges is one caller carrying two sites, which is what "who calls this" asks.
-    expect(payload(out).totalCallers).toBe(1);
+    expect(recordOf(out).totalCallers).toBe(1);
     expect(rowsOf(out)).toEqual([
       {
         name: "caller",
@@ -645,7 +629,7 @@ describe("runTsFindCallers", () => {
     const out = await h.run({ symbol: "handler" });
     expect(resultView(out).isError, textOf(out)).toBeFalsy();
     expect(h.server.methods).toContain(PREPARE_METHOD);
-    expect(payload(out).resolved).toMatchObject({ name: "handler", kind: "constant" });
+    expect(recordOf(out).resolved).toMatchObject({ name: "handler", kind: "constant" });
     // a member mentioned as `x.m` is a caller at that site on EVERY answer of this
     // tool, so the code sits beside the indirect-dispatch one it complements — the extraction present, the
     // later call through it absent.
@@ -663,7 +647,7 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run({ symbol: "build" });
     expect(rowsOf(out)).toHaveLength(1);
-    expect(payload(out).totalCallers).toBe(1);
+    expect(recordOf(out).totalCallers).toBe(1);
   });
 
   it.each([
@@ -853,9 +837,9 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run();
     const rows = rowsOf(out);
-    expect(payload(out).totalCallers).toBe(external.length + 1);
+    expect(recordOf(out).totalCallers).toBe(external.length + 1);
     expect(rows).toHaveLength(CALLERS_LIMIT);
-    expect(payload(out).callersTruncated).toBe(3);
+    expect(recordOf(out).callersTruncated).toBe(3);
     expect(rows[0]).toMatchObject({ name: "caller", file: h.uses, external: false });
     expect(rows.slice(1).every((row) => row.external)).toBe(true);
     expect(limitsOf(out)).toContain("listing-capped");
@@ -875,8 +859,8 @@ describe("runTsFindCallers", () => {
     h.incoming([incoming(h.uses, "caller", 12, CALLER_DECL, sites)]);
 
     const out = await h.run();
-    expect(payload(out).totalCallers).toBe(1);
-    expect(payload(out).callersTruncated).toBe(0);
+    expect(recordOf(out).totalCallers).toBe(1);
+    expect(recordOf(out).callersTruncated).toBe(0);
     expect(rowsOf(out)[0]).toMatchObject({ callSitesTruncated: 3 });
     expect(rowsOf(out)[0]?.callSites).toHaveLength(REFERENCE_SITES_PER_FILE_LIMIT);
     expect(limitsOf(out)).toContain("listing-capped");
@@ -895,7 +879,7 @@ describe("runTsFindCallers", () => {
 
       const out = await h.run();
       expect(resultView(out).isError, textOf(out)).toBeFalsy();
-      expect(payload(out)).toMatchObject({ totalCallers: 0, callers: [], callersTruncated: 0 });
+      expect(recordOf(out)).toMatchObject({ totalCallers: 0, callers: [], callersTruncated: 0 });
       expect(limitsOf(out)).toEqual([
         "one-workspace",
         "corresponding-interface-methods-included",

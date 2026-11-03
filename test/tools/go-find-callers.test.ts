@@ -12,19 +12,15 @@ import {
   buildGoToolHarness,
   cleanupGoToolHarnesses,
   countOf,
-  limitsOf,
   missingGoplsSpawn,
   openedPaths,
-  payload,
   requestFor,
   runUntilBudgetExpires,
-  scopeOf,
   symbol,
-  textOf,
   type GoToolHarness,
   type GoToolHarnessOptions,
 } from "../helpers/go-tool-harness.js";
-import { resultView } from "../helpers/tool-result.js";
+import { limitsOf, recordOf, resultView, scopeOf, textOf } from "../helpers/tool-result.js";
 
 type Result = ReturnType<typeof resultView<Awaited<ReturnType<typeof runGoFindCallers>>>>;
 type Input = { sourceRoots: string[]; file: string; symbol: string; timeBudgetMs: number };
@@ -127,7 +123,7 @@ function harness(options: HarnessOptions = {}): Harness {
 }
 
 function callersOf(result: Result): CallerRow[] {
-  return payload(result).callers as CallerRow[];
+  return recordOf(result).callers as CallerRow[];
 }
 
 /** Caller names, sorted — the tool's own order is in-module first, so a test comparing a name set sorts. */
@@ -163,7 +159,7 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run();
     expect(out.isError).toBeFalsy();
-    expect(payload(out)).toEqual({
+    expect(recordOf(out)).toEqual({
       resolved: { name: "(*Store).Get", kind: "method", file: h.file, line: 22 },
       totalCallers: 2,
       callers: [
@@ -225,7 +221,7 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run();
     expect(names(out)).toEqual(["(*Store).Flush", "(*Store).Read"]);
-    expect(payload(out).totalCallers).toBe(2);
+    expect(recordOf(out).totalCallers).toBe(2);
     const [named, nameless] = callersOf(out);
     expect(named).toMatchObject({
       name: "(*Store).Read",
@@ -283,7 +279,7 @@ describe("runGoFindCallers", () => {
     await h.ready();
 
     const out = await h.run();
-    expect(payload(out).totalCallers).toBe(2);
+    expect(recordOf(out).totalCallers).toBe(2);
     expect(names(out)).toEqual(["Serve", "Warm"]);
     const row = callersOf(out).find((one) => one.name === "Serve");
     expect(row).toMatchObject({
@@ -318,9 +314,9 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run();
     const rows = callersOf(out);
-    expect(payload(out).totalCallers).toBe(43);
+    expect(recordOf(out).totalCallers).toBe(43);
     expect(rows).toHaveLength(CALLERS_LIMIT);
-    expect(payload(out).callersTruncated).toBe(3);
+    expect(recordOf(out).callersTruncated).toBe(3);
     // The exact per-caller count survives the site cap, which narrows only what is listed.
     expect(rows[0]).toMatchObject({
       name: "Serve",
@@ -366,13 +362,13 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run();
     const rows = callersOf(out);
-    expect(payload(out).totalCallers).toBe(CALLERS_LIMIT + 3);
+    expect(recordOf(out).totalCallers).toBe(CALLERS_LIMIT + 3);
     expect(rows).toHaveLength(CALLERS_LIMIT);
     // The in-module caller was reported last and survived; every dropped row was an external one.
     expect(rows[0]).toMatchObject({ name: "Serve", kind: "function", file: pg, external: false });
     expect(rows.filter((row) => !row.external)).toHaveLength(1);
     expect(rows.slice(1).every((row) => row.external)).toBe(true);
-    expect(payload(out).callersTruncated).toBe(3);
+    expect(recordOf(out).callersTruncated).toBe(3);
     expect(textOf(out)).toContain(
       `${CALLERS_LIMIT} caller(s) listed from ${CALLERS_LIMIT + 3} found`,
     );
@@ -389,8 +385,8 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run();
     const [row] = callersOf(out);
-    expect(payload(out).totalCallers).toBe(1);
-    expect(payload(out).callersTruncated).toBe(0);
+    expect(recordOf(out).totalCallers).toBe(1);
+    expect(recordOf(out).callersTruncated).toBe(0);
     expect(row).toMatchObject({ name: "Serve", external: false, callSitesTruncated: 5 });
     expect(row?.callSites as unknown[]).toHaveLength(REFERENCE_SITES_PER_FILE_LIMIT);
     // One cap biting is enough for the code: it says the listing narrowed, not that both caps did.
@@ -405,9 +401,9 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run();
     expect(out.isError).toBeFalsy();
-    expect(payload(out).totalCallers).toBe(0);
+    expect(recordOf(out).totalCallers).toBe(0);
     expect(callersOf(out)).toEqual([]);
-    expect(payload(out).callersTruncated).toBe(0);
+    expect(recordOf(out).callersTruncated).toBe(0);
     expect(textOf(out)).toContain("0 caller(s)");
     expect(textOf(out)).not.toMatch(/cannot be proven complete/);
   });
@@ -422,7 +418,7 @@ describe("runGoFindCallers", () => {
 
     const out = await h.run();
     expect(out.isError).toBeFalsy();
-    expect(payload(out).totalCallers).toBe(1);
+    expect(recordOf(out).totalCallers).toBe(1);
     expect(callersOf(out)).toEqual([
       {
         name: null,
@@ -519,7 +515,7 @@ describe("runGoFindCallers", () => {
     ]) {
       const out = await h.run({ symbol: spelling });
       expect(out.isError, `${spelling}: ${textOf(out)}`).toBeFalsy();
-      expect(payload(out).resolved).toMatchObject({ name: "(*Store[K, V]).Get", kind: "method" });
+      expect(recordOf(out).resolved).toMatchObject({ name: "(*Store[K, V]).Get", kind: "method" });
     }
   });
 

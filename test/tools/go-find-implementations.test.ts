@@ -21,16 +21,11 @@ import {
   type FakeGo,
 } from "../helpers/fake-go.js";
 import { fakeServer, pathOfDocumentId, uriOf, type FakeServer } from "../helpers/fake-lsp.js";
-import { resultView } from "../helpers/tool-result.js";
+import { recordOf, resultView, scopeOf, textOf } from "../helpers/tool-result.js";
 
 type Result = ReturnType<typeof resultView<Awaited<ReturnType<typeof runGoFindImplementations>>>>;
 type Input = { sourceRoots: string[]; file: string; symbol: string; timeBudgetMs: number };
 type Row = Record<string, unknown>;
-
-/** The `scope` block of a successful call. */
-function scopeOf(result: Result): Record<string, unknown> {
-  return payload(result).scope as Record<string, unknown>;
-}
 
 /** Which of the two exclusive pairs `scope` actually carries. */
 function exclusivesOf(scope: Record<string, unknown>): string[] {
@@ -261,19 +256,8 @@ function harness(options: HarnessOptions = {}): Harness {
   return built;
 }
 
-function payload(result: Result): Record<string, unknown> {
-  if (result.structuredContent === undefined) {
-    throw new Error(`expected a payload, got: ${textOf(result)}`);
-  }
-  return result.structuredContent as Record<string, unknown>;
-}
-
 function rowsOf(result: Result): Row[] {
-  return payload(result).implementations as Row[];
-}
-
-function textOf(result: Result): string {
-  return result.content[0]?.text ?? "";
+  return recordOf(result).implementations as Row[];
 }
 
 /** Every document-scoped notification, in the order it was written, as `method path` lines. */
@@ -305,7 +289,7 @@ describe("runGoFindImplementations", () => {
 
     const out = await h.run();
     expect(out.isError).toBeFalsy();
-    expect(payload(out)).toEqual({
+    expect(recordOf(out)).toEqual({
       resolved: { name: "Storage", kind: "interface", file: h.file, line: 14 },
       direction: "implementers-of-interface",
       implementations: [{ name: "PgStorage", kind: "struct", file: pg, line: 22, external: false }],
@@ -363,8 +347,8 @@ describe("runGoFindImplementations", () => {
       await h.ready();
 
       const out = await h.run({ symbol: "Store" });
-      expect(payload(out).direction).toBe("interfaces-implemented-by-type");
-      expect(payload(out).resolved).toEqual({
+      expect(recordOf(out).direction).toBe("interfaces-implemented-by-type");
+      expect(recordOf(out).resolved).toEqual({
         name: "Store",
         kind: kindName,
         file: h.file,
@@ -381,7 +365,7 @@ describe("runGoFindImplementations", () => {
     const out = await h.run();
     expect(out.isError).toBeFalsy();
     expect(rowsOf(out)).toEqual([]);
-    expect(payload(out).truncated).toBe(0);
+    expect(recordOf(out).truncated).toBe(0);
     expect(textOf(out)).toContain("0 row(s)");
   });
 
@@ -550,7 +534,7 @@ describe("runGoFindImplementations", () => {
     expect(rows).toHaveLength(IMPLEMENTATIONS_LIMIT);
     expect(rows[0]).toMatchObject({ name: "PgStorage", external: false });
     expect(rows[1]).toMatchObject({ external: true, name: null });
-    expect(payload(out).truncated).toBe(11);
+    expect(recordOf(out).truncated).toBe(11);
     expect(textOf(out)).toContain(`${IMPLEMENTATIONS_LIMIT}-row cap`);
     // The fan-out stopped at the rows that survived the cap, so no dropped file was ever opened.
     expect(

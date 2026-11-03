@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeServer, pathOfDocumentId, type FakeServer } from "../helpers/fake-lsp.js";
 import { sessionsFor, symAt } from "../helpers/fake-clangd.js";
-import { payloadOf, resultView } from "../helpers/tool-result.js";
+import { fieldOf, payloadOf, resultView, textOf } from "../helpers/tool-result.js";
 import { runCppFindCallers, type CppFindCallersPayload } from "../../src/tools/cpp-find-callers.js";
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import { clangdConfig } from "../../src/lsp/server-config.js";
@@ -39,14 +39,6 @@ interface Scope {
 
 type Action = () => void | Promise<void>;
 type CallersAnswer = Awaited<ReturnType<typeof runCppFindCallers>>;
-
-const textOf = (result: Result): string => result.content[0]?.text ?? "";
-
-/** A field the answer carries at runtime that its declared type does not name for this path; the test reads it. */
-function fieldOf(value: unknown, key: string): unknown {
-  if (typeof value !== "object" || value === null) return undefined;
-  return Object.getOwnPropertyDescriptor(value, key)?.value;
-}
 
 const range = (startLine: number, endLine: number) => ({
   start: { line: startLine, character: 0 },

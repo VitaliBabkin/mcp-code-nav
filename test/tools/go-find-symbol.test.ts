@@ -10,19 +10,15 @@ import {
   cleanupGoToolHarnesses,
   closedPaths,
   countOf,
-  limitsOf,
   missingGoplsSpawn,
   openedPaths,
-  payload,
   requestFor,
   runUntilBudgetExpires,
-  scopeOf,
   symbol,
-  textOf,
   type GoToolHarness,
   type GoToolHarnessOptions,
 } from "../helpers/go-tool-harness.js";
-import { resultView } from "../helpers/tool-result.js";
+import { limitsOf, recordOf, resultView, scopeOf, textOf } from "../helpers/tool-result.js";
 
 type Result = ReturnType<typeof resultView<Awaited<ReturnType<typeof runGoFindSymbol>>>>;
 type Input = { sourceRoots: string[]; symbol: string; anchor: string; timeBudgetMs: number };
@@ -154,7 +150,7 @@ function harness(options: HarnessOptions = {}): Harness {
 
 /** The rows of an answer, each checked against the invariant for a declaration row. */
 function rowsOf(result: Result, asked: string): Row[] {
-  const rows = payload(result).declarations as Row[];
+  const rows = recordOf(result).declarations as Row[];
   for (const row of rows) expect(declarationKey(String(row.name))).toBe(declarationKey(asked));
   return rows;
 }
@@ -185,7 +181,7 @@ describe("runGoFindSymbol", () => {
 
     const out = await h.run();
     expect(out.isError).toBeFalsy();
-    expect(payload(out)).toEqual({
+    expect(recordOf(out)).toEqual({
       declarations: [
         {
           name: "Storage",

@@ -21,7 +21,7 @@ import type { TsQueryDeps } from "../../src/tools/ts-navigation-shared.js";
 import type { TsgoBinary, TsExecFn } from "../../src/tsgo/binary.js";
 import { dropProjectMap } from "../../src/tsgo/project-map.js";
 import { fakeServer, pathOfDocumentId, uriOf, type FakeServer } from "../helpers/fake-lsp.js";
-import { resultView } from "../helpers/tool-result.js";
+import { limitsOf, recordOf, resultView, scopeOf, textOf } from "../helpers/tool-result.js";
 
 type Result = Awaited<ReturnType<typeof runTsFindReferences>>;
 type Input = {
@@ -349,28 +349,12 @@ function expectSummaryFirst(result: Result): void {
   expect(structured?.summary).toBe((result.content ?? [])[0]?.text?.split("\nlimits: ")[0]);
 }
 
-function payload(result: Result): Record<string, unknown> {
-  return (result as { structuredContent?: Record<string, unknown> }).structuredContent ?? {};
-}
-
-function scopeOf(result: Result): Record<string, unknown> {
-  return payload(result).scope as Record<string, unknown>;
-}
-
-function limitsOf(result: Result): string[] {
-  return scopeOf(result).limits as string[];
-}
-
 function filesOf(result: Result): FileGroup[] {
-  return payload(result).files as FileGroup[];
+  return recordOf(result).files as FileGroup[];
 }
 
 function sitesOf(group: FileGroup | undefined): Site[] {
   return (group?.sites ?? []) as Site[];
-}
-
-function textOf(result: Result): string {
-  return (result.content ?? [])[0]?.text ?? "";
 }
 
 function countOf(server: FakeServer, method: string): number {
@@ -472,7 +456,7 @@ describe("runTsFindReferences", () => {
 
     const out = await h.run();
     expect(resultView(out).isError).toBeFalsy();
-    expect(payload(out)).toEqual({
+    expect(recordOf(out)).toEqual({
       summary: expect.any(String),
       resolved: { name: "Storage", kind: "interface", file: h.main, line: 1 },
       totalReferences: 4,
@@ -535,8 +519,8 @@ describe("runTsFindReferences", () => {
     );
     expect(lines[2]).toMatch(/^limits: /);
     expectSummaryFirst(out);
-    expect(payload(out).summary).toBe(lines.slice(0, 2).join("\n"));
-    expect(payload(out).summary).not.toContain("limits:");
+    expect(recordOf(out).summary).toBe(lines.slice(0, 2).join("\n"));
+    expect(recordOf(out).summary).not.toContain("limits:");
     expect(scopeOf(out).uncoveredSources).toMatchObject({ grepRequired: true });
   });
 
@@ -545,7 +529,7 @@ describe("runTsFindReferences", () => {
     h.answer([location(h.main, 5, 10)]);
 
     const out = await h.run();
-    expect(Object.keys(payload(out))).toEqual([
+    expect(Object.keys(recordOf(out))).toEqual([
       "summary",
       "resolved",
       "totalReferences",
@@ -553,7 +537,7 @@ describe("runTsFindReferences", () => {
       "filesTruncated",
       "scope",
     ]);
-    expect(Object.keys(payload(out).resolved as object)).toEqual(["name", "kind", "file", "line"]);
+    expect(Object.keys(recordOf(out).resolved as object)).toEqual(["name", "kind", "file", "line"]);
     expect(Object.keys(filesOf(out)[0] ?? {})).toEqual([
       "file",
       "external",
@@ -630,7 +614,7 @@ describe("runTsFindReferences", () => {
       const out = await h.run({ file: h.over, symbol: "pick" });
       expect(resultView(out).isError, textOf(out)).toBeFalsy();
       // The use, the same symbol's row in another file, and the location that names no character.
-      expect(payload(out).totalReferences).toBe(3);
+      expect(recordOf(out).totalReferences).toBe(3);
       expect(filesOf(out).map((group) => [group.file, group.count])).toEqual([
         [h.over, 2],
         [h.uses, 1],
@@ -647,7 +631,7 @@ describe("runTsFindReferences", () => {
       h.answer(overloadAnswer(h));
 
       const out = await h.run({ file: h.over, symbol: "pick", includeDeclaration: true });
-      expect(payload(out).totalReferences).toBe(6);
+      expect(recordOf(out).totalReferences).toBe(6);
       expect(filesOf(out).map((group) => group.count)).toEqual([5, 1]);
     });
 
@@ -679,11 +663,11 @@ describe("runTsFindReferences", () => {
 
       const kept = await h.run({ file: dotted, symbol: "A.B" });
       expect(resultView(kept).isError, textOf(kept)).toBeFalsy();
-      expect(payload(kept).totalReferences).toBe(1);
+      expect(recordOf(kept).totalReferences).toBe(1);
       expect(sitesOf(filesOf(kept)[0]).map((site) => site.line)).toEqual([4]);
 
       const all = await h.run({ file: dotted, symbol: "A.B", includeDeclaration: true });
-      expect(payload(all).totalReferences).toBe(2);
+      expect(recordOf(all).totalReferences).toBe(2);
     });
 
     describe("a subject addressed through an import binding", () => {
@@ -725,7 +709,7 @@ describe("runTsFindReferences", () => {
 
         const out = await h.run({ file, symbol: "pick" });
         expect(resultView(out).isError, textOf(out)).toBeFalsy();
-        expect(payload(out).totalReferences).toBe(2);
+        expect(recordOf(out).totalReferences).toBe(2);
         expect(filesOf(out).map((group) => group.file)).toEqual([file]);
         expect(sitesOf(filesOf(out)[0]).map((site) => site.line)).toEqual([1, 2]);
         expect(requestFor(h.server, "textDocument/definition")).toEqual({
@@ -734,7 +718,7 @@ describe("runTsFindReferences", () => {
         });
 
         const all = await h.run({ file, symbol: "pick", includeDeclaration: true });
-        expect(payload(all).totalReferences).toBe(3);
+        expect(recordOf(all).totalReferences).toBe(3);
       });
 
       it("reads a LocationLink's targetSelectionRange", async () => {
@@ -754,7 +738,7 @@ describe("runTsFindReferences", () => {
         ]);
 
         const out = await h.run({ file, symbol: "pick" });
-        expect(payload(out).totalReferences).toBe(2);
+        expect(recordOf(out).totalReferences).toBe(2);
       });
 
       it.each([
@@ -772,7 +756,7 @@ describe("runTsFindReferences", () => {
 
           const out = await h.run({ file, symbol: "pick" });
           expect(resultView(out).isError, textOf(out)).toBeFalsy();
-          expect(payload(out).totalReferences).toBe(3);
+          expect(recordOf(out).totalReferences).toBe(3);
         },
       );
 
@@ -783,7 +767,7 @@ describe("runTsFindReferences", () => {
         h.hover(null);
 
         const out = await h.run({ file, symbol: "pick" });
-        expect(payload(out).totalReferences).toBe(3);
+        expect(recordOf(out).totalReferences).toBe(3);
         expect(countOf(h.server, "textDocument/definition")).toBe(0);
       });
 
@@ -795,7 +779,7 @@ describe("runTsFindReferences", () => {
 
         const out = await h.run({ file, symbol: "pick" });
         // The entry's own position is the identity: the import line goes, the declaration elsewhere stays.
-        expect(payload(out).totalReferences).toBe(2);
+        expect(recordOf(out).totalReferences).toBe(2);
         expect(countOf(h.server, "textDocument/definition")).toBe(0);
       });
 
@@ -817,8 +801,8 @@ describe("runTsFindReferences", () => {
 
           const out = await h.run({ file, symbol: "pick", includeDeclaration });
           expect(resultView(out).isError, textOf(out)).toBeFalsy();
-          expect(payload(out).totalReferences).toBe(2);
-          expect((payload(out).resolved as Record<string, unknown>).renamedImportOf).toEqual({
+          expect(recordOf(out).totalReferences).toBe(2);
+          expect((recordOf(out).resolved as Record<string, unknown>).renamedImportOf).toEqual({
             symbol: "pick",
             file: h.over,
             line: 1,
@@ -829,7 +813,7 @@ describe("runTsFindReferences", () => {
             `; "pick" is a renamed import of pick (${h.over}:1) - this lists the local name's uses only; ask for pick in ${h.over} for every use.`,
           );
           // The sentence reaches the model through structuredContent.summary.
-          expect(payload(out).summary).toContain(
+          expect(recordOf(out).summary).toContain(
             `; "pick" is a renamed import of pick (${h.over}:1) - this lists the local name's uses only; ask for pick in ${h.over} for every use`,
           );
         },
@@ -843,7 +827,7 @@ describe("runTsFindReferences", () => {
         h.definition([location(h.outside, 4, 2)]);
 
         const out = await h.run({ file, symbol: "pick" });
-        expect((payload(out).resolved as Record<string, unknown>).renamedImportOf).toEqual({
+        expect((recordOf(out).resolved as Record<string, unknown>).renamedImportOf).toEqual({
           symbol: null,
           file: h.outside,
           line: 5,
@@ -869,7 +853,7 @@ describe("runTsFindReferences", () => {
         return {
           h,
           out,
-          stated: (payload(out).resolved as Record<string, unknown>).renamedImportOf,
+          stated: (recordOf(out).resolved as Record<string, unknown>).renamedImportOf,
         };
       }
 
@@ -919,7 +903,7 @@ describe("runTsFindReferences", () => {
         plain.hover(aliasHover);
         plain.definition([location(plain.over, 0, DECLARATION_AT.character)]);
         const listed = await plain.run({ file: plainFile, symbol: "pick" });
-        expect(payload(listed).resolved).not.toHaveProperty("renamedImportOf");
+        expect(recordOf(listed).resolved).not.toHaveProperty("renamedImportOf");
         expect(textOf(listed)).not.toContain("renamed import");
 
         const empty = harness();
@@ -928,7 +912,7 @@ describe("runTsFindReferences", () => {
         empty.hover(aliasHover);
         empty.definition([]);
         expect(
-          payload(await empty.run({ file: emptyFile, symbol: "pick" })).resolved,
+          recordOf(await empty.run({ file: emptyFile, symbol: "pick" })).resolved,
         ).not.toHaveProperty("renamedImportOf");
       });
 
@@ -953,7 +937,7 @@ describe("runTsFindReferences", () => {
       ]);
 
       const out = await h.run({ file: h.over, symbol: "pick" });
-      expect(payload(out).totalReferences).toBe(REFERENCE_SITES_PER_FILE_LIMIT + 2);
+      expect(recordOf(out).totalReferences).toBe(REFERENCE_SITES_PER_FILE_LIMIT + 2);
       expect(filesOf(out)[0]).toMatchObject({
         count: REFERENCE_SITES_PER_FILE_LIMIT + 2,
         sitesTruncated: 2,
@@ -976,8 +960,8 @@ describe("runTsFindReferences", () => {
 
     const out = await h.run();
     const [group] = filesOf(out);
-    expect(payload(out).totalReferences).toBe(many);
-    expect(payload(out).filesTruncated).toBe(0);
+    expect(recordOf(out).totalReferences).toBe(many);
+    expect(recordOf(out).filesTruncated).toBe(0);
     expect(group).toMatchObject({ file: h.uses, external: false, count: many, sitesTruncated: 5 });
     expect(sitesOf(group)).toHaveLength(REFERENCE_SITES_PER_FILE_LIMIT);
     expect(limitsOf(out)).toContain("listing-capped");
@@ -997,9 +981,9 @@ describe("runTsFindReferences", () => {
 
     const out = await h.run();
     const files = filesOf(out);
-    expect(payload(out).totalReferences).toBe(externalFirst.length + 1);
+    expect(recordOf(out).totalReferences).toBe(externalFirst.length + 1);
     expect(files).toHaveLength(REFERENCE_FILES_LIMIT);
-    expect(payload(out).filesTruncated).toBe(3);
+    expect(recordOf(out).filesTruncated).toBe(3);
     // The in-workspace group was reported last and survived; the dropped ones are all external.
     expect(files[0]).toMatchObject({
       file: h.main,
@@ -1009,7 +993,7 @@ describe("runTsFindReferences", () => {
     });
     expect(files.slice(1).every((group) => group.external)).toBe(true);
     const listed = files.reduce((total, group) => total + (group.count as number), 0);
-    expect(payload(out).totalReferences).toBe(listed + (payload(out).filesTruncated as number));
+    expect(recordOf(out).totalReferences).toBe(listed + (recordOf(out).filesTruncated as number));
     expect(limitsOf(out)).toContain("listing-capped");
     // A dropped group was never opened, and neither was a kept external one: one outline read, the named file's.
     expect(countOf(h.server, "textDocument/documentSymbol")).toBe(1);
@@ -1062,7 +1046,7 @@ describe("runTsFindReferences", () => {
 
       const out = await h.run();
       expect(resultView(out).isError).toBeFalsy();
-      expect(payload(out)).toMatchObject({ totalReferences: 0, files: [], filesTruncated: 0 });
+      expect(recordOf(out)).toMatchObject({ totalReferences: 0, files: [], filesTruncated: 0 });
       expect(limitsOf(out)).toEqual(["one-workspace"]);
       expect(textOf(out)).toBe(
         `References to interface "Storage" (${h.main}:1)${SCOPE_SENTENCE.replaceAll("{ws}", h.ws)} - 0 reference(s) across 0 file(s).\nlimits: one-workspace`,

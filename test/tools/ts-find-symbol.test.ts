@@ -22,7 +22,7 @@ import type { TsgoBinary, TsgoBinaryResult, TsExecFn } from "../../src/tsgo/bina
 import { dropProjectMap, PROJECT_MAP_LIMIT } from "../../src/tsgo/project-map.js";
 import { fakeServer, pathOfDocumentId, uriOf, type FakeServer } from "../helpers/fake-lsp.js";
 import { runUntilBudgetExpires } from "../helpers/go-tool-harness.js";
-import { resultView } from "../helpers/tool-result.js";
+import { limitsOf, recordOf, resultView, scopeOf, textOf } from "../helpers/tool-result.js";
 
 type Result = Awaited<ReturnType<typeof runTsFindSymbol>>;
 type Input = { sourceRoots: string[]; symbol: string; anchor: string; timeBudgetMs: number };
@@ -378,24 +378,8 @@ function harness(): Harness {
   };
 }
 
-function payload(result: Result): Record<string, unknown> {
-  return (result as { structuredContent?: Record<string, unknown> }).structuredContent ?? {};
-}
-
-function scopeOf(result: Result): Record<string, unknown> {
-  return payload(result).scope as Record<string, unknown>;
-}
-
-function limitsOf(result: Result): string[] {
-  return scopeOf(result).limits as string[];
-}
-
 function rowsOf(result: Result): Row[] {
-  return payload(result).declarations as Row[];
-}
-
-function textOf(result: Result): string {
-  return (result.content ?? [])[0]?.text ?? "";
+  return recordOf(result).declarations as Row[];
 }
 
 function countOf(server: FakeServer, method: string): number {
@@ -481,7 +465,7 @@ describe("runTsFindSymbol", () => {
 
       const out = await h.run();
       expect(resultView(out).isError, textOf(out)).toBeFalsy();
-      expect(payload(out)).toEqual({
+      expect(recordOf(out)).toEqual({
         summary: expect.any(String),
         declarations: [
           {
@@ -516,7 +500,7 @@ describe("runTsFindSymbol", () => {
         "signature",
         "documentation",
       ]);
-      expect(JSON.stringify(payload(out))).not.toContain("visibility");
+      expect(JSON.stringify(recordOf(out))).not.toContain("visibility");
     });
 
     it("reads an inferred signature straight from hover, which is what grep cannot show", async () => {
@@ -1179,7 +1163,7 @@ describe("runTsFindSymbol", () => {
     // The same two lines are structuredContent's first key, with no limits line and no rows.
     const structured = (out as { structuredContent?: object }).structuredContent;
     expect(JSON.stringify(structured).startsWith('{"summary":"')).toBe(true);
-    expect(payload(out).summary).toBe(lines.slice(0, 2).join("\n"));
+    expect(recordOf(out).summary).toBe(lines.slice(0, 2).join("\n"));
     expect(scopeOf(out).uncoveredSources).toMatchObject({ grepRequired: true });
   });
 

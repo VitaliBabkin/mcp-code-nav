@@ -32,14 +32,12 @@ import {
   fixtures,
   itIfTsgoAvailable,
   listFilesOnly,
-  payloadOf,
   requireTsgo,
   stampsOf,
-  textOf,
   tsgoProcessLog,
   type TsgoProcessLog,
 } from "../helpers/tsgo-live.js";
-import { resultView } from "../helpers/tool-result.js";
+import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 
 /**
  * Live: the workspace model, measured against the real
@@ -141,7 +139,7 @@ function ask(
 }
 
 function payload(result: Result): TsFindReferencesPayload {
-  return payloadOf<TsFindReferencesPayload>(result, "ts_find_references");
+  return payloadAs<TsFindReferencesPayload>(result, "ts_find_references");
 }
 
 /** Paths compared the way the map compares them: separators normalised, case folded on this OS. */

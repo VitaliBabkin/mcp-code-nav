@@ -19,7 +19,7 @@ import { runCppFindReferences } from "../../src/tools/cpp-find-references.js";
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import { noopServerHandlers, sessionsFor, symAt } from "../helpers/fake-clangd.js";
 import { fakeServer, pathOfDocumentId } from "../helpers/fake-lsp.js";
-import { resultView } from "../helpers/tool-result.js";
+import { resultView, textOf } from "../helpers/tool-result.js";
 
 // How each C++ handler applies the source-root rules: an omitted `sourceRoots` becomes the source tree the
 // compile database names, every `scope` / `sweep` states it, and a path failure names the fix. clangd and
@@ -31,7 +31,6 @@ interface Result {
   readonly structuredContent?: unknown;
 }
 
-const textOf = (result: Result): string => result.content[0]?.text ?? "";
 /**
  * The payload a test expects a result to carry, read as the shape the test states: the tool's declared payload is
  * narrower than some of the fields asserted here (for example `scope` and `sweep` on the payload of a degraded

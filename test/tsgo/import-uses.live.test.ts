@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { resultView } from "../helpers/tool-result.js";
+import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import {
   runTsFindReferences,
@@ -12,8 +12,6 @@ import {
   CALL_BUDGET_MS,
   fixtures,
   itIfTsgoAvailable,
-  payloadOf,
-  textOf,
   tsFixtureRoot,
   type LiveResult,
 } from "../helpers/tsgo-live.js";
@@ -80,7 +78,7 @@ function references(
 }
 
 function referencesOf(result: LiveResult): TsFindReferencesPayload {
-  return payloadOf<TsFindReferencesPayload>(result, "ts_find_references");
+  return payloadAs<TsFindReferencesPayload>(result, "ts_find_references");
 }
 
 /** Every kept row as `file:line`, sorted, so a listing can be compared without the server's ordering. */

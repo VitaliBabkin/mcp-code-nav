@@ -73,15 +73,6 @@ export interface LiveResult {
   readonly isError?: boolean;
 }
 
-export function textOf(result: LiveResult): string {
-  return result.content.map((part) => part.text ?? "").join("\n");
-}
-
-export function payloadOf<T>(result: LiveResult, tool: string): T {
-  if (result.isError) throw new Error(`${tool} failed: ${textOf(result)}`);
-  return result.structuredContent as T;
-}
-
 /** One server-to-client request that reached this client, with what the config answered it with. */
 export interface ServerRequest {
   readonly method: string;

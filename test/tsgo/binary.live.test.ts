@@ -13,12 +13,11 @@ import {
   CALL_BUDGET_MS,
   itIfTsgoAvailable,
   requireTsgo,
-  textOf,
   tsFixtureRoot,
   tsgoAvailable,
   tsgoMiss,
 } from "../helpers/tsgo-live.js";
-import { resultView } from "../helpers/tool-result.js";
+import { resultView, textOf } from "../helpers/tool-result.js";
 
 /**
  * Where the native server actually is on this host, located by the documented rule and by no

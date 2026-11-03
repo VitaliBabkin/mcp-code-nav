@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect } from "vitest";
 import type { LspSessionManager } from "../../src/lsp/session-manager.js";
-import { resultView } from "../helpers/tool-result.js";
+import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 import {
   runGoFindCallers,
   type CallerRow,
@@ -16,12 +16,10 @@ import {
   hiddenFile,
   itIfGoplsAvailable,
   navRoot,
-  payloadOf as okPayloadOf,
   removeTree,
   samePath,
   storageFile,
   subFile,
-  textOf,
   usesFile,
 } from "../helpers/go-live.js";
 
@@ -52,7 +50,7 @@ function ask(
 }
 
 function payloadOf(result: Result): Payload {
-  return okPayloadOf(result, "go_find_callers");
+  return payloadAs(result, "go_find_callers");
 }
 
 /** Caller names sorted: the tool's own order is in-module-first, which is not what these cases compare. */
@@ -145,7 +143,7 @@ describe("go_find_callers against a real gopls binary", () => {
       expect(resultView(result).isError, textOf(result)).toBeFalsy();
       expect(textOf(result)).not.toMatch(/initial workspace load/);
 
-      const payload = okPayloadOf<Payload>(result, "go_find_callers");
+      const payload = payloadAs<Payload>(result, "go_find_callers");
       expect(payload.totalCallers).toBe(0);
       expect(payload.callers).toEqual([]);
       expect(payload.callersTruncated).toBe(0);

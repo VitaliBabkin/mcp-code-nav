@@ -11,7 +11,7 @@ import { runCppFindReferences } from "../../src/tools/cpp-find-references.js";
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import type { CppAddress } from "../../src/tools/cpp-navigation-shared.js";
 import { fakeProcessByFile, symAt } from "../helpers/fake-clangd.js";
-import { resultView } from "../helpers/tool-result.js";
+import { resultView, textOf } from "../helpers/tool-result.js";
 
 const DB = "compile_commands.json";
 const headAt = (projectRoot: string): string =>
@@ -21,8 +21,6 @@ interface Answer {
   isError?: boolean;
   content: readonly { text?: string }[];
 }
-
-const textOf = (answer: Answer): string => answer.content[0]?.text ?? "";
 
 const prefixFor = (tool: string): string => `${tool} failed: `;
 

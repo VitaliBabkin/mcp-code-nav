@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeServer, pathOfDocumentId, type FakeServer } from "../helpers/fake-lsp.js";
 import { sessionsFor, symAt } from "../helpers/fake-clangd.js";
-import { payloadOf, resultView } from "../helpers/tool-result.js";
+import { fieldOf, payloadOf, resultView, textOf } from "../helpers/tool-result.js";
 import {
   runCppFindReferences,
   type CppReferenceFile,
@@ -45,14 +45,6 @@ interface Scope {
   uncoveredSourcesUnavailable?: string;
   limits: string[];
   freshness?: unknown;
-}
-
-const textOf = (result: Result): string => result.content[0]?.text ?? "";
-
-/** A field the answer carries at runtime that its declared type does not name for this path; the test reads it. */
-function fieldOf(value: unknown, key: string): unknown {
-  if (typeof value !== "object" || value === null) return undefined;
-  return Object.getOwnPropertyDescriptor(value, key)?.value;
 }
 
 type ReferencesAnswer = Awaited<ReturnType<typeof runCppFindReferences>>;

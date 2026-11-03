@@ -14,12 +14,6 @@ import type { SpawnLsp } from "../../src/lsp/process.js";
 import { fakeGo, type FakeGo } from "./fake-go.js";
 import { fakeServer, pathOfDocumentId, uriOf, type FakeServer } from "./fake-lsp.js";
 
-/** A tool result, as far as these accessors care: a text block and a structured payload. */
-export interface ToolResultLike {
-  readonly content: readonly { readonly text?: string }[];
-  readonly structuredContent?: unknown;
-}
-
 /** One outline entry as gopls reports it: line-only ranges unless the test gives characters. */
 export function symbol(
   name: string,
@@ -210,22 +204,6 @@ export async function runUntilBudgetExpires<T>(
   } finally {
     vi.useRealTimers();
   }
-}
-
-export function payload(result: ToolResultLike): Record<string, unknown> {
-  return result.structuredContent as Record<string, unknown>;
-}
-
-export function scopeOf(result: ToolResultLike): Record<string, unknown> {
-  return payload(result).scope as Record<string, unknown>;
-}
-
-export function limitsOf(result: ToolResultLike): string[] {
-  return scopeOf(result).limits as string[];
-}
-
-export function textOf(result: ToolResultLike): string {
-  return result.content[0]?.text ?? "";
 }
 
 /** The params of the first request that method saw. */

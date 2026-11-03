@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect } from "vitest";
-import { resultView } from "../helpers/tool-result.js";
+import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { pathKey } from "../../src/paths/path-containment.js";
 import {
@@ -13,14 +13,7 @@ import {
   type TsFindReferencesPayload,
 } from "../../src/tools/ts-find-references.js";
 import { runTsFindSymbol, type TsFindSymbolPayload } from "../../src/tools/ts-find-symbol.js";
-import {
-  CALL_BUDGET_MS,
-  fixtures,
-  itIfTsgoAvailable,
-  payloadOf,
-  recordAnswer,
-  textOf,
-} from "../helpers/tsgo-live.js";
+import { CALL_BUDGET_MS, fixtures, itIfTsgoAvailable, recordAnswer } from "../helpers/tsgo-live.js";
 
 /**
  * Live against the real TypeScript 7 native server, over
@@ -101,7 +94,7 @@ describe("a dotted namespace declaration is addressable", () => {
         ["A.B.f", "export function f", "function"],
         ["P.Q.R.x", "export const x", "variable"],
       ] as const) {
-        const byFile = payloadOf<TsFindSymbolPayload>(
+        const byFile = payloadAs<TsFindSymbolPayload>(
           await symbolAnswer(manager, symbol, dottedFile),
           "ts_find_symbol",
         );
@@ -111,7 +104,7 @@ describe("a dotted namespace declaration is addressable", () => {
           symbol,
         ).toEqual([[symbol, kind, lineOf(dottedFile, needle)]]);
 
-        const byDirectory = payloadOf<TsFindSymbolPayload>(
+        const byDirectory = payloadAs<TsFindSymbolPayload>(
           await symbolAnswer(manager, symbol, workspaceRoot),
           "ts_find_symbol",
         );
@@ -130,7 +123,7 @@ describe("a dotted namespace declaration is addressable", () => {
     "ts_find_symbol addresses the namespace itself at the identifier the last segment names",
     async () => {
       const manager = freshManager();
-      const whole = payloadOf<TsFindSymbolPayload>(
+      const whole = payloadAs<TsFindSymbolPayload>(
         await symbolAnswer(manager, "A.B", dottedFile),
         "ts_find_symbol",
       );
@@ -138,7 +131,7 @@ describe("a dotted namespace declaration is addressable", () => {
       expect(whole.declarations.map((row) => [row.name, row.kind, row.line])).toEqual([
         ["A.B", "namespace", 1],
       ]);
-      const prefix = payloadOf<TsFindSymbolPayload>(
+      const prefix = payloadAs<TsFindSymbolPayload>(
         await symbolAnswer(manager, "A", dottedFile),
         "ts_find_symbol",
       );
@@ -159,7 +152,7 @@ describe("a dotted namespace declaration is addressable", () => {
         ["A.B", "export namespace A.B"],
         ["P.Q", "export namespace P.Q.R"],
       ] as const) {
-        const answer = payloadOf<TsFindSymbolPayload>(
+        const answer = payloadAs<TsFindSymbolPayload>(
           await symbolAnswer(manager, symbol, workspaceRoot),
           "ts_find_symbol",
         );
@@ -179,7 +172,7 @@ describe("a dotted namespace declaration is addressable", () => {
     async () => {
       const manager = freshManager();
       const useLine = "export const n = A.B.f();";
-      const member = payloadOf<TsFindReferencesPayload>(
+      const member = payloadAs<TsFindReferencesPayload>(
         await referencesAnswer(manager, dottedFile, "A.B.f"),
         "ts_find_references",
       );
@@ -188,7 +181,7 @@ describe("a dotted namespace declaration is addressable", () => {
         `use.ts:${lineOf(useFile, useLine)}:${columnOf(useFile, useLine, "f(")}`,
       ]);
 
-      const second = payloadOf<TsFindReferencesPayload>(
+      const second = payloadAs<TsFindReferencesPayload>(
         await referencesAnswer(manager, dottedFile, "A.B"),
         "ts_find_references",
       );
@@ -198,7 +191,7 @@ describe("a dotted namespace declaration is addressable", () => {
         `use.ts:${lineOf(useFile, useLine)}:${columnOf(useFile, useLine, "B.")}`,
       ]);
 
-      const first = payloadOf<TsFindReferencesPayload>(
+      const first = payloadAs<TsFindReferencesPayload>(
         await referencesAnswer(manager, dottedFile, "A"),
         "ts_find_references",
       );
@@ -222,12 +215,12 @@ describe("an interface beside a namespace of one name", () => {
       const typeUse = "export const v: I";
       const qualifierUse = "export const y = I.x;";
 
-      const asType = payloadOf<TsFindReferencesPayload>(
+      const asType = payloadAs<TsFindReferencesPayload>(
         await referencesAnswer(manager, mergedFile, "type I"),
         "ts_find_references",
       );
       recordAnswer("merged-refs-type-I", asType);
-      const asNamespace = payloadOf<TsFindReferencesPayload>(
+      const asNamespace = payloadAs<TsFindReferencesPayload>(
         await referencesAnswer(manager, mergedFile, "namespace I"),
         "ts_find_references",
       );
@@ -256,7 +249,7 @@ describe("an interface beside a namespace of one name", () => {
       expect(textOf(bare)).toContain("type I (interface)");
       expect(textOf(bare)).toContain("namespace I (namespace)");
 
-      const implementations = payloadOf<TsFindImplementationsPayload>(
+      const implementations = payloadAs<TsFindImplementationsPayload>(
         await runTsFindImplementations(manager, {
           sourceRoots: [workspaceRoot],
           file: mergedFile,
@@ -267,7 +260,7 @@ describe("an interface beside a namespace of one name", () => {
       );
       expect(implementations.resolved.kind).toBe("interface");
 
-      const rows = payloadOf<TsFindSymbolPayload>(
+      const rows = payloadAs<TsFindSymbolPayload>(
         await symbolAnswer(manager, "I", workspaceRoot),
         "ts_find_symbol",
       );

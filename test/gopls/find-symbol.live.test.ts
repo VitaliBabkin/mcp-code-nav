@@ -11,7 +11,7 @@ import {
   type FindSymbolPayload,
   WORKSPACE_SYMBOL_CAP_WATERMARK,
 } from "../../src/tools/go-find-symbol.js";
-import { resultView } from "../helpers/tool-result.js";
+import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 import {
   CALL_BUDGET_MS,
   disposeGoLiveManagers,
@@ -20,12 +20,10 @@ import {
   hiddenFile,
   itIfGoplsAvailable,
   navRoot,
-  payloadOf as okPayloadOf,
   removeTree,
   samePath,
   storageFile,
   subFile,
-  textOf,
   usesFile,
 } from "../helpers/go-live.js";
 
@@ -62,7 +60,7 @@ function askModule(
 }
 
 function payloadOf(result: Result): Payload {
-  return okPayloadOf(result, "go_find_symbol");
+  return payloadAs(result, "go_find_symbol");
 }
 
 /** The rows of an answer, each checked against the invariant. */

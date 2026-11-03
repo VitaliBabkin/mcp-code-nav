@@ -15,7 +15,7 @@ import { runCppFindReferences } from "../../src/tools/cpp-find-references.js";
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import { runGoFileSymbols } from "../../src/tools/go-file-symbols.js";
 import { fakeProcessByFile, sessionsFor, symAt } from "../helpers/fake-clangd.js";
-import { resultView } from "../helpers/tool-result.js";
+import { resultView, textOf } from "../helpers/tool-result.js";
 
 type Answer = { isError?: boolean; content?: readonly { text?: string }[] };
 
@@ -25,11 +25,6 @@ function tempRoot(prefix: string): string {
   const dir = mkdtempSync(join(tmpdir(), `mcp-code-nav-${prefix}-`));
   tempDirs.push(dir);
   return dir;
-}
-
-function textOf(answer: Answer): string {
-  const [block] = answer.content ?? [];
-  return block?.text ?? "";
 }
 
 /** The head `CompileDbNotFoundError.message` is, which every hinted variant keeps byte-identical. */

@@ -13,9 +13,9 @@ import {
   disposeGoLiveManagers,
   freshManager,
   itIfGoplsAvailable,
-  payloadOf,
   removeTree,
 } from "../helpers/go-live.js";
+import { payloadAs } from "../helpers/tool-result.js";
 
 /**
  * A server that stops a list answer at a ceiling of its own, without saying so, would hand this tool a short
@@ -81,7 +81,7 @@ describe("go tools on a symbol with more rows than a server-side ceiling", () =>
     async () => {
       for (const symbol of ["Tick", "Burst"]) {
         const result = await runGoFindReferences(freshManager(), question("callees.go", symbol));
-        const payload = payloadOf<FindReferencesPayload>(result, "go_find_references");
+        const payload = payloadAs<FindReferencesPayload>(result, "go_find_references");
         expect(payload.totalReferences, symbol).toBe(1100);
         const perFile = payload.files.reduce((sum, file) => sum + file.count, 0);
         expect(perFile, symbol).toBe(1100);
@@ -94,7 +94,7 @@ describe("go tools on a symbol with more rows than a server-side ceiling", () =>
     "go_find_callers counts every distinct caller of one function",
     async () => {
       const result = await runGoFindCallers(freshManager(), question("callees.go", "Tick"));
-      const payload = payloadOf<FindCallersPayload>(result, "go_find_callers");
+      const payload = payloadAs<FindCallersPayload>(result, "go_find_callers");
       expect(payload.totalCallers).toBe(DISTINCT_CALLERS);
     },
     CALL_BUDGET_MS * 2,
@@ -104,7 +104,7 @@ describe("go tools on a symbol with more rows than a server-side ceiling", () =>
     "go_find_callers counts every call site of one caller",
     async () => {
       const result = await runGoFindCallers(freshManager(), question("callees.go", "Burst"));
-      const payload = payloadOf<FindCallersPayload>(result, "go_find_callers");
+      const payload = payloadAs<FindCallersPayload>(result, "go_find_callers");
       expect(payload.totalCallers).toBe(1);
       const [row] = payload.callers;
       expect((row?.callSites.length ?? 0) + (row?.callSitesTruncated ?? 0)).toBe(BURST_CALLS);
@@ -116,7 +116,7 @@ describe("go tools on a symbol with more rows than a server-side ceiling", () =>
     "go_find_implementations counts every type satisfying one interface",
     async () => {
       const result = await runGoFindImplementations(freshManager(), question("doer.go", "Doer"));
-      const payload = payloadOf<ImplementationsAnswer>(result, "go_find_implementations");
+      const payload = payloadAs<ImplementationsAnswer>(result, "go_find_implementations");
       expect(payload.implementations.length + payload.truncated).toBe(IMPLEMENTERS);
     },
     CALL_BUDGET_MS * 2,

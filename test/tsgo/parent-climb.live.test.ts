@@ -18,12 +18,12 @@ import {
   CALL_BUDGET_MS,
   fixtures,
   itIfTsgoAvailable,
-  payloadOf,
   requireTsgo,
   stampsOf,
   tsgoProcessLog,
   type TsgoProcessLog,
 } from "../helpers/tsgo-live.js";
+import { payloadAs } from "../helpers/tool-result.js";
 
 /**
  * Live: a nested `tsconfig.json` whose `include` leaves out a
@@ -108,7 +108,7 @@ function ask(manager: LspSessionManager, file: string, symbol: string): Promise<
 }
 
 function payload(result: Result): TsFindReferencesPayload {
-  return payloadOf<TsFindReferencesPayload>(result, "ts_find_references");
+  return payloadAs<TsFindReferencesPayload>(result, "ts_find_references");
 }
 
 /** Paths compared the way the map compares them: separators normalised, case folded on this OS. */
