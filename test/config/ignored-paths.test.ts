@@ -3,10 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  IGNORED_PATH_LIMITS,
   isIgnoredPath,
   loadIgnoredPaths,
   readIgnoredPatterns,
 } from "../../src/config/ignored-paths.js";
+
+const countStars = (pattern: string): number => pattern.split("*").length - 1;
 
 describe("loadIgnoredPaths", () => {
   let projectRoot: string;
@@ -112,11 +115,51 @@ describe("accepted patterns", () => {
     ).toBe(true);
   });
 
-  it("finishes the worst accepted pattern quickly on a long name", () => {
-    const file = join(root, "src", "a".repeat(40) + ".h");
-    const started = performance.now();
-    isIgnoredPath(root, file, ["**/*a*a*ab"]);
-    expect(performance.now() - started).toBeLessThan(500);
+  describe("the worst pattern the limits accept, on a long name that cannot match", () => {
+    const { maxStars } = IGNORED_PATH_LIMITS;
+    const MATCH_CEILING_MS = 500;
+    const worstPatterns: [pattern: string, nameLength: number][] = [
+      ["*a".repeat(maxStars - 1) + "*b", 120],
+      ["**/" + "*a".repeat(maxStars - 3) + "*b", 250],
+    ];
+
+    it.each(worstPatterns)("is accepted by the config limits: %s", (pattern) => {
+      const projectRoot = mkdtempSync(join(tmpdir(), "mcp-code-nav-cfg-"));
+      try {
+        writeFileSync(
+          join(projectRoot, "mcp-code-nav.config.json"),
+          JSON.stringify({ ignoredPaths: [pattern] }),
+        );
+        expect(loadIgnoredPaths(projectRoot)).toEqual([pattern]);
+        expect(countStars(pattern)).toBe(maxStars);
+      } finally {
+        rmSync(projectRoot, { recursive: true, force: true });
+      }
+    });
+
+    it.each(worstPatterns)(
+      "answers within the ceiling and as not ignored: %s",
+      (pattern, nameLength) => {
+        const file = join(root, "a".repeat(nameLength) + ".h");
+        const started = performance.now();
+        const ignored = isIgnoredPath(root, file, [pattern]);
+        const elapsedMs = performance.now() - started;
+
+        expect(ignored).toBe(false);
+        expect(elapsedMs).toBeLessThan(MATCH_CEILING_MS);
+      },
+    );
+  });
+
+  describe("negated extglob", () => {
+    it("ignores a file whose name merely starts with the negated name", () => {
+      expect(isIgnoredPath(root, join(root, "x", "a.generated.h"), ["x/!(a)*"])).toBe(true);
+    });
+
+    it("ignores every sibling except the negated name itself", () => {
+      expect(isIgnoredPath(root, join(root, "x", "b"), ["x/!(a)"])).toBe(true);
+      expect(isIgnoredPath(root, join(root, "x", "a"), ["x/!(a)"])).toBe(false);
+    });
   });
 });
 

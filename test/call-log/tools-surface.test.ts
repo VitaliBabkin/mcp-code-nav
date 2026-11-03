@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { z } from "zod";
 import type { CallLogLine } from "../../src/call-log/record.js";
 import { LOGGED_ARG_KEYS, RESULT_COUNT_SELECTORS } from "../../src/call-log/record.js";
@@ -15,9 +15,12 @@ import type { CallLog } from "../../src/call-log/writer.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { SweepCache } from "../../src/clang-query/sweep-cache.js";
 import { SERVER_INSTRUCTIONS } from "../../src/server-instructions.js";
-import { registerCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
+import { CppFileSymbolsInput, registerCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
 import { registerCppFindCallers } from "../../src/tools/cpp-find-callers.js";
-import { registerCppFindDerivedClasses } from "../../src/tools/cpp-find-derived-classes.js";
+import {
+  CppFindDerivedClassesInput,
+  registerCppFindDerivedClasses,
+} from "../../src/tools/cpp-find-derived-classes.js";
 import { registerCppFindReferences } from "../../src/tools/cpp-find-references.js";
 import { registerCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import { registerGoFileSymbols } from "../../src/tools/go-file-symbols.js";
@@ -25,11 +28,12 @@ import { registerGoFindCallers } from "../../src/tools/go-find-callers.js";
 import { registerGoFindImplementations } from "../../src/tools/go-find-implementations.js";
 import { registerGoFindReferences } from "../../src/tools/go-find-references.js";
 import { registerGoFindSymbol } from "../../src/tools/go-find-symbol.js";
+import { NameInput, PathInput, PathList } from "../../src/tools/input-limits.js";
 import { registerTsFileSymbols } from "../../src/tools/ts-file-symbols.js";
 import { registerTsFindCallers } from "../../src/tools/ts-find-callers.js";
 import { registerTsFindImplementations } from "../../src/tools/ts-find-implementations.js";
 import { registerTsFindReferences } from "../../src/tools/ts-find-references.js";
-import { registerTsFindSymbol } from "../../src/tools/ts-find-symbol.js";
+import { registerTsFindSymbol, TsFindSymbolInput } from "../../src/tools/ts-find-symbol.js";
 import { fakeProcessByFile, sessionsFor, symAt } from "../helpers/fake-clangd.js";
 
 type Line = z.infer<typeof CallLogLine>;
@@ -423,5 +427,235 @@ describe("what only the transport can see", () => {
       textBytes: expect.any(Number),
     });
     await wire.close();
+  });
+});
+
+type Schema = Record<string, unknown>;
+
+const isRecord = (value: unknown): value is Schema =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+function pointerTarget(root: Schema, ref: string): unknown {
+  return ref
+    .slice(2)
+    .split("/")
+    .reduce<unknown>(
+      (node, segment) =>
+        isRecord(node) ? node[segment.replaceAll("~1", "/").replaceAll("~0", "~")] : undefined,
+      root,
+    );
+}
+
+/** Replaces each local `$ref` by its target, so the assertions hold for any layout a client may be served. */
+function inlineRefs(node: unknown, root: Schema): unknown {
+  if (Array.isArray(node)) return node.map((item) => inlineRefs(item, root));
+  if (!isRecord(node)) return node;
+  const { $ref, ...rest } = node;
+  const own = Object.fromEntries(
+    Object.entries(rest).map(([key, value]) => [key, inlineRefs(value, root)]),
+  );
+  if (typeof $ref !== "string") return own;
+  const target = inlineRefs(pointerTarget(root, $ref), root);
+  return isRecord(target) ? { ...target, ...own } : own;
+}
+
+/** Limits written once here from `input-limits.ts` and the tool schemas, then used to pin both halves of rule 4. */
+const LIMITS = {
+  pathMaxLength: 4096,
+  nameMaxLength: 1024,
+  listMaxItems: 256,
+  timeBudgetMaxMs: 600_000,
+  timeBudgetDefaultMs: 60_000,
+  depthMax: 1,
+} as const;
+
+const PATH = { type: "string", minLength: 1, maxLength: LIMITS.pathMaxLength };
+const NAME = { type: "string", minLength: 1, maxLength: LIMITS.nameMaxLength };
+const PATH_LIST = { type: "array", items: PATH, maxItems: LIMITS.listMaxItems };
+const REQUIRED_ROOTS = { ...PATH_LIST, minItems: 1 };
+const DEFAULTED_ROOTS = { ...PATH_LIST, default: [] };
+const TIME_BUDGET = {
+  type: "integer",
+  exclusiveMinimum: 0,
+  maximum: LIMITS.timeBudgetMaxMs,
+  default: LIMITS.timeBudgetDefaultMs,
+};
+const DEPTH = { type: "integer", minimum: 0, maximum: LIMITS.depthMax, default: 1 };
+const INCLUDE_DECLARATION = { type: "boolean", default: false };
+const SYMBOL_KIND = { type: "string", enum: ["class", "function", "method", "constructor"] };
+
+interface ToolContract {
+  readonly required: readonly string[];
+  readonly properties: Readonly<Record<string, Schema>>;
+}
+
+const CPP_ADDRESS: ToolContract = {
+  required: ["projectRoot", "name"],
+  properties: {
+    projectRoot: PATH,
+    name: NAME,
+    file: PATH,
+    sourceRoots: DEFAULTED_ROOTS,
+    kind: SYMBOL_KIND,
+  },
+};
+
+const DECLARING_FILE: ToolContract = {
+  required: ["sourceRoots", "file", "symbol"],
+  properties: { sourceRoots: REQUIRED_ROOTS, file: PATH, symbol: NAME, timeBudgetMs: TIME_BUDGET },
+};
+
+const ANCHORED: ToolContract = {
+  required: ["sourceRoots", "symbol", "anchor"],
+  properties: {
+    sourceRoots: REQUIRED_ROOTS,
+    symbol: NAME,
+    anchor: PATH,
+    timeBudgetMs: TIME_BUDGET,
+  },
+};
+
+const OUTLINE: ToolContract = {
+  required: ["sourceRoots", "file"],
+  properties: { sourceRoots: REQUIRED_ROOTS, file: PATH, depth: DEPTH, timeBudgetMs: TIME_BUDGET },
+};
+
+const DECLARING_FILE_WITH_DECLARATION: ToolContract = {
+  ...DECLARING_FILE,
+  properties: { ...DECLARING_FILE.properties, includeDeclaration: INCLUDE_DECLARATION },
+};
+
+const TOOL_CONTRACTS: Readonly<Record<string, ToolContract>> = {
+  cpp_file_symbols: {
+    required: ["projectRoot", "file"],
+    properties: { projectRoot: PATH, file: PATH, sourceRoots: DEFAULTED_ROOTS, depth: DEPTH },
+  },
+  cpp_find_symbol: CPP_ADDRESS,
+  cpp_find_references: CPP_ADDRESS,
+  cpp_find_callers: CPP_ADDRESS,
+  cpp_find_derived_classes: {
+    required: ["projectRoot", "qualifiedName"],
+    properties: {
+      projectRoot: PATH,
+      qualifiedName: { type: "string", minLength: 1, maxLength: 1024, pattern: expect.any(String) },
+      derivation: { type: "string", enum: ["transitive", "direct"], default: "transitive" },
+      files: PATH_LIST,
+      sourceRoots: DEFAULTED_ROOTS,
+      timeBudgetMs: { type: "integer", exclusiveMinimum: 0, maximum: LIMITS.timeBudgetMaxMs },
+    },
+  },
+  go_file_symbols: OUTLINE,
+  go_find_implementations: DECLARING_FILE,
+  go_find_callers: DECLARING_FILE,
+  go_find_references: DECLARING_FILE_WITH_DECLARATION,
+  go_find_symbol: ANCHORED,
+  ts_file_symbols: OUTLINE,
+  ts_find_implementations: DECLARING_FILE,
+  ts_find_callers: DECLARING_FILE,
+  ts_find_references: DECLARING_FILE_WITH_DECLARATION,
+  ts_find_symbol: ANCHORED,
+};
+
+describe("the input schema tools/list serves", () => {
+  const served = new Map<string, { required: string[]; properties: Schema }>();
+
+  beforeAll(async () => {
+    const wire = await connectOverTap(false);
+    await wire.initialize();
+    for (const tool of wire.listTools()) {
+      const inputSchema = tool.inputSchema;
+      if (!isRecord(inputSchema)) continue;
+      const flat = inlineRefs(inputSchema, inputSchema);
+      if (!isRecord(flat) || !isRecord(flat.properties)) continue;
+      served.set(String(tool.name), {
+        required: Array.isArray(flat.required) ? flat.required.map(String) : [],
+        properties: flat.properties,
+      });
+    }
+    await wire.close();
+  });
+
+  it("covers exactly the tools this table pins, so a new tool cannot be served unpinned", () => {
+    expect([...served.keys()].sort()).toEqual(Object.keys(TOOL_CONTRACTS).sort());
+  });
+
+  it.each(Object.entries(TOOL_CONTRACTS))(
+    "%s requires exactly its mandatory fields and advertises their limits and defaults",
+    (name, contract) => {
+      const schema = served.get(name);
+      expect(schema).toBeDefined();
+      expect([...(schema?.required ?? [])].sort()).toEqual([...contract.required].sort());
+      expect(Object.keys(schema?.properties ?? {}).sort()).toEqual(
+        Object.keys(contract.properties).sort(),
+      );
+      for (const [field, expected] of Object.entries(contract.properties)) {
+        expect(schema?.properties[field], `${name}.${field}`).toMatchObject(expected);
+      }
+    },
+  );
+
+  it("leaves cpp_find_derived_classes' timeBudgetMs and files optional, with no default of their own", () => {
+    const properties = served.get("cpp_find_derived_classes")?.properties ?? {};
+    expect(properties.timeBudgetMs).not.toHaveProperty("default");
+    expect(properties.files).not.toHaveProperty("default");
+  });
+
+  // A client validates with the served pattern, so its behaviour is what is pinned, not its spelling.
+  it("advertises a qualifiedName pattern that admits C++ qualified names and nothing else", () => {
+    const field = served.get("cpp_find_derived_classes")?.properties.qualifiedName;
+    const pattern = isRecord(field) ? field.pattern : undefined;
+    expect(pattern).toBeTypeOf("string");
+    const matches = (name: string) => new RegExp(String(pattern)).test(name);
+    for (const name of ["IFoo", "ns::IFoo", "::ns::detail::Base_2", "_Impl"]) {
+      expect(matches(name), name).toBe(true);
+    }
+    for (const name of ["", "ns::", "::", "a:::b", "2Base", "ns::2Base", "a b", "a.b", "a<int>"]) {
+      expect(matches(name), name).toBe(false);
+    }
+  });
+});
+
+describe("the limits the schema advertises are the ones the server enforces", () => {
+  const text = (length: number): string => "a".repeat(length);
+  const entries = (length: number): string[] => Array.from({ length }, () => "a");
+
+  it("PathInput accepts exactly the advertised length range", () => {
+    expect(PathInput.safeParse(text(LIMITS.pathMaxLength)).success).toBe(true);
+    expect(PathInput.safeParse(text(LIMITS.pathMaxLength + 1)).success).toBe(false);
+    expect(PathInput.safeParse("").success).toBe(false);
+  });
+
+  it("NameInput accepts exactly the advertised length range", () => {
+    expect(NameInput.safeParse(text(LIMITS.nameMaxLength)).success).toBe(true);
+    expect(NameInput.safeParse(text(LIMITS.nameMaxLength + 1)).success).toBe(false);
+    expect(NameInput.safeParse("").success).toBe(false);
+  });
+
+  it("PathList accepts exactly the advertised number of entries", () => {
+    expect(PathList.safeParse(entries(LIMITS.listMaxItems)).success).toBe(true);
+    expect(PathList.safeParse(entries(LIMITS.listMaxItems + 1)).success).toBe(false);
+  });
+
+  it("timeBudgetMs accepts a positive integer up to the advertised ceiling and defaults to the advertised value", () => {
+    const budget = TsFindSymbolInput.shape.timeBudgetMs;
+    expect(budget.safeParse(LIMITS.timeBudgetMaxMs).success).toBe(true);
+    expect(budget.safeParse(LIMITS.timeBudgetMaxMs + 1).success).toBe(false);
+    expect(budget.safeParse(0).success).toBe(false);
+    expect(budget.safeParse(1.5).success).toBe(false);
+    expect(budget.parse(undefined)).toBe(LIMITS.timeBudgetDefaultMs);
+
+    const derivedBudget = CppFindDerivedClassesInput.shape.timeBudgetMs;
+    expect(derivedBudget.safeParse(LIMITS.timeBudgetMaxMs).success).toBe(true);
+    expect(derivedBudget.safeParse(LIMITS.timeBudgetMaxMs + 1).success).toBe(false);
+  });
+
+  it("depth accepts the integers 0 to the advertised maximum and defaults to 1", () => {
+    const { depth } = CppFileSymbolsInput.shape;
+    expect(depth.safeParse(0).success).toBe(true);
+    expect(depth.safeParse(LIMITS.depthMax).success).toBe(true);
+    expect(depth.safeParse(LIMITS.depthMax + 1).success).toBe(false);
+    expect(depth.safeParse(-1).success).toBe(false);
+    expect(depth.safeParse(0.5).success).toBe(false);
+    expect(depth.parse(undefined)).toBe(1);
   });
 });

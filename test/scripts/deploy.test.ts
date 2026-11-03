@@ -13,6 +13,18 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { install, stampedIdentity } from "../../scripts/deploy.js";
 
+/**
+ * The tests below that spawn processes run four or more of them back to back (git, node, tsx); while the rest of
+ * the suite runs, each one takes several times its idle cost, which put a 5 s budget out of reach.
+ */
+const SUBPROCESS_TEST_TIMEOUT_MS = 30_000;
+
+/**
+ * vitest checks a synchronous test's budget only after it returns, so a hung child would wedge the run instead of
+ * failing one test; each spawn carries its own kill deadline below that budget.
+ */
+const SPAWN_TIMEOUT_MS = 20_000;
+
 const stamped = (identity: string): string =>
   `// MCPBUILD: mcp-code-nav ${identity}\nconsole.log("server");\n`;
 
@@ -170,53 +182,63 @@ describe("check-bundle expected version", () => {
   const check = (server: string, ...expected: string[]) =>
     spawnSync(process.execPath, ["scripts/check-bundle.cjs", server, ...expected], {
       encoding: "utf8",
+      timeout: SPAWN_TIMEOUT_MS,
     });
 
-  it("passes when the server reports the expected version, or none is expected", () => {
-    const server = fakeServer(dir, "1.2.3+g1");
-    expect(check(server, "1.2.3+g1").status).toBe(0);
-    expect(check(server).status).toBe(0);
-  });
+  it(
+    "passes when the server reports the expected version, or none is expected",
+    () => {
+      const server = fakeServer(dir, "1.2.3+g1");
+      expect(check(server, "1.2.3+g1").status).toBe(0);
+      expect(check(server).status).toBe(0);
+    },
+    SUBPROCESS_TEST_TIMEOUT_MS,
+  );
 
-  it("fails when the server reports another version", () => {
-    const done = check(fakeServer(dir, "1.2.3+g1"), "9.9.9+g9");
-    expect(done.status).toBe(1);
-    expect(done.stderr).toContain("expected 9.9.9+g9");
-  });
+  it(
+    "fails when the server reports another version",
+    () => {
+      const done = check(fakeServer(dir, "1.2.3+g1"), "9.9.9+g9");
+      expect(done.status).toBe(1);
+      expect(done.stderr).toContain("expected 9.9.9+g9");
+    },
+    SUBPROCESS_TEST_TIMEOUT_MS,
+  );
 });
 
 describe("deploy of a tree with untracked files", () => {
-  it("refuses before bundling or installing anything", () => {
-    const repo = mkdtempSync(join(tmpdir(), "mcp-code-nav-deploy-repo-"));
-    try {
-      const git = (...args: string[]) =>
-        spawnSync("git", [
-          "-C",
-          repo,
-          "-c",
-          "user.name=t",
-          "-c",
-          "user.email=t@example.invalid",
-          ...args,
-        ]);
-      git("init", "-q");
-      writeFileSync(join(repo, "a.txt"), "a");
-      git("add", ".");
-      git("commit", "-q", "-m", "one");
-      writeFileSync(join(repo, "untracked.ts"), "export {};");
+  it(
+    "refuses before bundling or installing anything",
+    () => {
+      const repo = mkdtempSync(join(tmpdir(), "mcp-code-nav-deploy-repo-"));
+      try {
+        const git = (...args: string[]) =>
+          spawnSync(
+            "git",
+            ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", ...args],
+            { timeout: SPAWN_TIMEOUT_MS },
+          );
+        git("init", "-q");
+        writeFileSync(join(repo, "a.txt"), "a");
+        git("add", ".");
+        git("commit", "-q", "-m", "one");
+        writeFileSync(join(repo, "untracked.ts"), "export {};");
 
-      const tsx = join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
-      const done = spawnSync(process.execPath, [tsx, join(process.cwd(), "scripts", "deploy.ts")], {
-        cwd: repo,
-        encoding: "utf8",
-      });
+        const tsx = join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
+        const done = spawnSync(
+          process.execPath,
+          [tsx, join(process.cwd(), "scripts", "deploy.ts")],
+          { cwd: repo, encoding: "utf8", timeout: SPAWN_TIMEOUT_MS },
+        );
 
-      expect(done.status).toBe(1);
-      expect(done.stderr).toContain("refusing to deploy");
-      expect(done.stderr).toContain("untracked.ts");
-      expect(existsSync(join(repo, "dist-bundle"))).toBe(false);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
+        expect(done.status).toBe(1);
+        expect(done.stderr).toContain("refusing to deploy");
+        expect(done.stderr).toContain("untracked.ts");
+        expect(existsSync(join(repo, "dist-bundle"))).toBe(false);
+      } finally {
+        rmSync(repo, { recursive: true, force: true });
+      }
+    },
+    SUBPROCESS_TEST_TIMEOUT_MS,
+  );
 });
