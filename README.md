@@ -338,7 +338,8 @@ takes precedence.
 
 A value that is not a non-negative integer (a positive one for `MCP_CODE_NAV_CLANGD_JOBS`) is reported on stderr and
 the default is used. clangd also starts with `--pch-storage=disk`; with a compile database its background index runs at
-low priority (`--background-index-priority=low`), and without one there is no background index.
+low priority (`--background-index-priority=low`), and without one there is no background index. clangd's reference
+limit is off (`--limit-references=0`): its default of 1000 would cut a reference answer short without saying so.
 
 ## Call log and privacy
 

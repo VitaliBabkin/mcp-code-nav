@@ -160,7 +160,8 @@ const clangdJobs = (): number =>
  * `--background-index=true` is clangd's own default today and is passed anyway: the project-wide C++
  * reference and caller answers are computed from that index, so a future clangd
  * whose default flips must not silently change what this server's answers cover. A flag that decides the
- * scope of an answer belongs in the argv this server writes.
+ * scope of an answer belongs in the argv this server writes. `--limit-references=0` is one: clangd's default
+ * of 1000 truncates a reference answer without saying so, and this server reports its counts as exact.
  *
  * The rest bounds what the child may take from the host: a worker cap, precompiled headers on disk and a low
  * indexing priority. The index itself is not reduced.
@@ -169,6 +170,7 @@ const clangdArgv = (root: string): readonly string[] => [
   `--compile-commands-dir=${root}`,
   "--background-index=true",
   "--background-index-priority=low",
+  "--limit-references=0",
   ...clangdMemoryFlags(),
   "--log=error",
 ];

@@ -47,6 +47,7 @@ describe("clangdConfig.argv", () => {
       "--compile-commands-dir=C:/build",
       "--background-index=true",
       "--background-index-priority=low",
+      "--limit-references=0",
       "--pch-storage=disk",
       expect.stringMatching(/^-j=[1-9]\d*$/),
       "--log=error",
