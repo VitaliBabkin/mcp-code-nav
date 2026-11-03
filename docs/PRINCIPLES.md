@@ -100,6 +100,10 @@ available (Windows); say in the pull request which drivers you ran. The extracti
 - The server builds no index of its own: no sweep, no blind walk of the project. It uses the index each language server
   builds for itself (clangd's background index, gopls's package graph, tsgo's project graph) and states that index's
   state in the answer (`scope.index.state`, `scope.freshness`). A result list that hit a cap is reported as capped.
+- A language server may cut a list short without saying so. Every request a session may send is therefore either not
+  a list, uncapped by a flag in the argv this server writes, watched by a watermark at or below the server's cap, or
+  measured uncapped by a live test; `test/lsp/server-caps.test.ts` holds that inventory, and a request added to an
+  allow-list without an entry there fails it.
 - Where the caller names a file, the symbol is resolved from that file's outline, not by a search.
 - tsgo project membership is read from `tsc --listFilesOnly`, the compiler's own rule, never from a re-implemented glob.
   For a TypeScript source no project includes, the answer names the files whose text mentions the subject as a pointer
