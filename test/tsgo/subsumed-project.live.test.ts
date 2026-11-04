@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
-import { join, relative, resolve, sep } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, describe, expect } from "vitest";
+import { lineOf, pathKey, samePath, under as underRoot } from "../helpers/fixture-text.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { buildProjectMap, type ProjectMap, type TsProject } from "../../src/tsgo/project-map.js";
 import { walkWorkspace, workspaceSnapshotReason } from "../../src/tsgo/workspace-snapshot.js";
@@ -21,7 +21,8 @@ import {
   requireTsgo,
   stampsOf,
   tsgoProcessLog,
-  type TsgoProcessLog,
+  freshManager,
+  disposeTsgoLiveManagers,
 } from "../helpers/tsgo-live.js";
 import { payloadAs } from "../helpers/tool-result.js";
 
@@ -75,6 +76,8 @@ import { payloadAs } from "../helpers/tool-result.js";
  */
 
 const root = join(fixtures, "ts-workspace-subsumed");
+
+const under = (path: string | null | undefined): string => underRoot(root, path);
 const rootConfig = join(root, "tsconfig.json");
 const nestedConfig = join(root, "pkg", "tsconfig.json");
 const anchorFile = join(root, "pkg", "src", "first.ts");
@@ -95,29 +98,6 @@ const MEMBERS = ["pkg/src/first.ts", "pkg/src/subject.ts", "pkg/src/uses.ts"];
 type Result = Awaited<ReturnType<typeof runTsFindReferences>>;
 
 // ---------------------------------------------------------------- `subsumed` reading
-
-/** Paths compared the way the map compares them: separators normalised, case folded on this OS. */
-const pathKey = (path: string): string => path.replace(/\\/g, "/").toLowerCase();
-
-function samePath(a: string | undefined, b: string): boolean {
-  return a !== undefined && pathKey(a) === pathKey(b);
-}
-
-/** `path` under the fixture root in forward slashes; its own spelling when it is not under it at all. */
-function under(path: string | null | undefined): string {
-  if (path === undefined || path === null) return "<none>";
-  const rel = relative(root, path);
-  if (!rel.startsWith("..")) return rel.split(sep).join("/");
-  // The same directory spelled with another drive-letter case is still under it: `relative` would call that an
-  // escape, and the map compares the two case-folded.
-  const key = pathKey(root);
-  return pathKey(path).startsWith(`${key}/`)
-    ? path
-        .slice(key.length + 1)
-        .split("\\")
-        .join("/")
-    : path;
-}
 
 function namesUnder(paths: readonly string[]): string[] {
   return paths.map((path) => under(path)).sort();
@@ -176,19 +156,7 @@ function subsumedMembers(entries: readonly unknown[]): string[] | undefined {
 
 // ---------------------------------------------------------------- live scaffolding
 
-const managers: LspSessionManager[] = [];
-
-/** One manager per case, kept so `afterEach` disposes what a throwing assertion never reached. */
-function freshManager(log?: TsgoProcessLog): LspSessionManager {
-  const manager =
-    log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
-  managers.push(manager);
-  return manager;
-}
-
-afterEach(() => {
-  while (managers.length > 0) managers.pop()?.disposeAll();
-});
+afterEach(disposeTsgoLiveManagers);
 
 function ask(manager: LspSessionManager, file: string, symbol: string): Promise<Result> {
   return runTsFindReferences(manager, {
@@ -202,15 +170,6 @@ function ask(manager: LspSessionManager, file: string, symbol: string): Promise<
 
 function payload(result: Result): TsFindReferencesPayload {
   return payloadAs<TsFindReferencesPayload>(result, "ts_find_references");
-}
-
-const linesOf = (file: string): string[] => readFileSync(file, "utf-8").split(/\r?\n/);
-
-/** The 1-based line a fixture text sits on, or a failure naming the fixture that no longer carries it. */
-function lineOf(file: string, needle: string): number {
-  const index = linesOf(file).findIndex((line) => line.includes(needle));
-  if (index < 0) throw new Error(`the fixture no longer declares "${needle}" in ${file}`);
-  return index + 1;
 }
 
 /** The group answering for one file, however that file happens to be spelled by the server. */

@@ -1,24 +1,14 @@
-import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect } from "vitest";
+import { itIfClangd } from "../helpers/clangd-live.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { runCppFindCallers, type CppFindCallersPayload } from "../../src/tools/cpp-find-callers.js";
 import {
   runCppFindReferences,
   type CppFindReferencesPayload,
 } from "../../src/tools/cpp-find-references.js";
-
-function isClangdAvailable(): boolean {
-  try {
-    execFileSync(process.env.MCP_CODE_NAV_CLANGD ?? "clangd", ["--version"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-const itIfClangd = isClangdAvailable() ? it : it.skip;
 
 /**
  * clangd truncates a reference answer at `--limit-references` (1000 unless told otherwise) and says nothing

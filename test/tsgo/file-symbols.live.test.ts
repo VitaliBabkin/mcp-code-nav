@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
+import { lineOf, linesOf } from "../helpers/fixture-text.js";
 import type { LspDocumentSymbol, OutlineSymbol } from "../../src/clangd/outline.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { tsgoConfig } from "../../src/lsp/server-config.js";
@@ -32,17 +32,6 @@ const widgetFile = join(tsFixtureRoot, "src", "widget.jsx");
 const legacyFile = join(tsFixtureRoot, "src", "legacy.js");
 const emptyFile = join(tsFixtureRoot, "src", "empty.ts");
 const outsideFile = join(tsFixtureRoot, "test", "outside.ts");
-
-function linesOf(file: string): string[] {
-  return readFileSync(file, "utf-8").split(/\r?\n/);
-}
-
-/** The 1-based line a fixture text is on, or a failure naming the fixture that no longer carries it. */
-function lineOf(file: string, needle: string): number {
-  const index = linesOf(file).findIndex((line) => line.includes(needle));
-  if (index < 0) throw new Error(`the fixture no longer declares "${needle}" in ${file}`);
-  return index + 1;
-}
 
 /** A binding row: the name the file binds, and the line its own entry starts on. */
 type BindingRow = TsFileSymbolsPayload["bindings"][number];

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { afterEach, describe, expect } from "vitest";
+import { lineOf, linesOf } from "../helpers/fixture-text.js";
 import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 import { tsgoConfig } from "../../src/lsp/server-config.js";
 import { pathKey } from "../../src/paths/path-containment.js";
@@ -12,7 +13,6 @@ import {
   type TsDeclarationRow,
   type TsFindSymbolPayload,
 } from "../../src/tools/ts-find-symbol.js";
-import { walkWorkspace } from "../../src/tsgo/workspace-snapshot.js";
 import {
   CALL_BUDGET_MS,
   describeProcesses,
@@ -22,8 +22,10 @@ import {
   itIfTsgoAvailable,
   recordAnswer,
   requireTsgo,
-  stampsOf,
   tsgoProcessLog,
+  treeStamps,
+  freshManager,
+  disposeTsgoLiveManagers,
 } from "../helpers/tsgo-live.js";
 
 /**
@@ -46,17 +48,7 @@ const externalFile = join(fixtures, "ts-find-symbol-external", "ext.ts");
 
 type Result = Awaited<ReturnType<typeof runTsFindSymbol>>;
 
-const managers: LspSessionManager[] = [];
-
-function freshManager(): LspSessionManager {
-  const manager = new LspSessionManager();
-  managers.push(manager);
-  return manager;
-}
-
-afterEach(() => {
-  while (managers.length > 0) managers.pop()?.disposeAll();
-});
+afterEach(disposeTsgoLiveManagers);
 
 function ask(
   manager: LspSessionManager,
@@ -74,15 +66,6 @@ function ask(
 
 function payload(result: Result): TsFindSymbolPayload {
   return payloadAs<TsFindSymbolPayload>(result, "ts_find_symbol");
-}
-
-const linesOf = (file: string): string[] => readFileSync(file, "utf-8").split(/\r?\n/);
-
-/** The 1-based line of the first fixture line holding `needle`, or a failure naming the fixture that lost it. */
-function lineOf(file: string, needle: string): number {
-  const index = linesOf(file).findIndex((line) => line.includes(needle));
-  if (index < 0) throw new Error(`the fixture no longer declares "${needle}" in ${file}`);
-  return index + 1;
 }
 
 /** The 1-based line of `needle` at or after the line that holds `anchor`, for a member beside lookalikes. */
@@ -103,12 +86,6 @@ function listed(answer: TsFindSymbolPayload): string[] {
       : relative(workspaceRoot, row.file).replaceAll("\\", "/");
     return `${row.name} (${row.kind}) ${where}:${row.line}`;
   });
-}
-
-function treeStamps(root: string): Map<string, string> {
-  const walked = walkWorkspace(root);
-  if (walked === undefined) throw new Error(`the walk of "${root}" did not complete`);
-  return stampsOf([...walked.entries.keys()]);
 }
 
 describe("ts_find_symbol against the real tsgo", () => {
@@ -192,8 +169,7 @@ describe("ts_find_symbol against the real tsgo", () => {
     async () => {
       const before = treeStamps(workspaceRoot);
       const log = tsgoProcessLog();
-      const manager = new LspSessionManager({ spawn: log.spawn });
-      managers.push(manager);
+      const manager = freshManager(log);
 
       const answer = payload(await ask(manager, "area", workspaceRoot));
       recordAnswer("find-symbol-dir-area", answer);

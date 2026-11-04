@@ -1,35 +1,17 @@
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
 import type { OutlineSymbol } from "../../src/clangd/outline.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { runGoFileSymbols } from "../../src/tools/go-file-symbols.js";
+import { lineOf as fixtureLineOf } from "../helpers/fixture-text.js";
+import { itIfGoplsAvailable } from "../helpers/go-live.js";
 import { payloadOf, resultView } from "../helpers/tool-result.js";
-
-// gopls is optional on this host in exactly the way clangd is, so the suite skips rather than failing
-// with the symptom it is meant to detect. `MCP_CODE_NAV_GOPLS` overrides, as it does at runtime.
-function isGoplsAvailable(): boolean {
-  try {
-    execFileSync(process.env.MCP_CODE_NAV_GOPLS ?? "gopls", ["version"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-const itIfGoplsAvailable = isGoplsAvailable() ? it : it.skip;
 
 const moduleRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "go-module");
 const storageFile = join(moduleRoot, "storage.go");
-const sourceLines = readFileSync(storageFile, "utf-8").split(/\r?\n/);
-
 /** The 1-based line the fixture declares `needle` on, so the assertions track the fixture, not a snapshot. */
-function lineOf(needle: string): number {
-  const index = sourceLines.findIndex((line) => line.includes(needle));
-  if (index < 0) throw new Error(`the fixture no longer declares "${needle}"`);
-  return index + 1;
-}
+const lineOf = (needle: string): number => fixtureLineOf(storageFile, needle);
 
 function findByName(symbols: OutlineSymbol[], name: string): OutlineSymbol | undefined {
   for (const symbol of symbols) {

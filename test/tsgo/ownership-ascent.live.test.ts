@@ -1,9 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect } from "vitest";
+import { lineOf, under as underRoot } from "../helpers/fixture-text.js";
 import type { LspDocumentSymbol } from "../../src/clangd/outline.js";
 import { textDocumentId } from "../../src/lsp/document-uri.js";
-import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { tsgoConfig } from "../../src/lsp/server-config.js";
 import { isExistingFile } from "../../src/paths/resolve-safe-path.js";
 import { pathOfUri, rangeStart, recordOf } from "../../src/tools/lsp-locations.js";
@@ -14,7 +14,8 @@ import {
   requireTsgo,
   stampsOf,
   tsgoProcessLog,
-  type TsgoProcessLog,
+  freshManager,
+  disposeTsgoLiveManagers,
 } from "../helpers/tsgo-live.js";
 
 /**
@@ -68,6 +69,8 @@ import {
  */
 
 const root = join(fixtures, "ts-workspace-ascent");
+
+const under = (path: string | null | undefined): string => underRoot(root, path);
 const sharedFile = join(root, "nested", "shared.ts");
 const consumerFile = join(root, "nested", "consumer.ts");
 
@@ -83,33 +86,6 @@ const BINDING = "import { SHARED_HERE }";
 const USE = "return SHARED_HERE;";
 
 // ---------------------------------------------------------------- fixture reading
-
-/** Paths compared the way the map compares them: separators normalised, case folded on this OS. */
-const pathKey = (path: string): string => path.replace(/\\/g, "/").toLowerCase();
-
-/** `path` under the fixture root in forward slashes; its own spelling when it is not under it at all. */
-function under(path: string): string {
-  const rel = relative(root, path);
-  if (!rel.startsWith("..")) return rel.split(sep).join("/");
-  // The same directory spelled with another drive-letter case is still under it: `relative` would call that an
-  // escape, and the server spells a URI back the way it was given one.
-  const key = pathKey(root);
-  return pathKey(path).startsWith(`${key}/`)
-    ? path
-        .slice(key.length + 1)
-        .split("\\")
-        .join("/")
-    : path;
-}
-
-const linesOf = (file: string): string[] => readFileSync(file, "utf-8").split(/\r?\n/);
-
-/** The 1-based line a fixture text sits on, or a failure naming the fixture that no longer carries it. */
-function lineOf(file: string, needle: string): number {
-  const index = linesOf(file).findIndex((line) => line.includes(needle));
-  if (index < 0) throw new Error(`the fixture no longer declares "${needle}" in ${file}`);
-  return index + 1;
-}
 
 /**
  * Every file of the fixture. The tree is `nested` and `nested/inner` deep and holds no `node_modules`, so this
@@ -140,18 +116,7 @@ const treeStamps = (): Map<string, string> => stampsOf(fixtureFiles());
 
 // ---------------------------------------------------------------- live scaffolding
 
-const managers: LspSessionManager[] = [];
-
-/** One manager per case, kept so `afterEach` disposes what a throwing assertion never reached. */
-function freshManager(log: TsgoProcessLog): LspSessionManager {
-  const manager = new LspSessionManager({ spawn: log.spawn });
-  managers.push(manager);
-  return manager;
-}
-
-afterEach(() => {
-  while (managers.length > 0) managers.pop()?.disposeAll();
-});
+afterEach(disposeTsgoLiveManagers);
 
 // ---------------------------------------------------------------------- the answer
 

@@ -1,9 +1,8 @@
-import { readFileSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { join } from "node:path";
 import { afterEach, describe, expect } from "vitest";
+import { lineOf, linesOf, under } from "../helpers/fixture-text.js";
 import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
-import { walkWorkspace } from "../../src/tsgo/workspace-snapshot.js";
 import {
   runTsFindImplementations,
   type TsFindImplementationsPayload,
@@ -14,9 +13,10 @@ import {
   fixtures,
   itIfTsgoAvailable,
   recordAnswer,
-  stampsOf,
   tsgoProcessLog,
-  type TsgoProcessLog,
+  treeStamps,
+  freshManager,
+  disposeTsgoLiveManagers,
 } from "../helpers/tsgo-live.js";
 
 /**
@@ -37,19 +37,7 @@ const handlerFile = join(workspaceRoot, "src", "handler.ts");
 
 type Result = Awaited<ReturnType<typeof runTsFindImplementations>>;
 
-const managers: LspSessionManager[] = [];
-
-/** One manager per case, kept so `afterEach` disposes what a throwing assertion never reached. */
-function freshManager(log?: TsgoProcessLog): LspSessionManager {
-  const manager =
-    log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
-  managers.push(manager);
-  return manager;
-}
-
-afterEach(() => {
-  while (managers.length > 0) managers.pop()?.disposeAll();
-});
+afterEach(disposeTsgoLiveManagers);
 
 function ask(manager: LspSessionManager, symbol: string, file = handlerFile): Promise<Result> {
   return runTsFindImplementations(manager, {
@@ -62,22 +50,6 @@ function ask(manager: LspSessionManager, symbol: string, file = handlerFile): Pr
 
 function payload(result: Result): TsFindImplementationsPayload {
   return payloadAs<TsFindImplementationsPayload>(result, "ts_find_implementations");
-}
-
-const linesOf = (file: string): string[] => readFileSync(file, "utf-8").split(/\r?\n/);
-
-/** The 1-based line a fixture text sits on, or a failure naming the fixture that no longer carries it. */
-function lineOf(file: string, needle: string): number {
-  const index = linesOf(file).findIndex((line) => line.includes(needle));
-  if (index < 0) throw new Error(`the fixture no longer declares "${needle}" in ${file}`);
-  return index + 1;
-}
-
-/** `path` under `root` in forward slashes; its own spelling when it is not under it at all. */
-function under(root: string, path: string | null | undefined): string {
-  if (path === undefined || path === null) return "<none>";
-  const rel = relative(root, path);
-  return rel.startsWith("..") ? path : rel.split(sep).join("/");
 }
 
 function namesOf(answer: TsFindImplementationsPayload): (string | null)[] {
@@ -107,13 +79,6 @@ function requireProjects(scope: TsNavigationScope): {
   if (!("projects" in scope))
     throw new Error(`no project map was reported: ${scope.projectsUnavailable}`);
   return scope.projects;
-}
-
-/** Every file the walk proved it saw: what a run must leave exactly as it found it. */
-function treeStamps(root: string): Map<string, string> {
-  const walked = walkWorkspace(root);
-  if (walked === undefined) throw new Error(`the walk of "${root}" did not complete`);
-  return stampsOf([...walked.entries.keys()]);
 }
 
 /** The 1-based line of `needle` at or after the line holding `anchor`, for a member beside lookalikes. */
