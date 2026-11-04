@@ -1,8 +1,8 @@
-import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect } from "vitest";
+import { itIfClangd } from "../helpers/clangd-live.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import {
   runCppFindCallers,
@@ -17,18 +17,6 @@ import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import type { OutlineSymbol } from "../../src/clangd/outline.js";
 import { runCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
 import { payloadOf, resultView, textOf } from "../helpers/tool-result.js";
-
-// clangd is optional on this host in exactly the way gopls is, so the suite skips rather than failing with
-// the symptom it exists to detect. `MCP_CODE_NAV_CLANGD` overrides, as it does at runtime.
-function isClangdAvailable(): boolean {
-  try {
-    execFileSync(process.env.MCP_CODE_NAV_CLANGD ?? "clangd", ["--version"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-const itIfClangd = isClangdAvailable() ? it : it.skip;
 
 /**
  * The two C++ listing tools, asked of a real clangd over a real index. What this suite pins

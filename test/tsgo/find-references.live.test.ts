@@ -1,11 +1,11 @@
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, relative, sep } from "node:path";
+import { basename, join } from "node:path";
 import { afterEach, describe, expect } from "vitest";
+import { lineOf, linesOf, removeTree, samePath, under } from "../helpers/fixture-text.js";
 import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { dropProjectMap } from "../../src/tsgo/project-map.js";
-import { walkWorkspace } from "../../src/tsgo/workspace-snapshot.js";
 import {
   OUTSIDE_WORKSPACE_REASON,
   type TsUncoveredBlock,
@@ -21,9 +21,10 @@ import {
   fixtures,
   itIfTsgoAvailable,
   requireTsgo,
-  stampsOf,
   tsgoProcessLog,
-  type TsgoProcessLog,
+  treeStamps,
+  freshManager,
+  disposeTsgoLiveManagers,
 } from "../helpers/tsgo-live.js";
 
 /**
@@ -54,19 +55,7 @@ type Result = Awaited<ReturnType<typeof runTsFindReferences>>;
 
 // ---------------------------------------------------------------- live scaffolding
 
-const managers: LspSessionManager[] = [];
-
-/** One manager per case, kept so `afterEach` disposes what a throwing assertion never reached. */
-function freshManager(log?: TsgoProcessLog): LspSessionManager {
-  const manager =
-    log === undefined ? new LspSessionManager() : new LspSessionManager({ spawn: log.spawn });
-  managers.push(manager);
-  return manager;
-}
-
-afterEach(() => {
-  while (managers.length > 0) managers.pop()?.disposeAll();
-});
+afterEach(disposeTsgoLiveManagers);
 
 function ask(
   manager: LspSessionManager,
@@ -88,30 +77,8 @@ function payload(result: Result): TsFindReferencesPayload {
   return payloadAs<TsFindReferencesPayload>(result, "ts_find_references");
 }
 
-function samePath(a: string | undefined, b: string): boolean {
-  if (a === undefined) return false;
-  const normalise = (path: string) => path.replace(/\\/g, "/").toLowerCase();
-  return normalise(a) === normalise(b);
-}
-
-/** `path` under `root` in forward slashes; its own spelling when it is not under it at all. */
-function under(root: string, path: string | null | undefined): string {
-  if (path === undefined || path === null) return "<none>";
-  const rel = relative(root, path);
-  return rel.startsWith("..") ? path : rel.split(sep).join("/");
-}
-
 function namesUnder(root: string, paths: readonly string[]): string[] {
   return paths.map((path) => under(root, path)).sort();
-}
-
-const linesOf = (file: string): string[] => readFileSync(file, "utf-8").split(/\r?\n/);
-
-/** The 1-based line a fixture text sits on, or a failure naming the fixture that no longer carries it. */
-function lineOf(file: string, needle: string): number {
-  const index = linesOf(file).findIndex((line) => line.includes(needle));
-  if (index < 0) throw new Error(`the fixture no longer declares "${needle}" in ${file}`);
-  return index + 1;
 }
 
 /** The group answering for one file, however the server happened to spell it. */
@@ -148,31 +115,11 @@ function projectsOf(answer: TsFindReferencesPayload): {
   return scope.projects;
 }
 
-/** Every file the walk proved it saw in a fixture tree: what a run must leave exactly as it found it. */
-function treeStamps(root: string): Map<string, string> {
-  const walked = walkWorkspace(root);
-  if (walked === undefined) throw new Error(`the walk of "${root}" did not complete`);
-  return stampsOf([...walked.entries.keys()]);
-}
-
 function copyFixture(root: string): { dir: string; copied: string } {
   const dir = mkdtempSync(join(tmpdir(), "mcp-code-nav-tsref-"));
   const copied = join(dir, basename(root));
   cpSync(root, copied, { recursive: true });
   return { dir, copied };
-}
-
-/** `child.kill()` does not wait, and on Windows the killed `tsc.exe` held this directory as its cwd. */
-async function removeTree(dir: string): Promise<void> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      rmSync(dir, { recursive: true, force: true });
-      return;
-    } catch (e) {
-      if (attempt >= 9) throw e;
-      await new Promise((done) => setTimeout(done, 300));
-    }
-  }
 }
 
 /** Writes one file, with its directories, into a copy. */

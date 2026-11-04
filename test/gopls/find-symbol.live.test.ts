@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect } from "vitest";
@@ -11,6 +11,7 @@ import {
   type FindSymbolPayload,
   WORKSPACE_SYMBOL_CAP_WATERMARK,
 } from "../../src/tools/go-find-symbol.js";
+import { lineOf } from "../helpers/fixture-text.js";
 import { payloadAs, resultView, textOf } from "../helpers/tool-result.js";
 import {
   CALL_BUDGET_MS,
@@ -76,14 +77,6 @@ function inModule(rows: readonly DeclarationRow[]): DeclarationRow[] {
 
 function rowAt(rows: readonly DeclarationRow[], path: string): DeclarationRow | undefined {
   return rows.find((row) => samePath(row.file, path));
-}
-
-/** The 1-based line a fixture file declares `needle` on, so assertions track the fixture, not a snapshot. */
-function lineOf(path: string, needle: string): number {
-  const lines = readFileSync(path, "utf-8").split(/\r?\n/);
-  const index = lines.findIndex((line) => line.includes(needle));
-  if (index < 0) throw new Error(`the fixture no longer declares "${needle}" in ${path}`);
-  return index + 1;
 }
 
 /** A module copy grown wide: 150 one-line declarations, all spelling `Bulk` plus three digits. */
