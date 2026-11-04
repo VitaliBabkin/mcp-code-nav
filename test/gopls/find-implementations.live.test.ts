@@ -218,6 +218,10 @@ describe("go_find_implementations against a real gopls binary", () => {
 
       const noDirection = await ask(manager, [implRoot], implFile, "Helper");
       expect(resultView(noDirection).isError).toBe(true);
+      expect(resultView(noDirection).structuredContent).toEqual({
+        reason: "symbol-kind-unsupported",
+        retryable: false,
+      });
       expect(textOf(noDirection)).toMatch(/named func type/);
 
       for (const [symbolName, kindName] of [
@@ -227,6 +231,10 @@ describe("go_find_implementations against a real gopls binary", () => {
       ] as const) {
         const refused = await ask(manager, [implRoot], implFile, symbolName);
         expect(resultView(refused).isError, `${symbolName} has no direction to answer`).toBe(true);
+        expect(resultView(refused).structuredContent).toEqual({
+          reason: "symbol-kind-unsupported",
+          retryable: false,
+        });
         expect(textOf(refused)).toContain(`is a ${kindName}`);
       }
     },
@@ -241,6 +249,10 @@ describe("go_find_implementations against a real gopls binary", () => {
       if (resultView(result).isError) {
         // gopls gave the alias a kind with no direction: the refusal has to name that kind, and the
         // observation belongs in the report rather than in an assumed assertion.
+        expect(resultView(result).structuredContent).toEqual({
+          reason: "symbol-kind-unsupported",
+          retryable: false,
+        });
         expect(textOf(result)).toMatch(
           /only named types and interfaces have a direction|named func type/,
         );

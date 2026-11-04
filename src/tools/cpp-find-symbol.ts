@@ -14,7 +14,7 @@ import {
   cppQuestionDeclaration,
   indexBlock,
   missingCompileDbHint,
-  noIndexDeclarationText,
+  noIndexDeclarationRefusal,
   outsideEveryRoot,
   resolveCppDeclaration,
   resolveCppSourceRoots,
@@ -27,6 +27,7 @@ import type { CppSourceRootsBlock } from "../clang-query/derived-source-roots.js
 import type { Step } from "./navigation-text.js";
 import type { BoundaryTest } from "./lsp-locations.js";
 import { CLANGD_DISK_CLAUSE } from "./shared.js";
+import { reasonOfError } from "./reason-of-error.js";
 import { messageOf } from "../error-message.js";
 
 const TOOL = "cpp_find_symbol";
@@ -132,7 +133,8 @@ function indexScope(
 export async function runCppFindSymbol(sessions: LspSessionManager, raw: CppFindSymbolInputType) {
   try {
     const missingDb = await missingCompileDbHint(raw.projectRoot);
-    if (missingDb !== undefined) return errorResult(`${TOOL} failed: ${missingDb}`);
+    if (missingDb !== undefined)
+      return errorResult(`${TOOL} failed: ${missingDb}`, "compile-db-missing");
 
     // The roots this call's containment uses, stated once: a declared list as given, otherwise the source tree
     // derived from the database, and "none" already means "projectRoot alone".
@@ -141,7 +143,7 @@ export async function runCppFindSymbol(sessions: LspSessionManager, raw: CppFind
     const session = sessions.get(input.projectRoot, clangdConfig);
     const outside = outsideEveryRoot(input.projectRoot, input.sourceRoots);
     const resolved = await resolveCppDeclaration(TOOL, session, input, roots.block);
-    if (!resolved.ok) return errorResult(resolved.error);
+    if (!resolved.ok) return errorResult(resolved.error, resolved.reason);
     if ("declaration" in resolved.value) {
       return successResult(await toResult(session, resolved.value.declaration, outside));
     }
@@ -156,11 +158,16 @@ export async function runCppFindSymbol(sessions: LspSessionManager, raw: CppFind
           session.request<unknown>("workspace/symbol", { query }),
         ),
     );
-    if (!target.ok) return errorResult(target.error);
+    if (!target.ok) return errorResult(target.error, target.reason);
     if (target.value.declaration === undefined) {
-      return errorResult(
-        noIndexDeclarationText(TOOL, input.name, input.projectRoot, index, target.value.capped),
+      const refusal = noIndexDeclarationRefusal(
+        TOOL,
+        input.name,
+        input.projectRoot,
+        index,
+        target.value.capped,
       );
+      return errorResult(refusal.error, refusal.reason);
     }
     const payload: CppFindSymbolPayload = {
       ...(await toResult(session, target.value.declaration, outside)),
@@ -170,7 +177,7 @@ export async function runCppFindSymbol(sessions: LspSessionManager, raw: CppFind
     };
     return successResult(payload);
   } catch (e) {
-    return errorResult(`${TOOL} failed: ${messageOf(e)}`);
+    return errorResult(`${TOOL} failed: ${messageOf(e)}`, reasonOfError(e));
   }
 }
 

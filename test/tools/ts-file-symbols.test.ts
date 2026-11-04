@@ -346,6 +346,10 @@ describe("runTsFileSymbols", () => {
       const { manager, servers } = sessionsAnswering(() => TSGO_ANSWER);
       const out = await runTsFileSymbols(manager, input({ sourceRoots: [ws], file }), LOCATED);
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "input-invalid",
+        retryable: false,
+      });
       expect(textOf(out)).toBe(
         `ts_file_symbols failed: "${resolve(file)}" is not a TypeScript or JavaScript source. These tools accept ` +
           ".ts, .mts, .cts, .tsx, .js, .mjs, .cjs, .jsx - the file's extension also decides how tsgo parses it.",
@@ -362,6 +366,7 @@ describe("runTsFileSymbols", () => {
     const { manager, servers } = sessionsAnswering(() => TSGO_ANSWER);
     const out = await runTsFileSymbols(manager, input({ sourceRoots: [plain], file }), LOCATED);
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({ reason: "no-module", retryable: false });
     expect(textOf(out)).toContain("is not inside an npm package - no package.json exists in ");
     expect(textOf(out)).toContain(`"${resolve(plain)}"`);
     expect(textOf(out)).toContain(
@@ -386,6 +391,7 @@ describe("runTsFileSymbols", () => {
       LOCATED,
     );
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({ reason: "path-escape", retryable: false });
     expect(textOf(out)).toContain(
       `belongs to the npm package "${resolve(outsidePkg)}" (its nearest package.json), which is `,
     );
@@ -422,6 +428,10 @@ describe("runTsFileSymbols", () => {
       resolveBinary: async () => miss,
     });
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "server-unavailable",
+      retryable: false,
+    });
     expect(textOf(out)).toBe(`ts_file_symbols failed: ${failure.message}`);
     expect(textOf(out)).toContain("Cannot start tsgo:");
     expect(textOf(out)).toContain("MCP_CODE_NAV_TSGO");
@@ -447,6 +457,10 @@ describe("runTsFileSymbols", () => {
       LOCATED,
     );
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "budget-exceeded",
+      retryable: true,
+    });
     expect(textOf(out)).toMatch(/did not answer[\s\S]*30 ms budget/);
     expect(textOf(out)).toMatch(/do not read this as an empty file/);
     expect(textOf(out)).toContain(
@@ -462,6 +476,7 @@ describe("runTsFileSymbols", () => {
     const { manager, servers } = sessionsAnswering(() => TSGO_ANSWER);
     const out = await runTsFileSymbols(manager, input({ sourceRoots: [ws], file }), LOCATED);
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({ reason: "path-escape", retryable: false });
     expect(textOf(out)).toMatch(/escapes every declared root/);
     expect(servers).toHaveLength(0);
   });
@@ -495,6 +510,10 @@ describe("runTsFileSymbols", () => {
     );
 
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "budget-exceeded",
+      retryable: true,
+    });
     expect(textOf(out)).toContain("1 ms budget");
     expect(textOf(out)).toContain("npm root -g");
     expect(textOf(out)).toContain(TSGO_IDENTITY.commandEnvOverride);
@@ -544,6 +563,10 @@ describe("runTsFileSymbols", () => {
     );
 
     expect(resultView(retried).isError).toBe(true);
+    expect(resultView(retried).structuredContent).toEqual({
+      reason: "budget-exceeded",
+      retryable: true,
+    });
     expect(textOf(retried)).toContain("1 ms budget");
     expect(asking).toBe(2);
     expect(servers).toHaveLength(0);
@@ -557,6 +580,10 @@ describe("runTsFileSymbols", () => {
       LOCATED,
     );
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "file-not-found",
+      retryable: false,
+    });
     expect(textOf(out)).toMatch(/ENOENT/);
     expect(textOf(out)).toContain("gone.ts");
   });

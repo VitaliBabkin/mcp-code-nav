@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LspDocumentSymbol } from "../../src/clangd/outline.js";
 import type { ClangQueryExecFn } from "../../src/clang-query/find-derived-classes.js";
 import { SweepCache } from "../../src/clang-query/sweep-cache.js";
-import { classifyError } from "../../src/call-log/error-class.js";
 import { fileUri } from "../../src/lsp/document-uri.js";
 import type { LspProcess } from "../../src/lsp/process.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
@@ -164,7 +163,7 @@ describe("cpp_file_symbols", () => {
         `"${layout.repo}" "${layout.repo}" was derived from compile_commands.json because sourceRoots was omitted; ` +
         "to read a file outside it, pass that file's source tree as sourceRoots.",
     );
-    expect(classifyError(textOf(result)).errorClass).toBe("path-escape");
+    expect(result.structuredContent).toEqual({ reason: "path-escape", retryable: false });
   });
 
   it("derives nothing from a declared list, and says so", async () => {
@@ -243,7 +242,7 @@ describe("cpp_file_symbols", () => {
         " Only projectRoot was searched; if the file lives in a source tree outside it, pass that tree as sourceRoots.",
       ),
     ).toBe(true);
-    expect(classifyError(textOf(result)).errorClass).toBe("file-not-found");
+    expect(result.structuredContent).toEqual({ reason: "file-not-found", retryable: false });
   });
 
   it("adds no such sentence for a missing file under a derived root", async () => {
@@ -439,7 +438,7 @@ describe("cpp_find_symbol, the index branch", () => {
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain(`"${layout.repo}" was derived from compile_commands.json`);
-    expect(classifyError(textOf(result)).errorClass).toBe("path-escape");
+    expect(result.structuredContent).toEqual({ reason: "path-escape", retryable: false });
   });
 
   it("names the search boundary for a missing file when only projectRoot was a root", async () => {
@@ -498,7 +497,7 @@ describe("cpp_find_references", () => {
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain(`"${layout.repo}" was derived from compile_commands.json`);
-    expect(classifyError(textOf(result)).errorClass).toBe("path-escape");
+    expect(result.structuredContent).toEqual({ reason: "path-escape", retryable: false });
   });
 
   it("refuses a subject declared beyond projectRoot when only projectRoot is a root", async () => {
@@ -570,7 +569,7 @@ describe("cpp_find_callers", () => {
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain(`"${layout.repo}" was derived from compile_commands.json`);
-    expect(classifyError(textOf(result)).errorClass).toBe("path-escape");
+    expect(result.structuredContent).toEqual({ reason: "path-escape", retryable: false });
   });
 
   it("states a declared list as declared", async () => {
@@ -717,7 +716,7 @@ describe("cpp_find_derived_classes", () => {
         `pass the source tree as sourceRoots, e.g. sourceRoots: [${JSON.stringify(layout.repo)}].`,
       ),
     ).toBe(true);
-    expect(classifyError(textOf(result)).errorClass).toBe("path-escape");
+    expect(result.structuredContent).toEqual({ reason: "path-escape", retryable: false });
   });
 
   it("keeps the unscoped call's failure on an invalid database", async () => {
@@ -727,5 +726,6 @@ describe("cpp_find_derived_classes", () => {
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain("is not valid JSON");
+    expect(result.structuredContent).toEqual({ reason: "compile-db-invalid", retryable: false });
   });
 });

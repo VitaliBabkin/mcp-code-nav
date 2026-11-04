@@ -9,6 +9,7 @@ import { errorResult, successResult } from "../mcp-response.js";
 import type { ResolvedPath } from "../paths/resolve-safe-path.js";
 import { NameInput } from "./input-limits.js";
 import { resolutionNote } from "./shared.js";
+import { reasonOfError } from "./reason-of-error.js";
 import type { Budget } from "./budget.js";
 import { GoDeclaringFileSchema, GoSourceRootsSchema, timeBudgetSchema } from "./go-shared.js";
 import {
@@ -213,7 +214,7 @@ export async function runGoFindReferences(
         resolution = resolved;
       },
     );
-    if (!opened.ok) return errorResult(opened.error);
+    if (!opened.ok) return errorResult(opened.error, opened.reason);
     const query = opened.value;
     const { file, moduleRoot, budget, session, symbols, picked } = query;
 
@@ -230,7 +231,7 @@ export async function runGoFindReferences(
       params,
       `answer the query for "${input.symbol}"`,
     );
-    if (!answered.ok) return errorResult(answered.error);
+    if (!answered.ok) return errorResult(answered.error, answered.reason);
     const locations = toReported(
       "gopls",
       TOOL,
@@ -238,7 +239,7 @@ export async function runGoFindReferences(
       outsideRoot(moduleRoot),
       input.symbol,
     );
-    if (!locations.ok) return errorResult(locations.error);
+    if (!locations.ok) return errorResult(locations.error, locations.reason);
 
     const { files, filesTruncated, sitesTruncated } = await buildListing(
       session,
@@ -261,7 +262,10 @@ export async function runGoFindReferences(
     };
     return successResult(payload, humanSummary(payload));
   } catch (e) {
-    return errorResult(`${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`);
+    return errorResult(
+      `${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`,
+      reasonOfError(e),
+    );
   }
 }
 

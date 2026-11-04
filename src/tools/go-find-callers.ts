@@ -9,6 +9,7 @@ import { errorResult, successResult } from "../mcp-response.js";
 import type { ResolvedPath } from "../paths/resolve-safe-path.js";
 import { NameInput } from "./input-limits.js";
 import { resolutionNote } from "./shared.js";
+import { reasonOfError } from "./reason-of-error.js";
 import type { Budget } from "./budget.js";
 import { GoDeclaringFileSchema, GoSourceRootsSchema, timeBudgetSchema } from "./go-shared.js";
 import {
@@ -103,6 +104,7 @@ function callableFor(symbol: LspDocumentSymbol): Step<string> {
       `${TOOL} failed: "${symbol.name}" is ${withArticle(kind)}, and only a function or a method has ` +
       "callers. A type, variable or constant is never called - ask go_find_references for where it is used " +
       "instead.",
+    reason: "symbol-kind-unsupported",
   };
 }
 
@@ -135,7 +137,7 @@ function readItem(
   const file = pathOfUri(item.uri);
   const start = rangeStart(item.range);
   if (file === undefined || start === undefined) {
-    return { ok: false, error: unexpectedCallText(symbol, raw, part) };
+    return { ok: false, error: unexpectedCallText(symbol, raw, part), reason: "unexpected-answer" };
   }
   return { ok: true, value: reportedLocation(file, start, outsideRoot(moduleRoot), keyOf(file)) };
 }
@@ -160,10 +162,12 @@ function preparedItem(
   keyOf: (file: string) => string,
 ): Step<unknown> {
   if (result !== null && result !== undefined && !Array.isArray(result)) {
-    return { ok: false, error: unexpectedCallText(symbol, result) };
+    return { ok: false, error: unexpectedCallText(symbol, result), reason: "unexpected-answer" };
   }
   const items: unknown[] = Array.isArray(result) ? result : [];
-  if (items.length === 0) return { ok: false, error: noItemText(TOOL, symbol) };
+  if (items.length === 0) {
+    return { ok: false, error: noItemText(TOOL, symbol), reason: "unexpected-answer" };
+  }
   if (items.length > 1) {
     const lines = items.map(describedItem).join("\n");
     return {
@@ -171,6 +175,7 @@ function preparedItem(
       error:
         `${TOOL} failed: gopls offered ${String(items.length)} call-hierarchy items for "${symbol}", and picking one ` +
         `would be a guess, so they are listed:\n${lines}`,
+      reason: "symbol-ambiguous",
     };
   }
   const only = items[0];
@@ -180,7 +185,9 @@ function preparedItem(
 
 function callSitesOf(value: unknown, symbol: string): Step<CallSite[]> {
   if (value === null || value === undefined) return { ok: true, value: [] };
-  if (!Array.isArray(value)) return { ok: false, error: unexpectedCallText(symbol, value) };
+  if (!Array.isArray(value)) {
+    return { ok: false, error: unexpectedCallText(symbol, value), reason: "unexpected-answer" };
+  }
   const sites: CallSite[] = [];
   for (const [index, range] of value.entries()) {
     const start = rangeStart(range);
@@ -188,6 +195,7 @@ function callSitesOf(value: unknown, symbol: string): Step<CallSite[]> {
       return {
         ok: false,
         error: unexpectedCallText(symbol, value[index], `call site ${String(index + 1)}`),
+        reason: "unexpected-answer",
       };
     }
     sites.push({
@@ -210,7 +218,7 @@ function callerEntries(
   keyOf: (file: string) => string,
 ): Step<CallerGroup[]> {
   if (result !== null && result !== undefined && !Array.isArray(result)) {
-    return { ok: false, error: unexpectedCallText(symbol, result) };
+    return { ok: false, error: unexpectedCallText(symbol, result), reason: "unexpected-answer" };
   }
   const byKey = new Map<string, CallerGroup>();
   const entries = Array.isArray(result) ? result : [];
@@ -319,7 +327,7 @@ export async function runGoFindCallers(
     const opened = await openGoQuery(TOOL, sessions, input, deps, callableFor, (resolved) => {
       resolution = resolved;
     });
-    if (!opened.ok) return errorResult(opened.error);
+    if (!opened.ok) return errorResult(opened.error, opened.reason);
     const query = opened.value;
     const { file, moduleRoot, budget, session, symbols, picked } = query;
     const keyOf = locationKeyFactory();
@@ -332,9 +340,9 @@ export async function runGoFindCallers(
       { textDocument: textDocumentId(file), position: picked.position },
       `prepare the call hierarchy for "${input.symbol}"`,
     );
-    if (!prepared.ok) return errorResult(prepared.error);
+    if (!prepared.ok) return errorResult(prepared.error, prepared.reason);
     const item = preparedItem(prepared.value, moduleRoot, input.symbol, keyOf);
-    if (!item.ok) return errorResult(item.error);
+    if (!item.ok) return errorResult(item.error, item.reason);
 
     const incoming = await typeAwareRequest(
       TOOL,
@@ -344,9 +352,9 @@ export async function runGoFindCallers(
       { item: item.value },
       `return the incoming calls of "${input.symbol}"`,
     );
-    if (!incoming.ok) return errorResult(incoming.error);
+    if (!incoming.ok) return errorResult(incoming.error, incoming.reason);
     const groups = callerEntries(incoming.value, moduleRoot, input.symbol, keyOf);
-    if (!groups.ok) return errorResult(groups.error);
+    if (!groups.ok) return errorResult(groups.error, groups.reason);
 
     const { capped, callersTruncated, sitesTruncated } = capCallers(groups.value);
     const rows = await buildCallers(session, capped, file, symbols, budget);
@@ -364,7 +372,10 @@ export async function runGoFindCallers(
     };
     return successResult(payload, humanSummary(payload));
   } catch (e) {
-    return errorResult(`${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`);
+    return errorResult(
+      `${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`,
+      reasonOfError(e),
+    );
   }
 }
 

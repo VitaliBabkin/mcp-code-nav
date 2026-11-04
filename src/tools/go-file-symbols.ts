@@ -8,6 +8,7 @@ import { withinBudget } from "./budget.js";
 import { GoSourceRootsSchema, resolveGoTarget, timeBudgetSchema } from "./go-shared.js";
 import { PathInput } from "./input-limits.js";
 import { resolutionNote } from "./shared.js";
+import { reasonOfError } from "./reason-of-error.js";
 import { messageOf } from "../error-message.js";
 
 const TOOL = "go_file_symbols";
@@ -39,7 +40,7 @@ export async function runGoFileSymbols(sessions: LspSessionManager, input: GoFil
   let resolution: ResolvedPath | undefined;
   try {
     const target = resolveGoTarget(TOOL, sessions, input);
-    if (!target.ok) return errorResult(target.error);
+    if (!target.ok) return errorResult(target.error, target.reason);
     const { file, moduleRoot, budget, session } = target.value;
     resolution = target.value.resolution;
 
@@ -49,6 +50,7 @@ export async function runGoFileSymbols(sessions: LspSessionManager, input: GoFil
         `${TOOL} failed: gopls did not answer for "${file}" within its ` +
           `${String(budget.ceilingMs)} ms budget. The module rooted at "${moduleRoot}" may still be loading ` +
           "its packages; raise timeBudgetMs or call again, and do not read this as an empty file.",
+        "budget-exceeded",
       );
     }
     // gopls's documentSymbol is syntactic and never premature, so an empty outline is a real answer
@@ -57,7 +59,10 @@ export async function runGoFileSymbols(sessions: LspSessionManager, input: GoFil
       outline.state === "ok" ? toOutline(outline.symbols, input.depth) : [];
     return successResult({ symbols });
   } catch (e) {
-    return errorResult(`${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`);
+    return errorResult(
+      `${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`,
+      reasonOfError(e),
+    );
   }
 }
 

@@ -258,6 +258,10 @@ describe("go_find_symbol against a real gopls binary", () => {
 
       const absent = await ask(manager, "Trim", storageFile);
       expect(resultView(absent).isError).toBe(true);
+      expect(resultView(absent).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(absent)).toContain("was found in the top-level declarations of");
       expect(textOf(absent)).toContain("The match is exact, not fuzzy");
 

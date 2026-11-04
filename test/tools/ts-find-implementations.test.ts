@@ -613,6 +613,10 @@ describe("runTsFindImplementations", () => {
 
       const out = await h.run({ symbol });
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "symbol-kind-unsupported",
+        retryable: false,
+      });
       expect(textOf(out)).toBe(
         `ts_find_implementations failed: "${symbol}" is ${article}, and only an interface, class, method or ` +
           "property has implementations. tsgo answers that question for those four; for any other declaration " +
@@ -703,6 +707,10 @@ describe("runTsFindImplementations", () => {
 
     const out = await h.run();
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "unexpected-answer",
+      retryable: false,
+    });
     expect(textOf(out)).toContain(
       'answered the query for "Storage" with an object this server cannot read',
     );
@@ -716,6 +724,7 @@ describe("runTsFindImplementations", () => {
 
     const out = await h.run();
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({ reason: "session-lost", retryable: true });
     expect(textOf(out)).toBe(
       `ts_find_implementations failed: tsgo restarted during the query about "Storage" in the workspace ` +
         `"${h.ws}", so the documents the answer depends on were opened on a process that is not the one that ` +
@@ -731,6 +740,7 @@ describe("runTsFindImplementations", () => {
 
     const out = await h.run();
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({ reason: "session-lost", retryable: true });
     expect(textOf(out)).toContain("tsgo restarted during the query");
     expect(h.session.isWorkspaceLoaded()).toBe(true);
     expect(h.servers).toHaveLength(2);
@@ -742,12 +752,15 @@ describe("runTsFindImplementations", () => {
 
     const out = await h.run({ timeBudgetMs: 100 });
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "budget-exceeded",
+      retryable: true,
+    });
     expect(textOf(out)).toBe(
       `ts_find_implementations failed: tsgo did not answer the query for "Storage" within this call's 100 ms ` +
         `budget. The workspace at "${h.ws}" may still be loading its projects; raise timeBudgetMs or call ` +
         "again, and do not read this as an empty answer.",
     );
-    expect(out).not.toHaveProperty("structuredContent");
     expect(countOf(h.server, "textDocument/implementation")).toBe(1);
   });
 

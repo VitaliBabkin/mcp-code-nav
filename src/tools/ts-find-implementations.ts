@@ -12,6 +12,7 @@ import { type NamedRow, nameLocations, namedRow } from "./location-naming.js";
 import { IMPLEMENTATIONS_LIMIT } from "./navigation-limits.js";
 import { capsText, type Step, withArticle } from "./navigation-text.js";
 import { NameInput, PathInput } from "./input-limits.js";
+import { reasonOfError } from "./reason-of-error.js";
 import { resolutionNote } from "./shared.js";
 import { implementationsSubject, type TsSubject } from "./ts-addressing.js";
 import {
@@ -85,6 +86,7 @@ function askableFor(symbol: string, subject: TsSubject): Step<void> {
       `${TOOL} failed: "${symbol}" is ${withArticle(subject.kind)}, and only an interface, class, method or ` +
       "property has implementations. tsgo answers that question for those four; for any other declaration " +
       "ask ts_find_references for where it is used.",
+    reason: "symbol-kind-unsupported",
   };
 }
 
@@ -159,11 +161,11 @@ export async function runTsFindImplementations(
       },
       (entry) => ASKABLE_KINDS.has(symbolKindName(entry.kind)),
     );
-    if (!opened.ok) return errorResult(opened.error);
+    if (!opened.ok) return errorResult(opened.error, opened.reason);
     const query = opened.value;
     const subject = implementationsSubject(query.subject);
     const gated = askableFor(input.symbol, subject);
-    if (!gated.ok) return errorResult(gated.error);
+    if (!gated.ok) return errorResult(gated.error, gated.reason);
     const resolved = tsResolvedOf(subject);
 
     const params = { textDocument: textDocumentId(query.file), position: subject.position };
@@ -175,7 +177,7 @@ export async function runTsFindImplementations(
       params,
       `answer the query for "${input.symbol}"`,
     );
-    if (!answered.ok) return errorResult(answered.error);
+    if (!answered.ok) return errorResult(answered.error, answered.reason);
     const locations = toReported(
       "tsgo",
       TOOL,
@@ -183,7 +185,7 @@ export async function runTsFindImplementations(
       tsFileExternal(query.workspaceRoot),
       input.symbol,
     );
-    if (!locations.ok) return errorResult(locations.error);
+    if (!locations.ok) return errorResult(locations.error, locations.reason);
 
     const { rows, truncated } = await buildRows(
       query.session,
@@ -213,7 +215,10 @@ export async function runTsFindImplementations(
     const { summary, text } = humanSummary(payload);
     return successResult(withSummary(summary, payload), text);
   } catch (e) {
-    return errorResult(`${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`);
+    return errorResult(
+      `${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`,
+      reasonOfError(e),
+    );
   }
 }
 

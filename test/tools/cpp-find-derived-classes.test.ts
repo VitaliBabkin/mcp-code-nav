@@ -239,8 +239,26 @@ describe("runCppFindDerivedClasses", () => {
       totalTus: 1,
       reason: "time-budget",
     });
+    expect(out.structuredContent).toMatchObject({ reason: "budget-exceeded", retryable: true });
     expect(out.content[0]?.text).toContain("files");
     expect(out.content[0]?.text).toContain("call again");
+  });
+
+  it("reports cancelled, not budget-exceeded, when the client cancelled the sweep", async () => {
+    const out = resultView(
+      await runCppFindDerivedClasses(
+        { exec: hangingExec, cache },
+        { projectRoot, qualifiedName: "Base" },
+        { signal: AbortSignal.abort() },
+      ),
+    );
+    expect(out.isError).toBe(true);
+    expect(out.structuredContent?.incomplete).toEqual({
+      sweptTus: 0,
+      totalTus: 1,
+      reason: "cancelled",
+    });
+    expect(out.structuredContent).toMatchObject({ reason: "cancelled", retryable: true });
   });
 });
 
@@ -464,13 +482,46 @@ describe("runCppFindDerivedClasses — uniform sweep failure", () => {
       await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" }),
     );
     expect(out.isError).toBe(true);
-    expect(out).not.toHaveProperty("structuredContent");
+    expect(out.structuredContent).toEqual({ reason: "sweep-failed", retryable: false });
     expect(out.content[0]?.text).toBe(
       "cpp_find_derived_classes failed on all 2 translation units with the same error, so the empty result is a " +
         "sweep failure, not an empty hierarchy - check that the clang-query on PATH supports this query. " +
         "Shared error: error: unknown matcher",
     );
     expect(out.content[0]?.text?.match(/error: unknown matcher/g)).toHaveLength(1);
+  });
+
+  it("reports server-unavailable when clang-query could not be started on any translation unit", async () => {
+    const exec: ClangQueryExecFn = async () => ({
+      exitCode: 1,
+      stdout: "",
+      stderr: "Error: spawn clang-query ENOENT",
+      binaryMissing: true,
+    });
+    const out = resultView(
+      await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" }),
+    );
+    expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "server-unavailable", retryable: false });
+    expect(out.content[0]?.text).toContain("Error: spawn clang-query ENOENT");
+  });
+
+  it("stays sweep-failed when the identical failure is not on every translation unit's missing binary", async () => {
+    let calls = 0;
+    const exec: ClangQueryExecFn = async () => {
+      calls += 1;
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr: "Error: spawn clang-query ENOENT",
+        binaryMissing: calls === 1,
+      };
+    };
+    const out = resultView(
+      await runCppFindDerivedClasses({ exec, cache }, { projectRoot, qualifiedName: "Base" }),
+    );
+    expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "sweep-failed", retryable: false });
   });
 
   it("is an error on a one-TU scope too, and names the file that failed", async () => {

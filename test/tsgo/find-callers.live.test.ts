@@ -303,10 +303,13 @@ describe("ts_find_callers against the real tsgo", () => {
       try {
         const result = await ask(manager, [workspaceRoot], handlerFile, "LABEL");
         expect(resultView(result).isError).toBe(true);
+        expect(resultView(result).structuredContent).toEqual({
+          reason: "symbol-kind-unsupported",
+          retryable: false,
+        });
         expect(textOf(result)).toContain(`no call hierarchy for "LABEL"`);
         expect(textOf(result)).toContain("it is not callable");
         expect(textOf(result)).toContain("a mention is not a call");
-        expect(result).not.toHaveProperty("structuredContent");
         expect(textOf(result)).not.toMatch(/did not answer|could not prove/);
         // The refusal costs the outline and the one request that IS the gate. No incoming-calls request follows
         // it, and no references request either - the substitution the text refuses, checked against what this

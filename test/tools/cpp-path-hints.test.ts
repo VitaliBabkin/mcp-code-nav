@@ -1,9 +1,10 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { classifyError } from "../../src/call-log/error-class.js";
 import type { CppSourceRootsBlock } from "../../src/clang-query/derived-source-roots.js";
+import { classifyError } from "../../src/call-log/error-class.js";
 import { clangdConfig, LanguageServerUnavailableError } from "../../src/lsp/server-config.js";
 import { AmbiguousRelativePathError, PathEscapeError } from "../../src/paths/resolve-safe-path.js";
+import { reasonOfError } from "../../src/tools/reason-of-error.js";
 import { fileNotFoundHint, IgnoredPathError, pathFixHint } from "../../src/tools/shared.js";
 
 // the sentence appended after an unchanged head. Paths are built with `resolve`.
@@ -140,7 +141,7 @@ describe("pathFixHint, the other path errors", () => {
   });
 });
 
-describe("the classifier still reads the head", () => {
+describe("the path errors name their reason", () => {
   const projectRoot = at("work", "repo", "build", "preset");
   const file = at("work", "repo", "src", "a.cpp");
   const error = escape(projectRoot, file);
@@ -156,16 +157,19 @@ describe("the classifier still reads the head", () => {
       const text = `cpp_file_symbols failed: ${error.message}${pathFixHint(error, { projectRoot, file, sourceRoots: block })}`;
 
       expect(classifyError(text).errorClass).toBe("path-escape");
+      expect(reasonOfError(error)).toBe("path-escape");
     },
   );
 
   it("file-not-found with the ENOENT sentence", () => {
+    const enoent = Object.assign(new Error("x"), { code: "ENOENT" });
     const text = `cpp_file_symbols failed: ENOENT: no such file or directory, open '${file}'${fileNotFoundHint(
-      Object.assign(new Error("x"), { code: "ENOENT" }),
+      enoent,
       rootOnly,
     )}`;
 
     expect(classifyError(text).errorClass).toBe("file-not-found");
+    expect(reasonOfError(enoent)).toBe("file-not-found");
   });
 });
 

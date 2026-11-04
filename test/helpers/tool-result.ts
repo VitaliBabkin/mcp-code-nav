@@ -1,13 +1,20 @@
 import { expect } from "vitest";
+import type { ErrorReasonFields } from "../../src/error-reason.js";
 
 type TextContent = readonly { readonly type: "text"; readonly text: string }[];
 
-/** The payload type of each union member that has one; a member without `structuredContent` contributes nothing. */
+/**
+ * The payload type of each union member that has one. A member without `structuredContent`, or a plain error whose
+ * only content is its reason, contributes nothing; a partial result's payload-plus-reason stays.
+ */
 type StructuredOf<R> = R extends { readonly structuredContent?: infer S }
   ? "structuredContent" extends keyof R
-    ? Exclude<S, undefined>
+    ? PayloadOnly<Exclude<S, undefined>>
     : never
   : never;
+
+/** Distributes over a merged union of payloads, dropping the members that are a reason and nothing else. */
+type PayloadOnly<S> = S extends unknown ? ([ErrorReasonFields] extends [S] ? never : S) : never;
 
 /**
  * A tool result read as one shape. A handler returns a union of success, error and partial results, and only some

@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { listTranslationUnits } from "../../src/clang-query/compile-db.js";
 import type { ClangQueryExecFn } from "../../src/clang-query/find-derived-classes.js";
 import { SweepCache } from "../../src/clang-query/sweep-cache.js";
-import { classifyError, CALL_ERROR_CLASSES } from "../../src/call-log/error-class.js";
+import { ERROR_REASONS } from "../../src/error-reason.js";
+import { classifyError } from "../../src/call-log/error-class.js";
 import { clangdConfig, LanguageServerUnavailableError } from "../../src/lsp/server-config.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { runCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
@@ -14,10 +15,15 @@ import { runCppFindDerivedClasses } from "../../src/tools/cpp-find-derived-class
 import { runCppFindReferences } from "../../src/tools/cpp-find-references.js";
 import { runCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
 import { runGoFileSymbols } from "../../src/tools/go-file-symbols.js";
+import { reasonOfError } from "../../src/tools/reason-of-error.js";
 import { fakeProcessByFile, sessionsFor, symAt } from "../helpers/fake-clangd.js";
-import { resultView, textOf } from "../helpers/tool-result.js";
+import { fieldOf, resultView, textOf } from "../helpers/tool-result.js";
 
-type Answer = { isError?: boolean; content?: readonly { text?: string }[] };
+type Answer = {
+  isError?: boolean;
+  content?: readonly { text?: string }[];
+  structuredContent?: unknown;
+};
 
 const tempDirs: string[] = [];
 
@@ -42,46 +48,53 @@ function cppRoot(files: Record<string, string> = { "a.cpp": "class Foo {};\n" })
   return root;
 }
 
-/** The class the real producer's own text lands in. */
-async function classOf(answer: Promise<Answer> | Answer): Promise<string> {
-  return classifyError(textOf(await answer)).errorClass;
+/**
+ * The reason the answer carries in `structuredContent`, read as the caller reads it, beside the class its text alone
+ * would be given — what a transcript reader sees. The two agree for every producer.
+ */
+async function classesOf(
+  answer: Promise<Answer> | Answer,
+): Promise<{ reason: unknown; text: string }> {
+  const settled = await answer;
+  return {
+    reason: fieldOf(settled.structuredContent, "reason"),
+    text: classifyError(textOf(settled)).errorClass,
+  };
 }
 
 afterEach(() => {
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-describe("the closed set", () => {
-  it("lists the classes, `other` last", () => {
-    expect(CALL_ERROR_CLASSES).toEqual([
-      "compile-db-missing",
-      "compile-db-invalid",
-      "input-invalid",
+describe("the text classifier, for a result that names no reason", () => {
+  it("names the SDK's input refusal and its unknown-tool refusal by their own phrases", () => {
+    expect(
+      classifyError("MCP error -32602: Input validation error: Invalid arguments").errorClass,
+    ).toBe("input-invalid");
+    expect(classifyError("MCP error -32602: Tool cpp_find_symbols not found").errorClass).toBe(
       "tool-unknown",
-      "path-escape",
-      "path-ambiguous",
-      "path-ignored",
-      "file-not-found",
-      "symbol-not-found",
-      "symbol-ambiguous",
-      "symbol-kind-unsupported",
-      "no-module",
-      "server-unavailable",
-      "not-ready",
-      "budget-exceeded",
-      "sweep-failed",
-      "session-lost",
-      "other",
-    ]);
-    expect(new Set(CALL_ERROR_CLASSES).size).toBe(CALL_ERROR_CLASSES.length);
+    );
   });
 
-  it("answers `other` for a text this server has never said before", () => {
-    expect(classifyError("something no producer in src/ emits").errorClass).toBe("other");
+  it("answers internal for a text this server has never said before", () => {
+    expect(classifyError("something no producer in src/ emits").errorClass).toBe("internal");
+    expect(classifyError("").errorClass).toBe("internal");
+  });
+
+  it("answers a member of the closed reason set for every text, matched or not", () => {
+    const texts = [
+      "MCP error -32602: Input validation error: Invalid arguments",
+      "Tool cpp_nothing not found",
+      "gopls has no live process to notify",
+      "something no producer in src/ emits",
+    ];
+    for (const text of texts) {
+      expect(ERROR_REASONS).toContain(classifyError(text).errorClass);
+    }
   });
 });
 
-describe("what the C++ tools emit, read from the handler that emits it", () => {
+describe("what the C++ tools emit, read from the reason the handler that emits it sets", () => {
   it("compile-db-missing, for every hint variant, each read from the handler that emits it", async () => {
     // Under a parent of its own: the sibling search lists that parent, which must not be the shared temp directory.
     const empty = join(tempRoot("err-nodb"), "root");
@@ -101,129 +114,131 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
       readonly variant: string;
       readonly root: string;
       readonly prefix: string;
-      readonly text: string;
+      readonly answer: Answer;
     }[] = [
       {
         variant: "none",
         root: empty,
         prefix: "cpp_find_symbol failed: ",
-        text: textOf(
-          await runCppFindSymbol(sessions, { projectRoot: empty, name: "Foo", sourceRoots: [] }),
-        ),
+        answer: await runCppFindSymbol(sessions, {
+          projectRoot: empty,
+          name: "Foo",
+          sourceRoots: [],
+        }),
       },
       {
         variant: "root absent",
         root: absent,
         prefix: "cpp_find_references failed: ",
-        text: textOf(
-          await runCppFindReferences(sessions, {
-            projectRoot: absent,
-            name: "Foo",
-            sourceRoots: [],
-          }),
-        ),
+        answer: await runCppFindReferences(sessions, {
+          projectRoot: absent,
+          name: "Foo",
+          sourceRoots: [],
+        }),
       },
       {
         variant: "candidates",
         root: repo,
         prefix: "cpp_find_symbol failed: ",
-        text: textOf(
-          await runCppFindSymbol(sessions, { projectRoot: repo, name: "Foo", sourceRoots: [] }),
-        ),
+        answer: await runCppFindSymbol(sessions, {
+          projectRoot: repo,
+          name: "Foo",
+          sourceRoots: [],
+        }),
       },
       {
         variant: "present but unreadable",
         root: unreadable,
         prefix: "cpp_find_callers failed: ",
-        text: textOf(
-          await runCppFindCallers(sessions, {
-            projectRoot: unreadable,
-            name: "Foo",
-            sourceRoots: [],
-          }),
-        ),
+        answer: await runCppFindCallers(sessions, {
+          projectRoot: unreadable,
+          name: "Foo",
+          sourceRoots: [],
+        }),
       },
       {
         variant: "candidates, the sweep",
         root: repo,
         prefix: "cpp_find_derived_classes failed: ",
-        text: textOf(
-          await runCppFindDerivedClasses(sweep, { projectRoot: repo, qualifiedName: "Base" }),
-        ),
+        answer: await runCppFindDerivedClasses(sweep, {
+          projectRoot: repo,
+          qualifiedName: "Base",
+        }),
       },
       {
         variant: "present but unreadable, the sweep",
         root: unreadable,
         prefix: "cpp_find_derived_classes failed: ",
-        text: textOf(
-          await runCppFindDerivedClasses(sweep, { projectRoot: unreadable, qualifiedName: "Base" }),
-        ),
+        answer: await runCppFindDerivedClasses(sweep, {
+          projectRoot: unreadable,
+          qualifiedName: "Base",
+        }),
       },
       {
         variant: "root could not be listed",
         root: notADirectory,
         prefix: "cpp_find_callers failed: ",
-        text: textOf(
-          await runCppFindCallers(sessions, {
-            projectRoot: notADirectory,
-            sourceRoots: [],
-            name: "Foo",
-          }),
-        ),
+        answer: await runCppFindCallers(sessions, {
+          projectRoot: notADirectory,
+          sourceRoots: [],
+          name: "Foo",
+        }),
       },
     ];
 
     for (const one of cases) {
-      const tail = one.text.slice(one.prefix.length + headAt(one.root).length);
-      expect(classifyError(one.text).errorClass, `${one.variant}: ${one.text}`).toBe(
+      const text = textOf(one.answer);
+      const tail = text.slice(one.prefix.length + headAt(one.root).length);
+      expect(fieldOf(one.answer.structuredContent, "reason"), `${one.variant}: ${text}`).toBe(
         "compile-db-missing",
+      );
+      expect(classifyError(text).errorClass, `${one.variant}: ${text}`).toBe("compile-db-missing");
+      expect(classifyError(text).errorHead, `${one.variant}: ${text}`).toContain(
+        "compile_commands.json not found or unreadable",
       );
       // The head stays byte-identical and is a verbatim prefix of every variant, with or without the tool's
       // own name in front of it — which is what the anchor matches on, and what a consumer matching the head
       // still matches.
-      expect(
-        one.text.startsWith(one.prefix + headAt(one.root)),
-        `${one.variant}: ${one.text}`,
-      ).toBe(true);
-      expect(tail.startsWith(". "), `${one.variant}: ${one.text}`).toBe(true);
+      expect(text.startsWith(one.prefix + headAt(one.root)), `${one.variant}: ${text}`).toBe(true);
+      expect(tail.startsWith(". "), `${one.variant}: ${text}`).toBe(true);
     }
     // The four variants, plus the one text a search that could not read the root is allowed to state.
-    expect(new Set(cases.map((one) => one.text.slice(one.prefix.length))).size).toBe(5);
+    expect(new Set(cases.map((one) => textOf(one.answer).slice(one.prefix.length))).size).toBe(5);
 
     // The sweep's prefix plus the head is 86 characters, so the folded `errorHead` of that refusal is cut at
-    // its 80-char bound. The class comes from the whole text, which is why the cut costs the table nothing.
-    expect(classifyError(cases[4]!.text).errorHead).toHaveLength(80);
+    // its 80-char bound. The reason comes from the result, which is why the cut costs the log nothing.
+    expect(classifyError(textOf(cases[4]!.answer)).errorHead).toHaveLength(80);
 
-    expect(cases[0]!.text).toBe(
+    expect(textOf(cases[0]!.answer)).toBe(
       `${cases[0]!.prefix}${headAt(empty)}. No directory under it holds one (searched 1 directories to depth 3). ` +
         "projectRoot must be the directory that holds compile_commands.json, from a native build on this host.",
     );
-    expect(cases[1]!.text).toBe(
+    expect(textOf(cases[1]!.answer)).toBe(
       `${cases[1]!.prefix}${headAt(absent)}. That directory does not exist.`,
     );
-    expect(cases[2]!.text).toBe(
+    expect(textOf(cases[2]!.answer)).toBe(
       `${cases[2]!.prefix}${headAt(repo)}. Directories under it that hold a compile_commands.json, ` +
         `nearest first: "${join(repo, "build")}". Pass one of them as projectRoot.`,
     );
-    expect(cases[3]!.text).toBe(
+    expect(textOf(cases[3]!.answer)).toBe(
       `${cases[3]!.prefix}${headAt(unreadable)}. The file is present but could not be read.`,
     );
     expect(
-      cases[6]!.text.startsWith(
+      textOf(cases[6]!.answer).startsWith(
         `${cases[6]!.prefix}${headAt(notADirectory)}. That directory's own listing could not be read (`,
       ),
     ).toBe(true);
     // Which errno said so is platform-specific; what the text must never do is claim nothing holds one. The
     // sibling `build` beside the file holds a database naming no directory of this host.
     expect(
-      cases[6]!.text.endsWith(
+      textOf(cases[6]!.answer).endsWith(
         "), so nothing below it was searched. Skipped 1 sibling compile_commands.json naming paths that do not exist on this host.",
       ),
     ).toBe(true);
-    expect(cases[6]!.text).not.toContain("No directory under it holds one");
+    expect(textOf(cases[6]!.answer)).not.toContain("No directory under it holds one");
   });
 
-  it("compile-db-invalid, from the reader that parses the database, keeps no path in its head", () => {
+  it("compile-db-invalid, for a database that is well-formed JSON but not a compile database", async () => {
     const root = cppRoot();
     writeFileSync(join(root, "compile_commands.json"), "{ not json");
 
@@ -234,8 +249,25 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
         return (e as Error).message;
       }
     })();
-    expect(classifyError(message).errorClass).toBe("compile-db-invalid");
     expect(classifyError(message).errorHead).toBe("… is not valid JSON");
+
+    const sweep = { cache: new SweepCache() };
+    const answer = await runCppFindDerivedClasses(sweep, {
+      projectRoot: root,
+      qualifiedName: "Base",
+    });
+    expect(fieldOf(answer.structuredContent, "reason")).toBe("compile-db-invalid");
+    expect(classifyError(textOf(answer)).errorClass).toBe("compile-db-invalid");
+    expect(classifyError(textOf(answer)).errorHead).not.toContain(root);
+
+    writeFileSync(join(root, "compile_commands.json"), "{}");
+    const wellFormed = await runCppFindDerivedClasses(
+      { cache: new SweepCache() },
+      { projectRoot: root, qualifiedName: "Base" },
+    );
+    expect(fieldOf(wellFormed.structuredContent, "reason")).toBe("compile-db-invalid");
+    expect(classifyError(textOf(wellFormed)).errorClass).toBe("compile-db-invalid");
+    expect(classifyError(textOf(wellFormed)).errorHead).not.toContain(root);
   });
 
   it("path-escape, from the resolver that refuses it before any disk access", async () => {
@@ -248,11 +280,17 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
       depth: 1,
     });
 
-    await expect(classOf(out)).resolves.toBe("path-escape");
+    await expect(classesOf(out)).resolves.toEqual({
+      reason: "path-escape",
+      text: "path-escape",
+    });
   });
 
   it("path-ambiguous, from the same resolver when two roots hold the file", async () => {
-    const root = cppRoot({ "a.cpp": "class Foo {};\n", "dup.cpp": "class Here {};\n" });
+    const root = cppRoot({
+      "a.cpp": "class Foo {};\n",
+      "dup.cpp": "class Here {};\n",
+    });
     const other = tempRoot("err-ambig");
     writeFileSync(join(other, "dup.cpp"), "class There {};\n");
 
@@ -264,7 +302,10 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
       depth: 1,
     });
 
-    await expect(classOf(out)).resolves.toBe("path-ambiguous");
+    await expect(classesOf(out)).resolves.toEqual({
+      reason: "path-ambiguous",
+      text: "path-ambiguous",
+    });
   });
 
   it("path-ignored, from the config check that runs before the file is opened", async () => {
@@ -281,7 +322,10 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
       depth: 1,
     });
 
-    await expect(classOf(out)).resolves.toBe("path-ignored");
+    await expect(classesOf(out)).resolves.toEqual({
+      reason: "path-ignored",
+      text: "path-ignored",
+    });
   });
 
   it("file-not-found, from the read a missing file actually fails", async () => {
@@ -294,7 +338,10 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
       depth: 1,
     });
 
-    await expect(classOf(out)).resolves.toBe("file-not-found");
+    await expect(classesOf(out)).resolves.toEqual({
+      reason: "file-not-found",
+      text: "file-not-found",
+    });
   });
 
   it("not-ready, from the cold empty clangd has not earned the right to call an answer", async () => {
@@ -307,7 +354,10 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
       depth: 1,
     });
 
-    await expect(classOf(out)).resolves.toBe("not-ready");
+    await expect(classesOf(out)).resolves.toEqual({
+      reason: "not-ready",
+      text: "not-ready",
+    });
     expect(classifyError(textOf(await out)).errorHead).toContain("produced no symbols while");
   });
 
@@ -321,7 +371,10 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
       sourceRoots: [],
     });
 
-    await expect(classOf(out)).resolves.toBe("symbol-not-found");
+    await expect(classesOf(out)).resolves.toEqual({
+      reason: "symbol-not-found",
+      text: "symbol-not-found",
+    });
   });
 
   it("symbol-ambiguous, from the same search that found two of them", async () => {
@@ -336,7 +389,10 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
       sourceRoots: [],
     });
 
-    await expect(classOf(out)).resolves.toBe("symbol-ambiguous");
+    await expect(classesOf(out)).resolves.toEqual({
+      reason: "symbol-ambiguous",
+      text: "symbol-ambiguous",
+    });
   });
 
   it("symbol-kind-unsupported, from the caller query that refused a thing nobody calls", async () => {
@@ -349,10 +405,13 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
       sourceRoots: [root],
     });
 
-    await expect(classOf(out)).resolves.toBe("symbol-kind-unsupported");
+    await expect(classesOf(out)).resolves.toEqual({
+      reason: "symbol-kind-unsupported",
+      text: "symbol-kind-unsupported",
+    });
   });
 
-  it("`other`, for a project config this server could not read, which no class claims yet", async () => {
+  it("internal, for a project config this server could not read, which no reason names yet", async () => {
     const root = cppRoot();
     writeFileSync(join(root, "mcp-code-nav.config.json"), "{ not json");
     const sessions = sessionsFor(fakeProcessByFile(() => [symAt("Foo", 5, 0, 6)]));
@@ -363,8 +422,9 @@ describe("what the C++ tools emit, read from the handler that emits it", () => {
       depth: 1,
     });
 
+    expect(fieldOf(out.structuredContent, "reason")).toBe("internal");
+    expect(classifyError(textOf(out)).errorClass).toBe("internal");
     const classified = classifyError(textOf(out));
-    expect(classified.errorClass).toBe("other");
     expect(classified.errorHead).toContain("is not valid JSON");
     expect(classified.errorHead).not.toContain(root);
     expect(classified.errorHead.startsWith("cpp_file_symbols failed: …")).toBe(true);
@@ -394,7 +454,10 @@ describe("what the sweep emits, from the clang-query seam", () => {
       { projectRoot: root, qualifiedName: "Base" },
     );
 
-    await expect(classOf(out)).resolves.toBe("sweep-failed");
+    await expect(classesOf(out)).resolves.toEqual({
+      reason: "sweep-failed",
+      text: "sweep-failed",
+    });
   });
 
   it("budget-exceeded, as the partial answer the ceiling leaves a still-running sweep with", async () => {
@@ -403,16 +466,15 @@ describe("what the sweep emits, from the clang-query seam", () => {
       await new Promise((done) => setTimeout(done, 250));
       return { exitCode: 0, stdout: "", stderr: "" };
     };
-    const out = resultView(
-      await runCppFindDerivedClasses(
-        { exec: slow, cache: new SweepCache() },
-        { projectRoot: root, qualifiedName: "Base", timeBudgetMs: 25 },
-      ),
+    const out = await runCppFindDerivedClasses(
+      { exec: slow, cache: new SweepCache() },
+      { projectRoot: root, qualifiedName: "Base", timeBudgetMs: 25 },
     );
 
-    expect(out.isError).toBe(true);
-    expect(out.structuredContent).toBeDefined();
-    await expect(classOf(out)).resolves.toBe("budget-exceeded");
+    expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toBeDefined();
+    expect(fieldOf(out.structuredContent, "reason")).toBe("budget-exceeded");
+    expect(classifyError(textOf(out)).errorClass).toBe("budget-exceeded");
   }, 15_000);
 });
 
@@ -429,15 +491,19 @@ describe("what the Go tools and a dead server emit", () => {
       timeBudgetMs: 60_000,
     });
 
-    await expect(classOf(out)).resolves.toBe("no-module");
+    await expect(classesOf(out)).resolves.toEqual({
+      reason: "no-module",
+      text: "no-module",
+    });
   });
 
-  it("server-unavailable, from the error the spawn itself raises, wrapped or bare", () => {
+  it("server-unavailable, from the error the spawn itself raises", () => {
     const failure = new LanguageServerUnavailableError(
       { config: clangdConfig, attempted: "clangd", fromOverride: false },
       { code: "ENOENT" },
     );
 
+    expect(reasonOfError(failure)).toBe("server-unavailable");
     expect(classifyError(failure.message).errorClass).toBe("server-unavailable");
     expect(classifyError(`cpp_file_symbols failed: ${failure.message}`).errorClass).toBe(
       "server-unavailable",
@@ -488,7 +554,9 @@ describe("the table's order is what keeps the more specific cause", () => {
     ).toBe("server-unavailable");
     expect(classifyError("Tool cpp_nothing not found").errorClass).toBe("tool-unknown");
   });
+});
 
+describe("the head the log groups a failure by", () => {
   it("folds a quoted path or name and every digit run out of the head", () => {
     expect(
       classifyError('cpp_find_symbol failed: no symbol "Widget" found in "D:\\src\\a.cpp".')
@@ -537,6 +605,6 @@ describe("the table's order is what keeps the more specific cause", () => {
   it("keeps the head to 80 characters and survives an empty text", () => {
     expect(classifyError(`${"x".repeat(500)} failed after 42 ms`).errorHead).toHaveLength(80);
     expect(classifyError("").errorHead).toBe("");
-    expect(classifyError("").errorClass).toBe("other");
+    expect(classifyError("").errorClass).toBe("internal");
   });
 });

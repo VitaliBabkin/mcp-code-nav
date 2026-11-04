@@ -19,6 +19,7 @@ import {
 import type { SymbolDescription } from "./navigation-limits.js";
 import { containerOf, type Step } from "./navigation-text.js";
 import { NameInput, PathInput } from "./input-limits.js";
+import { reasonOfError } from "./reason-of-error.js";
 import { resolutionNote } from "./shared.js";
 import { matchingEntries, type ReachedEntry } from "./ts-addressing.js";
 import {
@@ -209,7 +210,11 @@ function symbolCandidate(
     rangeStart(location.targetRange);
   const name = typeof entry.name === "string" && entry.name !== "" ? entry.name : undefined;
   if (name === undefined || file === undefined || named === undefined) {
-    return { ok: false, error: unreadableEntryText(raw, symbol, part) };
+    return {
+      ok: false,
+      error: unreadableEntryText(raw, symbol, part),
+      reason: "unexpected-answer",
+    };
   }
   const containerName =
     typeof entry.containerName === "string" && entry.containerName !== ""
@@ -264,7 +269,7 @@ function workspaceCandidates(
   symbol: string,
 ): Step<{ candidates: SymbolCandidate[]; capped: boolean }> {
   if (result !== null && result !== undefined && !Array.isArray(result)) {
-    return { ok: false, error: unreadableEntryText(result, symbol) };
+    return { ok: false, error: unreadableEntryText(result, symbol), reason: "unexpected-answer" };
   }
   const entries = Array.isArray(result) ? result : [];
   const candidates: SymbolCandidate[] = [];
@@ -449,8 +454,13 @@ async function answered(
     },
     declarations,
   );
-  if (described === undefined)
-    return { ok: false, error: tsRestartedText(TOOL, symbol, search.workspaceRoot) };
+  if (described === undefined) {
+    return {
+      ok: false,
+      error: tsRestartedText(TOOL, symbol, search.workspaceRoot),
+      reason: "session-lost",
+    };
+  }
   const scope = await tsNavigationScope(
     search,
     { capped, correspondingMethods: false, oneFile: lookup === "document-symbol" },
@@ -482,6 +492,7 @@ function readLines(file: string): Step<readonly string[]> {
     return {
       ok: false,
       error: `${TOOL} failed: "${file}" could not be read (${messageOf(e)}), so the names it declares cannot be located.`,
+      reason: reasonOfError(e),
     };
   }
 }
@@ -519,7 +530,11 @@ async function fromOneFile(
     ? matchingEntries(symbol, outline.value, lines.value)
     : undefined;
   if (reach?.kind === "unreadable") {
-    return { ok: false, error: unreadableSpanText(TOOL, opened.file, reach.entry) };
+    return {
+      ok: false,
+      error: unreadableSpanText(TOOL, opened.file, reach.entry),
+      reason: "unexpected-answer",
+    };
   }
   const entries = reach?.kind === "reached" ? reach.entries : [];
   // A name with no answer here pays for the project map only, never for anchors or a type-aware request; an
@@ -529,7 +544,11 @@ async function fromOneFile(
     const uncovered = isWellFormed(symbol)
       ? await tsUncoveredClauseWithoutMap(opened, deps.exec, mentionNameOf(symbol))
       : "";
-    return { ok: false, error: uncovered === "" ? absent : `${absent}\n${uncovered}` };
+    return {
+      ok: false,
+      error: uncovered === "" ? absent : `${absent}\n${uncovered}`,
+      reason: "symbol-not-found",
+    };
   }
   const anchored = await anchorProjects(TOOL, opened, deps.exec, symbol, [opened.file]);
   if (!anchored.ok) return anchored;
@@ -555,6 +574,7 @@ async function fromWholeWorkspace(
     return {
       ok: false,
       error: noMatchText(symbol, "workspace-symbol", undefined, opened.workspaceRoot),
+      reason: "symbol-not-found",
     };
   }
   const anchored = await anchorProjects(TOOL, opened, deps.exec, symbol, []);
@@ -583,7 +603,11 @@ async function fromWholeWorkspace(
     const absent = noMatchText(symbol, "workspace-symbol", undefined, opened.workspaceRoot);
     const uncovered = await tsUncoveredClause(search, mentionNameOf(symbol));
     const refusal = capped ? `${absent} ${capText()}` : absent;
-    return { ok: false, error: uncovered === "" ? refusal : `${refusal}\n${uncovered}` };
+    return {
+      ok: false,
+      error: uncovered === "" ? refusal : `${refusal}\n${uncovered}`,
+      reason: "symbol-not-found",
+    };
   }
   const ordered = rows.sort((a, b) => byLocation(search, a, b));
   return answered(search, symbol, ordered, "workspace-symbol", capped, unverified);
@@ -628,7 +652,7 @@ export async function runTsFindSymbol(
   let resolution: ResolvedPath | undefined;
   try {
     const target = await resolveTsAnchor(TOOL, sessions, input, deps);
-    if (!target.ok) return errorResult(target.error);
+    if (!target.ok) return errorResult(target.error, target.reason);
     resolution = target.value.resolution;
     const symbol = input.symbol.trim();
     const opened = await openWorkspace(target.value);
@@ -636,12 +660,13 @@ export async function runTsFindSymbol(
       target.value.kind === "file"
         ? await fromOneFile(opened, symbol, deps)
         : await fromWholeWorkspace(opened, symbol, deps);
-    if (!search.ok) return errorResult(search.error);
+    if (!search.ok) return errorResult(search.error, search.reason);
     const { summary, text } = humanSummary(search.value, symbol, target.value.file);
     return successResult(withSummary(summary, search.value), text);
   } catch (e) {
     return errorResult(
       `${TOOL} failed: ${messageOf(e)}${resolutionNote(input.anchor, resolution)}`,
+      reasonOfError(e),
     );
   }
 }

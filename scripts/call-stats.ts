@@ -35,6 +35,8 @@ const CLIENT_SIDE_CLASS = "client-side-rejection";
 const NO_PROJECT = "(no project)";
 const NO_CLIENT = "(unknown client)";
 const NO_CLASS = "unclassified";
+/** The classes of a failure nothing named: its head is listed, because the server did not say what it was. */
+const UNCLASSIFIED_CLASSES: ReadonlySet<string | null> = new Set(["internal", "other"]);
 const NO_BUILD = "(unknown build)";
 const HEAD_ROWS = 20;
 const DAY_MS = 86_399_999;
@@ -329,7 +331,7 @@ export function summarizeLog(scan: LogScan): LogStats {
     addCall(group(projects, call.project ?? NO_PROJECT), call);
     for (const code of call.limits) bump(limits, code);
     bump(builds, run?.build ?? NO_BUILD);
-    if (FAILING.includes(call.outcome) && call.errorClass === "other") {
+    if (FAILING.includes(call.outcome) && UNCLASSIFIED_CLASSES.has(call.errorClass)) {
       const head = call.errorHead ?? "";
       const key = `${call.tool}\u0000${head}`;
       const seen = heads.get(key);
@@ -1108,7 +1110,7 @@ function classLines(log: LogStats): string[] {
     "failures by error class (failure = error + partial + protocol-error; cancelled and abandoned sit in the aborted column, apart)",
     ...table(["scope", "key", "class", "count"], rows),
     "",
-    `unclassified heads, class "other" (top ${String(HEAD_ROWS)} — grow the anchor table from these)`,
+    `unclassified heads, class "internal" ("other" in logs of older builds) (top ${String(HEAD_ROWS)} — name a reason where the text is written, or grow the anchor table)`,
     ...table(
       ["count", "tool", "head"],
       log.heads.map((row) => [String(row.count), row.tool, row.head]),

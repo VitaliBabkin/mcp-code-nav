@@ -222,18 +222,31 @@ async function targetAt(
   deps: TsTargetDeps,
 ): Promise<Step<TsTarget>> {
   if (kind === "file" && !isTsOrJsSourceFile(resolution.absolutePath)) {
-    return { ok: false, error: unsupportedFileError(tool, resolution.absolutePath) };
+    return {
+      ok: false,
+      error: unsupportedFileError(tool, resolution.absolutePath),
+      reason: "input-invalid",
+    };
   }
   const workspace = findWorkspaceRoot(resolution.absolutePath, input.sourceRoots, kind);
   if (workspace.kind !== "found") {
-    return { ok: false, error: tsWorkspaceRootErrorText(tool, workspace, resolution.absolutePath) };
+    return {
+      ok: false,
+      error: tsWorkspaceRootErrorText(tool, workspace, resolution.absolutePath),
+      reason: workspace.kind === "outside-roots" ? "path-escape" : "no-module",
+    };
   }
   const located = await withinBudget(
     (deps.resolveBinary ?? cachedTsgoBinary)(deps.binaryDeps),
     budget,
   );
-  if (located === undefined)
-    return { ok: false, error: discoveryBudgetText(tool, budget, workspace.workspaceRoot) };
+  if (located === undefined) {
+    return {
+      ok: false,
+      error: discoveryBudgetText(tool, budget, workspace.workspaceRoot),
+      reason: "budget-exceeded",
+    };
+  }
   if ("unavailable" in located) throw tsgoUnavailable(located);
   return {
     ok: true,

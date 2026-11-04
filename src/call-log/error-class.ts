@@ -1,26 +1,9 @@
-/** The closed error-class set and the one ordered table that derives it from an error's own text. */
-
-/** Every class `classifyError` can answer with. */
-export const CALL_ERROR_CLASSES: readonly string[] = [
-  "compile-db-missing",
-  "compile-db-invalid",
-  "input-invalid",
-  "tool-unknown",
-  "path-escape",
-  "path-ambiguous",
-  "path-ignored",
-  "file-not-found",
-  "symbol-not-found",
-  "symbol-ambiguous",
-  "symbol-kind-unsupported",
-  "no-module",
-  "server-unavailable",
-  "not-ready",
-  "budget-exceeded",
-  "sweep-failed",
-  "session-lost",
-  "other",
-];
+/**
+ * The class a call-log record gives a failure. A result this server built names its reason where its text is
+ * written, and the log prefers that; this table classifies what carries none: the MCP SDK's own refusals, and
+ * every result read back from a transcript, which holds the text and nothing else.
+ */
+import { ERROR_REASONS, type ErrorReason } from "../error-reason.js";
 
 /**
  * Matched top-down, first hit wins, so an anchor always states the more specific cause of the two a text
@@ -29,20 +12,29 @@ export const CALL_ERROR_CLASSES: readonly string[] = [
  * generic `<n> ms budget` it also names.
  *
  * Each anchor is a phrase its own producer emits — not a paraphrase — which is what makes a reworded error
- * fail a test instead of drifting into `other`.
+ * fail a test instead of drifting into `internal`. A class here is always an {@link ERROR_REASONS} member, and
+ * a producer that names a reason beside its text names the class its anchor gives.
  */
 const ERROR_CLASS_TABLE: readonly {
-  readonly errorClass: string;
+  readonly errorClass: ErrorReason;
   readonly anchors: readonly RegExp[];
 }[] = [
   { errorClass: "compile-db-missing", anchors: [/compile_commands\.json not found or unreadable/] },
-  { errorClass: "compile-db-invalid", anchors: [/compile_commands\.json is not valid JSON/] },
+  {
+    errorClass: "compile-db-invalid",
+    anchors: [
+      /compile_commands\.json is not valid JSON/,
+      /compile_commands\.json is not a compile database/,
+    ],
+  },
   {
     errorClass: "input-invalid",
     anchors: [
       /Input validation error:/,
       /is neither a file nor a directory/,
       /is not a TypeScript or JavaScript source/,
+      /has no package metadata for/,
+      /no project anchor could be opened/,
     ],
   },
   { errorClass: "tool-unknown", anchors: [/Tool \S+ not found/] },
@@ -76,9 +68,7 @@ const ERROR_CLASS_TABLE: readonly {
       /was not yet confirmed warm/,
       /not reportable as an answer/,
       /never reported the initial workspace load/,
-      /has no package metadata for/,
       /could not prove within its \d+ ms budget that the documents/,
-      /no project anchor could be opened/,
     ],
   },
   {
@@ -123,12 +113,17 @@ const ERROR_CLASS_TABLE: readonly {
 const HEAD_MAX_CHARS = 80;
 const HEAD_SCAN_CHARS = 512;
 
-export function classifyError(text: string): { errorClass: string; errorHead: string } {
+/** The reason a value names, when it is one of {@link ERROR_REASONS}; anything else names none. */
+export function reasonOf(value: unknown): ErrorReason | null {
+  return ERROR_REASONS.find((reason) => reason === value) ?? null;
+}
+
+export function classifyError(text: string): { errorClass: ErrorReason; errorHead: string } {
   const entry = ERROR_CLASS_TABLE.find((candidate) =>
     candidate.anchors.some((anchor) => anchor.test(text)),
   );
   return {
-    errorClass: entry?.errorClass ?? "other",
+    errorClass: entry?.errorClass ?? "internal",
     errorHead: errorHead(text),
   };
 }

@@ -313,6 +313,10 @@ describe("the uncovered files that mention the name", () => {
         timeBudgetMs: CALL_BUDGET_MS,
       });
       expect(resultView(byDirectory).isError, textOf(byDirectory)).toBe(true);
+      expect(resultView(byDirectory).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(byDirectory)).toContain("no declaration named");
       expect(textOf(byDirectory)).toContain("were not searched");
       expect(textOf(byDirectory)).toContain("\nINCOMPLETE: ");
@@ -327,6 +331,10 @@ describe("the uncovered files that mention the name", () => {
         timeBudgetMs: CALL_BUDGET_MS,
       });
       expect(resultView(byFile).isError, textOf(byFile)).toBe(true);
+      expect(resultView(byFile).structuredContent).toEqual({
+        reason: "symbol-not-found",
+        retryable: false,
+      });
       expect(textOf(byFile)).toContain("\nINCOMPLETE: ");
       expect(textOf(byFile)).toContain(join(workspaceRoot, "test", "outside.ts"));
 

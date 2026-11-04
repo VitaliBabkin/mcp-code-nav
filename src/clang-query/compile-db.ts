@@ -16,6 +16,17 @@ export class CompileDbNotFoundError extends Error {
   }
 }
 
+/**
+ * The database is there and readable, but it is not JSON or not a compile database: nothing in it can be read as
+ * a translation unit, and the file has to be fixed rather than located.
+ */
+export class CompileDbInvalidError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "CompileDbInvalidError";
+  }
+}
+
 /** Absolute paths of every translation unit named in `projectRoot/compile_commands.json`, deduplicated. */
 export function listTranslationUnits(projectRoot: string): string[] {
   const dbPath = join(projectRoot, "compile_commands.json");
@@ -29,9 +40,23 @@ export function listTranslationUnits(projectRoot: string): string[] {
   try {
     parsed = JSON.parse(raw);
   } catch (e) {
-    throw new Error(`${dbPath} is not valid JSON`, { cause: e });
+    throw new CompileDbInvalidError(`${dbPath} is not valid JSON`, { cause: e });
   }
-  const entries = CompileCommandsSchema.parse(parsed);
-  const files = entries.map((entry) => resolve(entry.directory, entry.file));
+  const entries = CompileCommandsSchema.safeParse(parsed);
+  if (!entries.success) {
+    throw new CompileDbInvalidError(
+      `${dbPath} is not a compile database: ${firstIssueText(entries.error)}`,
+      { cause: entries.error },
+    );
+  }
+  const files = entries.data.map((entry) => resolve(entry.directory, entry.file));
   return Array.from(new Set(files));
+}
+
+/** The first problem zod found, by its path in the database, so a caller can find the entry that breaks it. */
+function firstIssueText(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (issue === undefined) return "unrecognised shape";
+  const where = issue.path.map(String).join(".");
+  return `${where === "" ? "the top level" : where}: ${issue.message}`;
 }

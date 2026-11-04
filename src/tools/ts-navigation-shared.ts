@@ -7,6 +7,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { LspDocumentSymbol } from "../clangd/outline.js";
+import type { ErrorReason } from "../error-reason.js";
 import type { FreshnessOutcome, LspSession, ReadinessOutcome } from "../lsp/session.js";
 import type { LspSessionManager } from "../lsp/session-manager.js";
 import { escapesRoot, pathKey } from "../paths/path-containment.js";
@@ -33,6 +34,7 @@ import {
   type Step,
   withArticle,
 } from "./navigation-text.js";
+import { reasonOfError } from "./reason-of-error.js";
 import {
   addressTsSymbol,
   spellTsRow,
@@ -385,6 +387,11 @@ export function tsRestartedText(tool: string, symbol: string, workspaceRoot: str
   );
 }
 
+/** The reason a readiness refusal carries: a replaced process is a restart, any other outcome is readiness unproven. */
+function readinessReason(outcome: Exclude<ReadinessOutcome, "ready">): ErrorReason {
+  return outcome === "restarted" ? "session-lost" : "not-ready";
+}
+
 /** Why the file a symbol is addressed in could not be addressed at all. */
 export function unreadableSourceText(
   tool: string,
@@ -467,15 +474,28 @@ function subjectOf(
   outcome: TsAddressOutcome,
 ): Step<TsSubject> {
   if (outcome.kind === "addressed") return { ok: true, value: outcome.subject };
-  if (outcome.kind === "not-found") return { ok: false, error: notFoundText(tool, symbol, file) };
-  if (outcome.kind === "shared-key") {
-    return { ok: false, error: sharedKeyText(tool, outcome.symbol, file, outcome.candidates) };
+  if (outcome.kind === "not-found") {
+    return { ok: false, error: notFoundText(tool, symbol, file), reason: "symbol-not-found" };
   }
-  if (outcome.kind === "unreadable-span")
-    return { ok: false, error: unreadableSpanText(tool, file, outcome.entry) };
+  if (outcome.kind === "shared-key") {
+    return {
+      ok: false,
+      error: sharedKeyText(tool, outcome.symbol, file, outcome.candidates),
+      reason: "symbol-ambiguous",
+    };
+  }
+  if (outcome.kind === "unreadable-span") {
+    return {
+      ok: false,
+      error: unreadableSpanText(tool, file, outcome.entry),
+      reason: "unexpected-answer",
+    };
+  }
+  // "nothing" is no entry at that path (not found); any other kind is a declaration that cannot hold members.
   return {
     ok: false,
     error: notAddressableText(tool, symbol, file, outcome.through, outcome.kindName),
+    reason: outcome.kindName === "nothing" ? "symbol-not-found" : "symbol-kind-unsupported",
   };
 }
 
@@ -505,7 +525,11 @@ function addressSubject(
   try {
     text = readFileSync(opened.file, "utf-8");
   } catch (e) {
-    return { ok: false, error: unreadableSourceText(tool, opened.file, symbol, messageOf(e)) };
+    return {
+      ok: false,
+      error: unreadableSourceText(tool, opened.file, symbol, messageOf(e)),
+      reason: reasonOfError(e),
+    };
   }
   const outcome = addressTsSymbol(
     symbol,
@@ -546,8 +570,13 @@ async function loadProjectMap(
     ),
     opened.budget,
   );
-  if (built === undefined)
-    return { ok: false, error: listingBudgetText(tool, opened.budget, opened.workspaceRoot) };
+  if (built === undefined) {
+    return {
+      ok: false,
+      error: listingBudgetText(tool, opened.budget, opened.workspaceRoot),
+      reason: "budget-exceeded",
+    };
+  }
   if (built.kind === "unavailable") return { ok: true, value: withoutMap(built.reason) };
   const anchors = built.projects.flatMap((project) =>
     project.anchor === null ? [] : [project.anchor],
@@ -662,7 +691,11 @@ export async function anchorProjects(
       opened.budget,
     );
     if (started === undefined) {
-      return { ok: false, error: tsBudgetText(tool, opened.budget, "start", opened.workspaceRoot) };
+      return {
+        ok: false,
+        error: tsBudgetText(tool, opened.budget, "start", opened.workspaceRoot),
+        reason: "budget-exceeded",
+      };
     }
     const generation = opened.session.generation();
     const mapped = await loadProjectMap(tool, opened, exec);
@@ -671,7 +704,11 @@ export async function anchorProjects(
     // Nothing to open proves nothing, and a workspace-wide search over a server that loaded no project
     // answers a silent `[]` : refused with what the map did find, not waited out.
     if (files.length === 0) {
-      return { ok: false, error: noAnchorText(tool, symbol, opened.workspaceRoot, mapped.value) };
+      return {
+        ok: false,
+        error: noAnchorText(tool, symbol, opened.workspaceRoot, mapped.value),
+        reason: "input-invalid",
+      };
     }
     const opening = await withinBudget(
       opened.session.openAnchorsOn(files).then((serial) => ({ serial })),
@@ -681,6 +718,7 @@ export async function anchorProjects(
       return {
         ok: false,
         error: tsBudgetText(tool, opened.budget, "open the project anchors", opened.workspaceRoot),
+        reason: "budget-exceeded",
       };
     }
     if (opened.session.generation() !== generation) continue;
@@ -691,6 +729,7 @@ export async function anchorProjects(
       return {
         ok: false,
         error: tsReadinessText(tool, opened.budget, symbol, opened.workspaceRoot, "restarted"),
+        reason: "session-lost",
       };
     }
     const ready = await proveDocumentsOpen(tool, opened, symbol);
@@ -700,6 +739,7 @@ export async function anchorProjects(
   return {
     ok: false,
     error: tsReadinessText(tool, opened.budget, symbol, opened.workspaceRoot, "restarted"),
+    reason: "session-lost",
   };
 }
 
@@ -768,6 +808,7 @@ export async function readTsOutline(
         `answer the outline of "${opened.file}"`,
         opened.workspaceRoot,
       ),
+      reason: "budget-exceeded",
     };
   }
   // tsgo's outline is syntactic and never premature, so an empty one is an answer about the file, and a file that declares nothing addresses no symbol — which the next step says.
@@ -785,6 +826,7 @@ async function proveDocumentsOpen(
   return {
     ok: false,
     error: tsReadinessText(tool, opened.budget, symbol, opened.workspaceRoot, readiness),
+    reason: readinessReason(readiness),
   };
 }
 
@@ -1142,13 +1184,21 @@ export async function tsTypeAwareRequest<T>(
 ): Promise<Step<T>> {
   const answered = await withinBudget(query.session.request<T>(method, params), query.budget);
   if (answered === undefined) {
-    return { ok: false, error: tsBudgetText(tool, query.budget, what, query.workspaceRoot) };
+    return {
+      ok: false,
+      error: tsBudgetText(tool, query.budget, what, query.workspaceRoot),
+      reason: "budget-exceeded",
+    };
   }
   // The mark alone is a flag any caller's `openAnchors` sets on whichever process is live, so it cannot say
   // that THIS call's anchors are on the process that answered; the spawn they were proved on can, and it moves
   // on a reload as well as on a replacement.
   if (query.session.spawnSerial() !== query.anchorsProvenOn || !query.session.isWorkspaceLoaded()) {
-    return { ok: false, error: tsRestartedText(tool, symbol, query.workspaceRoot) };
+    return {
+      ok: false,
+      error: tsRestartedText(tool, symbol, query.workspaceRoot),
+      reason: "session-lost",
+    };
   }
   return { ok: true, value: answered };
 }

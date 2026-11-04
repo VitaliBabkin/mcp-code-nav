@@ -51,6 +51,17 @@ export class RequestAbortedError extends Error {
   }
 }
 
+/**
+ * A request failed because the child process was no longer running. The message is the original failure's (plus the
+ * stderr tail, when any); the original stays as `cause`.
+ */
+export class ServerExitedError extends Error {
+  constructor(message: string, cause: Error) {
+    super(message, { cause });
+    this.name = "ServerExitedError";
+  }
+}
+
 /** A rejection stays an Error so callers can branch on it; any other reason is wrapped with its cause. */
 function asRequestError(serverId: string, method: string, reason: unknown): Error {
   return reason instanceof Error

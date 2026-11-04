@@ -747,6 +747,10 @@ describe("the TypeScript workspace model against the real tsgo", () => {
       // And a file of the wider workspace is not reachable through the narrow root: refused, not answered.
       const escaped = await ask(freshManager(), [memberPackage], sharedFile, "SHARED_LABEL");
       expect(resultView(escaped).isError).toBe(true);
+      expect(resultView(escaped).structuredContent).toEqual({
+        reason: "path-escape",
+        retryable: false,
+      });
       expect(textOf(escaped)).toContain("shared.ts");
     },
     CALL_BUDGET_MS * 2,

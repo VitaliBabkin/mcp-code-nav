@@ -9,6 +9,7 @@ import { errorResult, successResult } from "../mcp-response.js";
 import type { ResolvedPath } from "../paths/resolve-safe-path.js";
 import { NameInput } from "./input-limits.js";
 import { resolutionNote } from "./shared.js";
+import { reasonOfError } from "./reason-of-error.js";
 import type { Budget } from "./budget.js";
 import { GoDeclaringFileSchema, GoSourceRootsSchema, timeBudgetSchema } from "./go-shared.js";
 import {
@@ -81,6 +82,7 @@ function directionFor(symbol: LspDocumentSymbol): Step<GoImplementationDirection
         `${TOOL} failed: "${symbol.name}" is reported as a function, and gopls reports a real \`func\` and a ` +
         "named func type identically in an outline, so the direction of this question cannot be decided from " +
         "the outline. Known gap: name the interface or the named type instead.",
+      reason: "symbol-kind-unsupported",
     };
   }
   return {
@@ -88,6 +90,7 @@ function directionFor(symbol: LspDocumentSymbol): Step<GoImplementationDirection
     error:
       `${TOOL} failed: "${symbol.name}" is ${withArticle(kind)}, and only named types and interfaces have a direction ` +
       "to ask about.",
+    reason: "symbol-kind-unsupported",
   };
 }
 
@@ -147,7 +150,7 @@ export async function runGoFindImplementations(
     const opened = await openGoQuery(TOOL, sessions, input, deps, directionFor, (resolved) => {
       resolution = resolved;
     });
-    if (!opened.ok) return errorResult(opened.error);
+    if (!opened.ok) return errorResult(opened.error, opened.reason);
     const query = opened.value;
     const {
       file,
@@ -170,7 +173,7 @@ export async function runGoFindImplementations(
       params,
       `answer the query for "${input.symbol}"`,
     );
-    if (!answered.ok) return errorResult(answered.error);
+    if (!answered.ok) return errorResult(answered.error, answered.reason);
     const locations = toReported(
       "gopls",
       TOOL,
@@ -178,7 +181,7 @@ export async function runGoFindImplementations(
       outsideRoot(moduleRoot),
       input.symbol,
     );
-    if (!locations.ok) return errorResult(locations.error);
+    if (!locations.ok) return errorResult(locations.error, locations.reason);
 
     const { rows, truncated } = await buildRows(session, locations.value, file, symbols, budget);
     const scope: GoScopeBase = {
@@ -195,7 +198,10 @@ export async function runGoFindImplementations(
     };
     return successResult(payload, humanSummary(payload));
   } catch (e) {
-    return errorResult(`${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`);
+    return errorResult(
+      `${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`,
+      reasonOfError(e),
+    );
   }
 }
 

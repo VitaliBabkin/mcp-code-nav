@@ -16,6 +16,7 @@ import { READ_CONCURRENCY } from "../tsgo/uncovered-mentions.js";
 import type { SymbolDescription } from "./navigation-limits.js";
 import { containerOf } from "./navigation-text.js";
 import { PathInput } from "./input-limits.js";
+import { reasonOfError } from "./reason-of-error.js";
 import { resolutionNote } from "./shared.js";
 import { CONTAINER_KINDS } from "./ts-addressing.js";
 import {
@@ -162,7 +163,7 @@ export async function runTsFileSymbols(
   let resolution: ResolvedPath | undefined;
   try {
     const target = await resolveTsTarget(TOOL, sessions, input, "file", deps);
-    if (!target.ok) return errorResult(target.error);
+    if (!target.ok) return errorResult(target.error, target.reason);
     const { file, workspaceRoot, budget, session } = target.value;
     resolution = target.value.resolution;
 
@@ -172,6 +173,7 @@ export async function runTsFileSymbols(
         `${TOOL} failed: tsgo did not answer for "${file}" within its ${String(budget.ceilingMs)} ms budget. ` +
           `The workspace at "${workspaceRoot}" may still be loading its projects; raise timeBudgetMs or ` +
           "call again, and do not read this as an empty file.",
+        "budget-exceeded",
       );
     }
     // tsgo's documentSymbol is syntactic and correct on the first call, so an empty outline is a real answer
@@ -195,7 +197,10 @@ export async function runTsFileSymbols(
     };
     return successResult(payload);
   } catch (e) {
-    return errorResult(`${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`);
+    return errorResult(
+      `${TOOL} failed: ${messageOf(e)}${resolutionNote(input.file, resolution)}`,
+      reasonOfError(e),
+    );
   }
 }
 

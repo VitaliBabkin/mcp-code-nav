@@ -1084,6 +1084,10 @@ describe("runTsFindReferences", () => {
 
     const out = await h.run({ symbol: "Absent" });
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "symbol-not-found",
+      retryable: false,
+    });
     expect(textOf(out)).toBe(
       `ts_find_references failed: "${h.main}" declares nothing named "Absent". \`symbol\` is a top-level name in the file, or a dotted path descending through a class, interface, enum or namespace (\`ExecDriver.run\`, \`Ns.Inner.x\`); an import binding matches like a variable and the checker follows the alias. A local, or an object literal's member, is not addressable.`,
     );
@@ -1095,6 +1099,10 @@ describe("runTsFindReferences", () => {
 
     const out = await h.run({ symbol: "Widget" });
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "symbol-ambiguous",
+      retryable: false,
+    });
     expect(textOf(out)).toBe(
       `ts_find_references failed: "Widget" names 2 declarations in "${h.main}" that TypeScript does not merge into one, so this server will not pick between them. Select one with a prefix - \`static\`, \`instance\`, \`value\`, \`type\` or \`namespace\`:\n` +
         `  - value Widget (constant) at ${h.main}:11\n` +
@@ -1108,6 +1116,10 @@ describe("runTsFindReferences", () => {
 
     const out = await h.run({ symbol: "build.inner" });
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "symbol-kind-unsupported",
+      retryable: false,
+    });
     expect(textOf(out)).toBe(
       `ts_find_references failed: "build.inner" cannot be addressed in "${h.main}": "build" is not a class, interface, enum or namespace (it is a function), and only those four hold addressable members. Locals and object-literal members are not addressable.`,
     );
@@ -1120,6 +1132,10 @@ describe("runTsFindReferences", () => {
 
     const out = await h.run();
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "unexpected-answer",
+      retryable: false,
+    });
     expect(textOf(out)).toBe(
       'ts_find_references failed: tsgo answered the query for "Storage" with entry 1 this server cannot read, ' +
         "so the answer cannot be reported without possibly dropping a match. It expects `Location` or " +
@@ -1134,6 +1150,10 @@ describe("runTsFindReferences", () => {
 
     const out = await h.run();
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "unexpected-answer",
+      retryable: false,
+    });
     expect(textOf(out)).toBe(
       'ts_find_references failed: tsgo answered the query for "Storage" with an object this server cannot read, ' +
         "so the answer cannot be reported without possibly dropping a match. It expects `Location` or " +
@@ -1148,6 +1168,7 @@ describe("runTsFindReferences", () => {
 
     const out = await h.run();
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({ reason: "session-lost", retryable: true });
     expect(textOf(out)).toBe(
       `ts_find_references failed: tsgo restarted during the query about "Storage" in the workspace "${h.ws}", so the documents the answer depends on were opened on a process that is not the one that answered. Call again: the restarted server opens its anchors and proves them before answering.`,
     );
@@ -1200,6 +1221,7 @@ describe("runTsFindReferences", () => {
 
     const out = await h.run();
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({ reason: "session-lost", retryable: true });
     expect(textOf(out)).toContain("tsgo restarted during the query");
     // The other call's proof really was made — on the replacement, for its own documents. That is the fact the
     // boolean records, and it is not a fact about this answer.
@@ -1216,6 +1238,7 @@ describe("runTsFindReferences", () => {
 
     const out = await h.run();
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({ reason: "session-lost", retryable: true });
     expect(textOf(out)).toContain("tsgo restarted during the query");
     expect(h.session.isWorkspaceLoaded()).toBe(true);
     expect(h.servers).toHaveLength(2);
@@ -1227,10 +1250,13 @@ describe("runTsFindReferences", () => {
 
     const out = await h.run({ timeBudgetMs: 100 });
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "budget-exceeded",
+      retryable: true,
+    });
     expect(textOf(out)).toBe(
       `ts_find_references failed: tsgo did not answer the query for "Storage" within this call's 100 ms budget. The workspace at "${h.ws}" may still be loading its projects; raise timeBudgetMs or call again, and do not read this as an empty answer.`,
     );
-    expect(out).not.toHaveProperty("structuredContent");
     expect(countOf(h.server, "textDocument/references")).toBe(1);
   });
 

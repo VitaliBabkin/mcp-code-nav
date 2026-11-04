@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { goplsConfig, LanguageServerUnavailableError } from "../../src/lsp/server-config.js";
 import { runGoFindReferences } from "../../src/tools/go-find-references.js";
 import {
   REFERENCE_FILES_LIMIT,
@@ -404,6 +405,7 @@ describe("runGoFindReferences", () => {
 
     const bare = await h.run({ symbol: "Get" });
     expect(bare.isError).toBe(true);
+    expect(bare.structuredContent).toEqual({ reason: "symbol-not-found", retryable: false });
     expect(textOf(bare)).toMatch(/no top-level declaration named "Get"/);
   });
 
@@ -497,6 +499,7 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "unexpected-answer", retryable: false });
     expect(textOf(out)).toMatch(/cannot read/);
     expect(textOf(out)).toContain('"Storage"');
     expect(textOf(out)).toMatch(/entry 1/);
@@ -510,6 +513,7 @@ describe("runGoFindReferences", () => {
     // a microtask, so a starved host cannot spend the 40 ms before the step under test is reached.
     const out = await runUntilBudgetExpires(() => h.run({ timeBudgetMs: 40 }), 40);
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "not-ready", retryable: true });
     expect(textOf(out)).toMatch(/initial workspace load/);
     expect(textOf(out)).toContain("40 ms budget");
     expect(h.server.methods).not.toContain("textDocument/references");
@@ -523,6 +527,7 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "session-lost", retryable: true });
     expect(textOf(out)).toMatch(/gopls restarted during the query/);
     expect(textOf(out)).toMatch(/initial workspace load has not been proven/);
     // The retried query really was answered — what is refused is the proof, not the reply.
@@ -539,6 +544,7 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "input-invalid", retryable: false });
     expect(textOf(out)).toContain(`"${tagged}"`);
     expect(textOf(out)).toMatch(/Commonly a build constraint/);
     expect(textOf(out)).toMatch(/filename carries no GOOS\/GOARCH suffix/);
@@ -551,6 +557,7 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "internal", retryable: false });
     expect(textOf(out)).toContain("no identifier found");
     expect(textOf(out)).not.toMatch(/build constraint/);
   });
@@ -561,6 +568,7 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run({ symbol: "Absent" });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "symbol-not-found", retryable: false });
     expect(textOf(out)).toMatch(/no top-level declaration named "Absent"/);
     expect(textOf(out)).toContain(h.file);
     expect(h.server.methods).not.toContain("textDocument/references");
@@ -573,6 +581,7 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "symbol-ambiguous", retryable: false });
     expect(textOf(out)).toMatch(/matches 2 top-level declarations/);
     expect(textOf(out)).toContain(`Storage (interface) at ${h.file}:14`);
     expect(textOf(out)).toContain(`Storage (struct) at ${h.file}:61`);
@@ -587,6 +596,7 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run({ symbol: "Bare" });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "unexpected-answer", retryable: false });
     expect(textOf(out)).toMatch(/no selection range/);
     expect(h.server.methods).not.toContain("textDocument/references");
   });
@@ -599,6 +609,7 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run({ sourceRoots: [plain], file: join(plain, "a.go") });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "no-module", retryable: false });
     expect(textOf(out)).toMatch(/not inside a Go module/);
     expect(h.server.methods).toEqual([]);
   });
@@ -612,6 +623,7 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run({ sourceRoots: [pkg], file: inPkg });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "path-escape", retryable: false });
     expect(textOf(out)).toMatch(/outside every declared sourceRoots entry/);
     expect(textOf(out)).toContain(resolve(h.mod));
   });
@@ -622,6 +634,7 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run({ sourceRoots: [h.tmp, h.mod], file: "storage.go" });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "path-ambiguous", retryable: false });
     expect(textOf(out)).toMatch(/exists under more than one declared root/);
     expect(textOf(out)).toContain(resolve(h.tmp));
     expect(textOf(out)).toContain(resolve(join(h.mod, "storage.go")));
@@ -635,6 +648,7 @@ describe("runGoFindReferences", () => {
 
     const out = await h.run();
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "server-unavailable", retryable: false });
     expect(textOf(out)).toContain("Cannot start gopls");
     expect(textOf(out)).toContain("MCP_CODE_NAV_GOPLS");
     expect(textOf(out)).toContain("go install golang.org/x/tools/gopls@latest");
@@ -643,12 +657,16 @@ describe("runGoFindReferences", () => {
   it("keeps the tried spellings of a relative file when the prelude throws on the way to an answer", async () => {
     const h = harness({
       spawn: () => {
-        throw new Error('Cannot start gopls: "gopls" on PATH was not found');
+        throw new LanguageServerUnavailableError(
+          { config: goplsConfig, attempted: "gopls", fromOverride: false },
+          { message: 'Cannot start gopls: "gopls" on PATH was not found' },
+        );
       },
     });
 
     const out = await h.run({ sourceRoots: [h.tmp, h.mod], file: "storage.go" });
     expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "server-unavailable", retryable: false });
     expect(textOf(out)).toContain("Cannot start gopls");
     expect(textOf(out)).toMatch(/Resolved "storage\.go" to "/);
     expect(textOf(out)).toMatch(/\(tried: "/);

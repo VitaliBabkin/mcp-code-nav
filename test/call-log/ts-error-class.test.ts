@@ -1,5 +1,7 @@
-// Every error text a `ts_` tool can answer with, read from the code that emits it and classified by the
-// anchor table, so a reworded TS refusal fails here instead of drifting into `other`.
+// Every error text a `ts_` tool can answer with, read from the code that emits it, so a reworded TS refusal
+// fails here instead of drifting into `internal`. The reason is read from the tool's own result; a helper that
+// only builds a text is pinned to its phrase, and the reason it is answered with is checked where the tool that
+// returns it is tested.
 // No `tsc.exe`, no `npm` and no real tsgo runs: the executable comes through `resolveBinary`, the project
 // listings through `exec`, and every tsgo answer through the fake server's `respond`.
 
@@ -8,7 +10,6 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { LspDocumentSymbol } from "../../src/clangd/outline.js";
-import { classifyError } from "../../src/call-log/error-class.js";
 import { TSGO_IDENTITY, tsgoConfig, unavailableMessage } from "../../src/lsp/server-config.js";
 import { LspSessionManager } from "../../src/lsp/session-manager.js";
 import { runTsFileSymbols } from "../../src/tools/ts-file-symbols.js";
@@ -28,13 +29,12 @@ import {
   type TsQueryDeps,
 } from "../../src/tools/ts-navigation-shared.js";
 import { budgetOf } from "../../src/tools/budget.js";
-import { resultView, textOf } from "../helpers/tool-result.js";
 import { unexpectedAnswerText, WORKSPACE_SYMBOL_ANSWER } from "../../src/tools/lsp-locations.js";
+import { classifyError } from "../../src/call-log/error-class.js";
+import { fieldOf, resultView, textOf } from "../helpers/tool-result.js";
 import { resolveTsgoBinary, type TsgoBinary, type TsExecFn } from "../../src/tsgo/binary.js";
 import { dropProjectMap } from "../../src/tsgo/project-map.js";
 import { fakeServer, pathOfDocumentId } from "../helpers/fake-lsp.js";
-
-type Answer = { isError?: boolean; content?: readonly { text?: string }[] };
 
 const BINARY: TsgoBinary = {
   executable:
@@ -66,7 +66,10 @@ function entry(
   return {
     name,
     kind,
-    range: { start: pos(line, name), end: { line, character: TEXT[line]!.length } },
+    range: {
+      start: pos(line, name),
+      end: { line, character: TEXT[line]!.length },
+    },
     selectionRange: { start: pos(line, name) },
     ...(children === undefined ? {} : { children }),
   };
@@ -133,8 +136,14 @@ function harness(listing: "ok" | "fails" = "ok"): Harness {
   };
 }
 
+/** The class its text alone is given, which is what a transcript reader sees. */
 function classOf(text: string): string {
   return classifyError(text).errorClass;
+}
+
+/** The reason a tool result carries in `structuredContent`; `undefined` when it carries none. */
+function reasonIn(answer: { readonly structuredContent?: unknown }): unknown {
+  return fieldOf(answer.structuredContent, "reason");
 }
 
 afterEach(() => {
@@ -149,11 +158,10 @@ describe("what the shared TS target resolution refuses with", () => {
     const h = harness();
     const notes = join(h.ws, "src", "notes.txt");
     writeFileSync(notes, "x");
-    const out = resultView(
-      await runTsFileSymbols(h.manager, { ...h.base(), file: notes, depth: 1 }, h.deps),
-    );
+    const out = await runTsFileSymbols(h.manager, { ...h.base(), file: notes, depth: 1 }, h.deps);
 
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
+    expect(reasonIn(out)).toBe("input-invalid");
     expect(classOf(textOf(out))).toBe("input-invalid");
   });
 
@@ -170,6 +178,7 @@ describe("what the shared TS target resolution refuses with", () => {
     );
 
     expect(textOf(out)).toContain("is not inside an npm package");
+    expect(reasonIn(out)).toBe("no-module");
     expect(classOf(textOf(out))).toBe("no-module");
   });
 
@@ -177,11 +186,17 @@ describe("what the shared TS target resolution refuses with", () => {
     const h = harness();
     const out = await runTsFileSymbols(
       h.manager,
-      { sourceRoots: [join(h.ws, "src")], file: h.main, timeBudgetMs: 60_000, depth: 1 },
+      {
+        sourceRoots: [join(h.ws, "src")],
+        file: h.main,
+        timeBudgetMs: 60_000,
+        depth: 1,
+      },
       h.deps,
     );
 
     expect(textOf(out)).toContain("outside every declared sourceRoots entry");
+    expect(reasonIn(out)).toBe("path-escape");
     expect(classOf(textOf(out))).toBe("path-escape");
   });
 
@@ -196,11 +211,15 @@ describe("what the shared TS target resolution refuses with", () => {
       { ...h.base(), depth: 1 },
       {
         ...h.deps,
-        resolveBinary: async () => ({ unavailable: missing, attempted: "C:/x/tsc.exe" }),
+        resolveBinary: async () => ({
+          unavailable: missing,
+          attempted: "C:/x/tsc.exe",
+        }),
       },
     );
 
     expect(textOf(out)).toContain("Cannot start tsgo:");
+    expect(reasonIn(out)).toBe("server-unavailable");
     expect(classOf(textOf(out))).toBe("server-unavailable");
   });
 
@@ -219,23 +238,28 @@ describe("what the shared TS target resolution refuses with", () => {
     });
 
     expect("unavailable" in miss).toBe(true);
-    const text = "unavailable" in miss ? miss.unavailable : "";
-    expect(text).toContain("Cannot start tsgo:");
-    expect(text).toContain("no such file or directory");
-    expect(classOf(text)).toBe("server-unavailable");
+    const h = harness();
+    const out = await runTsFileSymbols(
+      h.manager,
+      { ...h.base(), depth: 1 },
+      { ...h.deps, resolveBinary: async () => miss },
+    );
+    expect(textOf(out)).toContain("Cannot start tsgo:");
+    expect(textOf(out)).toContain("no such file or directory");
+    expect(reasonIn(out)).toBe("server-unavailable");
+    expect(classOf(textOf(out))).toBe("server-unavailable");
   });
 
   it("file-not-found, for a `file` that does not exist, through a TS tool", async () => {
     const h = harness();
-    const out = resultView(
-      await runTsFileSymbols(
-        h.manager,
-        { ...h.base(), file: join(h.ws, "src", "gone.ts"), depth: 1 },
-        h.deps,
-      ),
+    const out = await runTsFileSymbols(
+      h.manager,
+      { ...h.base(), file: join(h.ws, "src", "gone.ts"), depth: 1 },
+      h.deps,
     );
 
-    expect(out.isError).toBe(true);
+    expect(resultView(out).isError).toBe(true);
+    expect(reasonIn(out)).toBe("file-not-found");
     expect(classOf(textOf(out))).toBe("file-not-found");
   });
 
@@ -248,6 +272,7 @@ describe("what the shared TS target resolution refuses with", () => {
     );
 
     expect(textOf(out)).toContain("still looking for the TypeScript 7 native server");
+    expect(reasonIn(out)).toBe("budget-exceeded");
     expect(classOf(textOf(out))).toBe("budget-exceeded");
   });
 });
@@ -262,6 +287,7 @@ describe("what addressing a `symbol` refuses with", () => {
     );
 
     expect(textOf(out)).toContain('declares nothing named "Nope"');
+    expect(reasonIn(out)).toBe("symbol-not-found");
     expect(classOf(textOf(out))).toBe("symbol-not-found");
   });
 
@@ -274,6 +300,7 @@ describe("what addressing a `symbol` refuses with", () => {
     );
 
     expect(textOf(out)).toContain("will not pick between them");
+    expect(reasonIn(out)).toBe("symbol-ambiguous");
     expect(classOf(textOf(out))).toBe("symbol-ambiguous");
   });
 
@@ -286,18 +313,18 @@ describe("what addressing a `symbol` refuses with", () => {
     );
 
     expect(textOf(out)).toContain("only those four hold addressable members");
+    expect(reasonIn(out)).toBe("symbol-kind-unsupported");
     expect(classOf(textOf(out))).toBe("symbol-kind-unsupported");
   });
 
   it("symbol-not-found, for a dotted path no entry of the file carries", () => {
-    expect(classOf(notAddressableText("ts_find_references", "x.y", "a.ts", "x", "nothing"))).toBe(
-      "symbol-not-found",
-    );
+    const text = notAddressableText("ts_find_references", "x.y", "a.ts", "x", "nothing");
+    expect(text).toContain("no entry in this file carries that path");
+    expect(classOf(text)).toBe("symbol-not-found");
   });
 
-  // There is no class for a server-shape fault or an unreadable file, so these fall to `other`, where
-  // `npm run stats` lists their heads as unclassified instead of filing them under a class that misdescribes them.
-  it("other, for a dotted namespace entry whose own span is not the run it claims", () => {
+  // Helper-only texts: the reason is named beside each text by the tool that returns it, which the TS tool tests check.
+  it("a dotted namespace entry whose own span is not the run it claims names the span it could not read", () => {
     const span = unreadableSpanText("ts_find_callers", "a.ts", {
       name: "A.B",
       kind: 3,
@@ -305,10 +332,19 @@ describe("what addressing a `symbol` refuses with", () => {
       selectionRange: pos0(),
     });
 
-    expect(classOf(span)).toBe("other");
+    expect(span).toContain("is not that run of names");
+    expect(classOf(span)).toBe("internal");
   });
 
-  it("other, for a source unreadable for a reason other than its absence; file-not-found when it is absent", () => {
+  it("a source unreadable for a reason other than its absence names the read that failed, whatever the errno", () => {
+    expect(
+      unreadableSourceText(
+        "ts_find_callers",
+        "a.ts",
+        "S",
+        "EACCES: permission denied, open 'a.ts'",
+      ),
+    ).toContain('"a.ts" could not be read (EACCES: permission denied');
     expect(
       classOf(
         unreadableSourceText(
@@ -318,17 +354,15 @@ describe("what addressing a `symbol` refuses with", () => {
           "EACCES: permission denied, open 'a.ts'",
         ),
       ),
-    ).toBe("other");
-    expect(
-      classOf(
-        unreadableSourceText(
-          "ts_find_callers",
-          "a.ts",
-          "S",
-          "ENOENT: no such file or directory, open 'a.ts'",
-        ),
-      ),
-    ).toBe("file-not-found");
+    ).toBe("internal");
+    const absent = unreadableSourceText(
+      "ts_find_callers",
+      "a.ts",
+      "S",
+      "ENOENT: no such file or directory, open 'a.ts'",
+    );
+    expect(absent).toContain('"a.ts" could not be read (ENOENT');
+    expect(classOf(absent)).toBe("file-not-found");
   });
 });
 
@@ -344,6 +378,7 @@ describe("what the per-tool gates refuse with", () => {
     expect(textOf(out)).toContain(
       "only an interface, class, method or property has implementations",
     );
+    expect(reasonIn(out)).toBe("symbol-kind-unsupported");
     expect(classOf(textOf(out))).toBe("symbol-kind-unsupported");
   });
 
@@ -353,6 +388,7 @@ describe("what the per-tool gates refuse with", () => {
     const out = await runTsFindCallers(h.manager, { ...h.base(), symbol: "label" }, h.deps);
 
     expect(textOf(out)).toContain("so it is not callable");
+    expect(reasonIn(out)).toBe("symbol-kind-unsupported");
     expect(classOf(textOf(out))).toBe("symbol-kind-unsupported");
   });
 
@@ -362,10 +398,11 @@ describe("what the per-tool gates refuse with", () => {
     const out = await runTsFindCallers(h.manager, { ...h.base(), symbol: "run" }, h.deps);
 
     expect(textOf(out)).toContain("picking one would be a guess");
+    expect(reasonIn(out)).toBe("symbol-ambiguous");
     expect(classOf(textOf(out))).toBe("symbol-ambiguous");
   });
 
-  it("other, for an answer this server cannot read and will not shrink", async () => {
+  it("unexpected-answer, for an answer this server cannot read and will not shrink", async () => {
     const h = harness();
     h.answers.set("textDocument/references", { not: "a list" });
     const out = await runTsFindReferences(
@@ -375,31 +412,44 @@ describe("what the per-tool gates refuse with", () => {
     );
 
     expect(textOf(out)).toContain("this server cannot read");
-    expect(classOf(textOf(out))).toBe("other");
+    expect(reasonIn(out)).toBe("unexpected-answer");
+    expect(classOf(textOf(out))).toBe("internal");
   });
 
   it("symbol-not-found, for a `ts_find_symbol` whose file anchor declares no such name", async () => {
     const h = harness();
     const out = await runTsFindSymbol(
       h.manager,
-      { sourceRoots: [h.ws], symbol: "Nope", anchor: h.main, timeBudgetMs: 60_000 },
+      {
+        sourceRoots: [h.ws],
+        symbol: "Nope",
+        anchor: h.main,
+        timeBudgetMs: 60_000,
+      },
       h.deps,
     );
 
     expect(textOf(out)).toContain('no declaration named "Nope"');
+    expect(reasonIn(out)).toBe("symbol-not-found");
     expect(classOf(textOf(out))).toBe("symbol-not-found");
   });
 
-  it("not-ready, for a directory anchor in a workspace whose only project failed to list", async () => {
+  it("input-invalid, for a directory anchor in a workspace whose only project failed to list", async () => {
     const h = harness("fails");
     const out = await runTsFindSymbol(
       h.manager,
-      { sourceRoots: [h.ws], symbol: "run", anchor: h.ws, timeBudgetMs: 60_000 },
+      {
+        sourceRoots: [h.ws],
+        symbol: "run",
+        anchor: h.ws,
+        timeBudgetMs: 60_000,
+      },
       h.deps,
     );
 
     expect(textOf(out)).toContain("no project anchor could be opened");
-    expect(classOf(textOf(out))).toBe("not-ready");
+    expect(reasonIn(out)).toBe("input-invalid");
+    expect(classOf(textOf(out))).toBe("input-invalid");
   });
 });
 
@@ -407,26 +457,32 @@ describe("what the budget, readiness and restart texts say", () => {
   const budget = budgetOf(60_000);
 
   it("budget-exceeded, for a request or a listing that outran the ceiling", () => {
-    expect(classOf(tsBudgetText("ts_find_callers", budget, "answer", "D:/ws"))).toBe(
-      "budget-exceeded",
-    );
-    expect(classOf(listingBudgetText("ts_find_callers", budget, "D:/ws"))).toBe("budget-exceeded");
+    const request = tsBudgetText("ts_find_callers", budget, "answer", "D:/ws");
+    const listing = listingBudgetText("ts_find_callers", budget, "D:/ws");
+
+    expect(request).toContain("ms budget");
+    expect(listing).toContain("ms budget ran out");
+    expect(classOf(request)).toBe("budget-exceeded");
+    expect(classOf(listing)).toBe("budget-exceeded");
   });
 
   it("not-ready, not budget-exceeded, for documents that were never proved open", () => {
-    expect(classOf(tsReadinessText("ts_find_callers", budget, "run", "D:/ws", "timed-out"))).toBe(
-      "not-ready",
-    );
+    const text = tsReadinessText("ts_find_callers", budget, "run", "D:/ws", "timed-out");
+
+    expect(text).toContain("could not prove within its");
+    expect(classOf(text)).toBe("not-ready");
   });
 
   it("session-lost, for the process replaced mid-call", () => {
-    expect(classOf(tsRestartedText("ts_find_callers", "run", "D:/ws"))).toBe("session-lost");
-    expect(classOf(tsReadinessText("ts_find_callers", budget, "run", "D:/ws", "restarted"))).toBe(
-      "session-lost",
-    );
+    const restarted = tsRestartedText("ts_find_callers", "run", "D:/ws");
+    const readiness = tsReadinessText("ts_find_callers", budget, "run", "D:/ws", "restarted");
+
+    expect(restarted).toContain("restarted during the query about");
+    expect(classOf(restarted)).toBe("session-lost");
+    expect(classOf(readiness)).toBe("session-lost");
   });
 
-  it("not-ready, for the no-anchor refusal in both its variants", () => {
+  it("input-invalid, for the no-anchor refusal in both its variants", () => {
     const empty = {
       projects: [],
       failed: [],
@@ -435,29 +491,28 @@ describe("what the budget, readiness and restart texts say", () => {
       projectsUnavailable: undefined,
       anchors: [],
     };
-    expect(
-      classOf(
-        noAnchorText("ts_find_symbol", "run", "D:/ws", {
-          ...empty,
-          projectsUnavailable: "too many",
-        }),
-      ),
-    ).toBe("not-ready");
-    expect(classOf(noAnchorText("ts_find_symbol", "run", "D:/ws", empty))).toBe("not-ready");
+    const unavailable = noAnchorText("ts_find_symbol", "run", "D:/ws", {
+      ...empty,
+      projectsUnavailable: "too many",
+    });
+    const none = noAnchorText("ts_find_symbol", "run", "D:/ws", empty);
+
+    expect(unavailable).toContain("no project anchor could be opened");
+    expect(classOf(unavailable)).toBe("input-invalid");
+    expect(classOf(none)).toBe("input-invalid");
   });
 
-  it("other, for a workspace-symbol answer this server cannot read", () => {
-    expect(
-      classOf(
-        unexpectedAnswerText(
-          "tsgo",
-          "ts_find_symbol",
-          { x: 1 },
-          "run",
-          undefined,
-          WORKSPACE_SYMBOL_ANSWER,
-        ),
-      ),
-    ).toBe("other");
+  it("internal by text, for a workspace-symbol answer this server cannot read", () => {
+    const text = unexpectedAnswerText(
+      "tsgo",
+      "ts_find_symbol",
+      { x: 1 },
+      "run",
+      undefined,
+      WORKSPACE_SYMBOL_ANSWER,
+    );
+
+    expect(text).toContain("project-wide symbol search");
+    expect(classOf(text)).toBe("internal");
   });
 });

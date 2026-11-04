@@ -2,7 +2,11 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { CompileDbNotFoundError, listTranslationUnits } from "../../src/clang-query/compile-db.js";
+import {
+  CompileDbInvalidError,
+  CompileDbNotFoundError,
+  listTranslationUnits,
+} from "../../src/clang-query/compile-db.js";
 
 describe("listTranslationUnits", () => {
   let projectRoot: string;
@@ -34,8 +38,19 @@ describe("listTranslationUnits", () => {
     );
   });
 
-  it("throws on malformed JSON", () => {
-    writeFileSync(join(projectRoot, "compile_commands.json"), "not json");
-    expect(() => listTranslationUnits(projectRoot)).toThrow();
+  it("throws CompileDbInvalidError on malformed JSON, keeping the database path in the message", () => {
+    const dbPath = join(projectRoot, "compile_commands.json");
+    writeFileSync(dbPath, "not json");
+    expect(() => listTranslationUnits(projectRoot)).toThrow(CompileDbInvalidError);
+    expect(() => listTranslationUnits(projectRoot)).toThrow(`${dbPath} is not valid JSON`);
+  });
+
+  it("throws CompileDbInvalidError on JSON that parses but is not a compile database", () => {
+    const dbPath = join(projectRoot, "compile_commands.json");
+    writeFileSync(dbPath, JSON.stringify({ entries: [] }));
+    expect(() => listTranslationUnits(projectRoot)).toThrow(CompileDbInvalidError);
+    expect(() => listTranslationUnits(projectRoot)).toThrow(
+      `${dbPath} is not a compile database: `,
+    );
   });
 });

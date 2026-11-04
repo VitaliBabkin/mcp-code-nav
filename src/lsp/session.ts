@@ -15,6 +15,7 @@ import { defaultSpawnLsp, type LspConnection, type LspProcess, type SpawnLsp } f
 import {
   RequestAbortedError,
   RequestTimeoutError,
+  ServerExitedError,
   DEFAULT_REQUEST_TIMEOUT_MS,
   sendWithControl,
 } from "./request-control.js";
@@ -351,7 +352,12 @@ export class LspSession {
     if (proc.stderrSettled !== undefined)
       await Promise.race([proc.stderrSettled(), this.sleep(STDERR_SETTLE_MS)]);
     const note = stderrNote(this.config.id, proc.stderrTail?.());
-    return note === "" ? error : new Error(error.message + note, { cause: error });
+    // The original stays as `cause`, so `reasonOfError` still reads a timeout through it; a failure of a dead
+    // child gets its own type, because its cause names nothing.
+    if (error instanceof RequestTimeoutError) {
+      return note === "" ? error : new Error(error.message + note, { cause: error });
+    }
+    return new ServerExitedError(error.message + note, error);
   }
 
   /**

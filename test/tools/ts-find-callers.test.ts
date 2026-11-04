@@ -662,6 +662,10 @@ describe("runTsFindCallers", () => {
 
       const out = await h.run();
       expect(resultView(out).isError).toBe(true);
+      expect(resultView(out).structuredContent).toEqual({
+        reason: "symbol-kind-unsupported",
+        retryable: false,
+      });
       expect(textOf(out)).toBe(
         `ts_find_callers failed: tsgo offers no call hierarchy for "Driver.run" in "${h.main}", so it is not ` +
           "callable - a variable, a constant that is not a function, a type or a plain object member never has " +
@@ -678,6 +682,10 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run();
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "symbol-ambiguous",
+      retryable: false,
+    });
     expect(textOf(out)).toBe(
       'ts_find_callers failed: tsgo offered 2 call-hierarchy items for "Driver.run", and picking one would ' +
         "be a guess, so they are listed:\n" +
@@ -693,6 +701,10 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run();
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "unexpected-answer",
+      retryable: false,
+    });
     expect(textOf(out)).toContain('answered the caller query for "Driver.run"');
     expect(textOf(out)).toContain(
       'It expects `CallHierarchyItem` and `IncomingCall` entries: {"item":1}',
@@ -707,6 +719,10 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run();
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "unexpected-answer",
+      retryable: false,
+    });
     expect(textOf(out)).toContain("with entry 1 this server cannot read");
     expect(textOf(out)).toContain("possibly dropping a caller");
     expect(textOf(out)).toContain('"Driver.run"');
@@ -915,6 +931,10 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run({ symbol: "Absent" });
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "symbol-not-found",
+      retryable: false,
+    });
     expect(textOf(out)).toContain('declares nothing named "Absent"');
     expect(h.server.methods).toEqual(["initialize", "textDocument/documentSymbol"]);
   });
@@ -927,6 +947,7 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run();
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({ reason: "session-lost", retryable: true });
     expect(textOf(out)).toContain(
       'ts_find_callers failed: tsgo restarted during the query about "Driver.run"',
     );
@@ -942,6 +963,7 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run();
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({ reason: "session-lost", retryable: true });
     expect(textOf(out)).toContain("tsgo restarted during the query");
     expect(h.session.isWorkspaceLoaded()).toBe(true);
     expect(h.servers).toHaveLength(2);
@@ -953,12 +975,15 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run({ timeBudgetMs: 100 });
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "budget-exceeded",
+      retryable: true,
+    });
     expect(textOf(out)).toBe(
       `ts_find_callers failed: tsgo did not prepare the call hierarchy for "Driver.run" within this call's ` +
         `100 ms budget. The workspace at "${h.ws}" may still be loading its projects; raise timeBudgetMs or ` +
         "call again, and do not read this as an empty answer.",
     );
-    expect(out).not.toHaveProperty("structuredContent");
     expect(countOf(h.server, PREPARE_METHOD)).toBe(1);
   });
 
@@ -969,6 +994,10 @@ describe("runTsFindCallers", () => {
 
     const out = await h.run({ timeBudgetMs: 100 });
     expect(resultView(out).isError).toBe(true);
+    expect(resultView(out).structuredContent).toEqual({
+      reason: "budget-exceeded",
+      retryable: true,
+    });
     expect(textOf(out)).toContain('did not return the incoming calls of "Driver.run"');
     expect(textOf(out)).toContain("100 ms budget");
   });
