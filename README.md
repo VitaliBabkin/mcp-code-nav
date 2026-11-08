@@ -114,7 +114,7 @@ missing, the result is an error that says how to install it. See [Using it](#usi
 | -------------------------- | ------------------------- | -------------------------------------------------------------- |
 | Node.js                    | 20                        | 20.20.2, 22                                                    |
 | `clangd`                   | 22.1.0                    | 22.1.0, 23.1.0                                                 |
-| `clang-query`              | 14                        | 14.0.6, 18.1.3, 20.1.2, 22.1.8                                 |
+| `clang-query`              | 22                        | 22.1.2, 22.1.3, 22.1.8                                         |
 | `gopls`                    | v0.15.0 (with Go 1.21)    | v0.15.0 with Go 1.21.13, v0.23.0 with Go 1.27.2                |
 | TypeScript 7 native server | `typescript@7.0.1-rc`     | 7.0.1-rc, 7.0.2                                                |
 
