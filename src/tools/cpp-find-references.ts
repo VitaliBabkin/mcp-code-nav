@@ -8,9 +8,9 @@ import type { IndexState, LspSession } from "../lsp/session.js";
 import { errorResult, successResult } from "../mcp-response.js";
 import { budgetOf, type Budget } from "./budget.js";
 import {
+  compileDbRefusal,
   cppAnswerScope,
   cppQuestionDeclaration,
-  missingCompileDbHint,
   noIndexDeclarationRefusal,
   outsideEveryRoot,
   outsideSubjectText,
@@ -241,9 +241,8 @@ export async function runCppFindReferences(
   raw: CppFindReferencesInputType,
 ) {
   try {
-    const missingDb = await missingCompileDbHint(raw.projectRoot);
-    if (missingDb !== undefined)
-      return errorResult(`${TOOL} failed: ${missingDb}`, "compile-db-missing");
+    const noDb = await compileDbRefusal(raw.projectRoot);
+    if (noDb !== undefined) return errorResult(`${TOOL} failed: ${noDb.error}`, noDb.reason);
 
     const { roots, input } = withEffectiveRoots(raw);
     const session = sessions.get(input.projectRoot, clangdConfig);

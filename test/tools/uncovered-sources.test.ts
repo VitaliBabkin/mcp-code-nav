@@ -38,7 +38,7 @@ const rowFor = (rows: FailedFile[] | undefined, file: string): string | undefine
 function writeDb(files: string[]): void {
   writeFileSync(
     join(buildRoot, "compile_commands.json"),
-    JSON.stringify(files.map((file) => ({ directory: sourceRoot, file }))),
+    JSON.stringify(files.map((file) => ({ directory: sourceRoot, command: "c++ -c", file }))),
   );
 }
 
@@ -49,7 +49,7 @@ function writeDb(files: string[]): void {
 function writeDbUnderProjectRoot(): void {
   writeFileSync(
     join(buildRoot, "compile_commands.json"),
-    JSON.stringify([{ directory: buildRoot, file: "gen.cpp" }]),
+    JSON.stringify([{ directory: buildRoot, command: "c++ -c", file: "gen.cpp" }]),
   );
 }
 
@@ -336,6 +336,15 @@ describe("a files-scoped call diagnoses its own entries against the database", (
     expect(rowFor(out.structuredContent?.failedFiles, compiled())).toBe(
       "fatal error: cannot compile adapter.cpp",
     );
+  });
+
+  it("names a successful file no entry compiles, and omits the key when every file has an entry", async () => {
+    const mixed = await run({ files: ["typo.cpp", "adapter.cpp"] });
+    expect(mixed.isError).toBeFalsy();
+    expect(mixed.structuredContent?.sweep.filesWithInferredFlags).toEqual([mistyped()]);
+
+    const listed = await run({ files: ["adapter.cpp"] });
+    expect(listed.structuredContent?.sweep).not.toHaveProperty("filesWithInferredFlags");
   });
 
   it("needs no sourceRoots and no completed walk to make the diagnosis", async () => {

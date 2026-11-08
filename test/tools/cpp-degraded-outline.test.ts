@@ -145,7 +145,7 @@ describe("cpp_file_symbols without a compile database", () => {
     await outline("a.cpp");
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: projectRoot, file: "a.cpp" }]),
+      JSON.stringify([{ directory: projectRoot, command: "c++ -c", file: "a.cpp" }]),
     );
 
     const result = resultView(await outline("a.cpp"));
@@ -159,7 +159,7 @@ describe("cpp_file_symbols without a compile database", () => {
   it("leaves the database-backed answer with no summary and no scope", async () => {
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: projectRoot, file: "a.cpp" }]),
+      JSON.stringify([{ directory: projectRoot, command: "c++ -c", file: "a.cpp" }]),
     );
 
     const raw = await outline("a.cpp");
@@ -327,6 +327,26 @@ describe("the other four C++ tools without a compile database", () => {
       expect(result.isError).toBe(true);
       expect(result.content[0]?.text).toContain(head);
       expect(result.structuredContent).toEqual({ reason: "compile-db-missing", retryable: false });
+    }
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it("refuse a malformed database as invalid and start no clangd", async () => {
+    writeFileSync(join(root, "compile_commands.json"), "{ not an array");
+    const spawn = vi.fn();
+    const sessions = new LspSessionManager({ spawn, sleep: async () => {} });
+    const address = { projectRoot: root, name: "Widget", sourceRoots: [] };
+
+    const results = [
+      resultView(await runCppFindSymbol(sessions, address)),
+      resultView(await runCppFindReferences(sessions, address)),
+      resultView(await runCppFindCallers(sessions, address)),
+    ];
+
+    for (const result of results) {
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain("is not valid JSON");
+      expect(result.structuredContent).toEqual({ reason: "compile-db-invalid", retryable: false });
     }
     expect(spawn).not.toHaveBeenCalled();
   });

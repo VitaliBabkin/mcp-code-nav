@@ -30,7 +30,7 @@ const SOURCE_ROOTS_DESCRIPTION =
   "derived from compile_commands.json.";
 
 const FILE_SYMBOLS_SENTENCE =
-  "With no compile_commands.json in projectRoot it still answers from a default-flags parse and says so; " +
+  "With no valid compile_commands.json in projectRoot it still answers from a default-flags parse and says so; " +
   "the other C++ tools refuse.";
 
 interface Registered {

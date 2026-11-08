@@ -186,7 +186,7 @@ describe("cpp_file_symbols", () => {
     );
   });
 
-  it("outlines a file under projectRoot when the database is invalid JSON, with no derived root", async () => {
+  it("outlines a file under projectRoot when the database is invalid JSON, saying it parsed without one", async () => {
     const layout = makeLayout("invalid");
     const inside = join(layout.build, "a.cpp");
     writeFileSync(inside, "class Widget {};\n");
@@ -199,7 +199,10 @@ describe("cpp_file_symbols", () => {
       depth: 1,
     });
 
-    expect(structured(result)).toEqual(outline);
+    expect(structured(result)).toMatchObject({
+      ...outline,
+      scope: { limits: ["parsed-without-compile-database"] },
+    });
   });
 
   it("suggests the source tree when only projectRoot was a root", async () => {
@@ -442,7 +445,7 @@ describe("cpp_find_symbol, the index branch", () => {
   });
 
   it("names the search boundary for a missing file when only projectRoot was a root", async () => {
-    const layout = makeLayout("invalid");
+    const layout = makeLayout("docker");
     const sessions = sessionsFor(clangdFor(layout).process);
 
     const result = resultView(

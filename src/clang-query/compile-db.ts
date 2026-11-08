@@ -2,10 +2,18 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { z } from "zod";
 
-const CompileCommandEntry = z.object({
-  directory: z.string(),
-  file: z.string(),
-});
+/** The shapes clang's own reader rejects: one such entry loses the whole file, and clangd then parses on default flags. */
+const CompileCommandEntry = z
+  .strictObject({
+    directory: z.string(),
+    file: z.string(),
+    command: z.string().optional(),
+    arguments: z.array(z.string()).optional(),
+    output: z.unknown().optional(),
+  })
+  .refine((entry) => entry.command !== undefined || entry.arguments !== undefined, {
+    message: 'missing key "command" or "arguments"',
+  });
 
 const CompileCommandsSchema = z.array(CompileCommandEntry);
 
@@ -38,7 +46,8 @@ export function listTranslationUnits(projectRoot: string): string[] {
   }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    // clang reads past a byte-order mark, which Windows PowerShell's UTF-8 writer puts at the start of a file.
+    parsed = JSON.parse(raw.replace(/^﻿/, ""));
   } catch (e) {
     throw new CompileDbInvalidError(`${dbPath} is not valid JSON`, { cause: e });
   }

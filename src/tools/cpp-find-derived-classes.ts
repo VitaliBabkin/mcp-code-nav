@@ -128,6 +128,8 @@ type RowCounts = { readonly transitive: number; readonly direct: number };
  */
 type SweepPayload = FindDerivedClassesResult["sweep"] & {
   readonly sourceRoots: CppSourceRootsBlock;
+  /** The `files` entries no compile-database entry compiles; absent when there are none. */
+  readonly filesWithInferredFlags?: readonly string[];
 } & UncoveredSourcesBlock;
 
 /** `derivation` is the first key so a payload can never be read as the other view. */
@@ -270,6 +272,7 @@ export async function runCppFindDerivedClasses(
     // "Running without flags" and exits 0, so its rows or its empty `matches` would be a flagless parse.
     if ("error" in listing) throw listing.error;
     const db = listing.tus;
+    const unlisted = unlistedNamedFiles(translationUnits, db);
     const sweepScope = translationUnits ?? db;
     const outcome = await findDerivedClasses({
       projectRoot: input.projectRoot,
@@ -287,7 +290,6 @@ export async function runCppFindDerivedClasses(
     // Every TU failing the same way means the empty `matches` is the sweep failing, not the hierarchy
     // being empty — an error with no payload that could be read as an answer.
     if (outcome.uniformFailure) {
-      const unlisted = unlistedNamedFiles(translationUnits, db);
       return errorResult(
         uniformFailureText(outcome.uniformFailure, outcome.failedFiles, unlisted),
         uniformFailureReason(outcome.uniformFailure),
@@ -297,8 +299,14 @@ export async function runCppFindDerivedClasses(
     const result = buildSweepPayload(
       derivation,
       outcome,
-      sweepPayload(outcome, fingerprintResult, { roots, sourceRoots }, input.projectRoot, db),
-      annotateFailedFiles(outcome.failedFiles, translationUnits, db),
+      sweepPayload(
+        outcome,
+        fingerprintResult,
+        { roots, sourceRoots, unlisted },
+        input.projectRoot,
+        db,
+      ),
+      annotateFailedFiles(outcome.failedFiles, unlisted),
     );
 
     // A per-TU clang-query failure never fails the whole call — it is
@@ -346,7 +354,11 @@ function unlistedNamedFiles(files: string[] | undefined, db: readonly string[]):
 function sweepPayload(
   outcome: FindDerivedClassesResult,
   walk: ProjectFingerprint,
-  scope: { readonly roots: readonly string[]; readonly sourceRoots: CppSourceRootsBlock },
+  scope: {
+    readonly roots: readonly string[];
+    readonly sourceRoots: CppSourceRootsBlock;
+    readonly unlisted: readonly string[];
+  },
   projectRoot: string,
   db: readonly string[],
 ): SweepPayload {
@@ -360,17 +372,19 @@ function sweepPayload(
     compileDbTus: db,
     readIgnoredPaths: () => readIgnoredPatterns(projectRoot),
   });
-  return { ...outcome.sweep, ...cacheReason, sourceRoots: scope.sourceRoots, ...block };
+  const { unlisted } = scope;
+  return {
+    ...outcome.sweep,
+    ...cacheReason,
+    sourceRoots: scope.sourceRoots,
+    ...block,
+    ...(unlisted.length === 0 ? {} : { filesWithInferredFlags: unlisted }),
+  };
 }
 
 /** Adds the missing-entry reason to already-produced rows for files the caller named; never creates a row. */
-function annotateFailedFiles(
-  failedFiles: FailedFile[],
-  files: string[] | undefined,
-  db: readonly string[],
-): FailedFile[] {
+function annotateFailedFiles(failedFiles: FailedFile[], unlisted: readonly string[]): FailedFile[] {
   if (failedFiles.length === 0) return failedFiles;
-  const unlisted = unlistedNamedFiles(files, db);
   if (unlisted.length === 0) return failedFiles;
   const named = new Set(unlisted.map(pathKey));
   return failedFiles.map((row) => (named.has(pathKey(row.file)) ? addDbReason(row) : row));
@@ -456,6 +470,8 @@ export function registerCppFindDerivedClasses(server: McpServer, deps: CppFindDe
         "expecting a different result. A repeated `qualifiedName` may come from cache (`sweep.cache` says so); " +
         "a new name sweeps again. `counts` are matched source locations (one per template form, test " +
         "fixtures included), not classes - count distinct `className` values in `matches`. " +
+        "`sweep.filesWithInferredFlags` lists `files` entries with no compile-database entry: their rows rest " +
+        "on flags inferred from other entries. " +
         "`sweep.uncoveredSources` names sources under `sourceRoots` that no compile-database entry compiles " +
         "- a class defined only there cannot appear. Its `count: 0` covers only the sources the walk visits " +
         "(not build, vendored, VCS or `.claude` directories, `ignoredPaths` matches or symlinks) and says " +

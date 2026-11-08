@@ -92,25 +92,77 @@ describe("findDerivedClasses against a real clang-query binary", () => {
     ]);
   });
 
-  it("fails a database entry with no command, which the real binary runs without flags and exits 0", async () => {
-    writeFileSync(
-      join(projectRoot, "widget.cpp"),
-      '#include "base.h"\n\nclass Derived : public Base {};\n',
-    );
+  it("names a successful file the database does not list, which the real binary parses on inferred flags", async () => {
+    const source = '#include "base.h"\n\nclass Derived : public Base {};\n';
+    writeFileSync(join(projectRoot, "widget.cpp"), source);
+    writeFileSync(join(projectRoot, "unlisted.cpp"), source);
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: projectRoot, file: "widget.cpp" }]),
+      JSON.stringify([
+        {
+          directory: projectRoot,
+          command: "clang++ -std=c++17 -c widget.cpp -o widget.o",
+          file: "widget.cpp",
+        },
+      ]),
     );
 
     const out = resultView(
       await runCppFindDerivedClasses(
         { exec: defaultClangQueryExec, cache: new SweepCache() },
-        { qualifiedName: "Base", projectRoot, files: ["widget.cpp"] },
+        { qualifiedName: "Base", projectRoot, files: ["unlisted.cpp"] },
       ),
     );
 
-    expect(out.isError).toBe(true);
-    expect(out.structuredContent).toEqual({ reason: "sweep-failed", retryable: false });
+    expect(out.isError).toBeFalsy();
+    expect(out.structuredContent).toMatchObject({
+      matches: [{ className: "Derived", file: join(projectRoot, "unlisted.cpp") }],
+      sweep: { filesWithInferredFlags: [join(projectRoot, "unlisted.cpp")] },
+    });
+  });
+
+  describe("with a database entry that has no command", () => {
+    const writeCommandlessDb = (): void => {
+      writeFileSync(
+        join(projectRoot, "widget.cpp"),
+        '#include "base.h"\n\nclass Derived : public Base {};\n',
+      );
+      writeFileSync(
+        join(projectRoot, "compile_commands.json"),
+        JSON.stringify([{ directory: projectRoot, file: "widget.cpp" }]),
+      );
+    };
+
+    it("refuses the sweep as an invalid database", async () => {
+      writeCommandlessDb();
+
+      const out = resultView(
+        await runCppFindDerivedClasses(
+          { exec: defaultClangQueryExec, cache: new SweepCache() },
+          { qualifiedName: "Base", projectRoot, files: ["widget.cpp"] },
+        ),
+      );
+
+      expect(out.isError).toBe(true);
+      expect(out.structuredContent).toEqual({ reason: "compile-db-invalid", retryable: false });
+    });
+
+    it("discards what the real binary parsed without flags, though it exited 0", async () => {
+      writeCommandlessDb();
+      const widget = join(projectRoot, "widget.cpp");
+
+      const outcome = await findDerivedClasses({
+        projectRoot,
+        qualifiedName: "Base",
+        translationUnits: [widget],
+        exec: defaultClangQueryExec,
+      });
+
+      expect(outcome.matches).toEqual([]);
+      expect(outcome.failedFiles).toEqual([
+        { file: widget, error: expect.stringContaining("parsed without its flags") },
+      ]);
+    });
   });
 
   it("finds the same real match when compile_commands.json uses an ABSOLUTE source-file spelling", async () => {
