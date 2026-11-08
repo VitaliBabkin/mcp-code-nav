@@ -47,7 +47,7 @@ export function listTranslationUnits(projectRoot: string): string[] {
   let parsed: unknown;
   try {
     // clang reads past a byte-order mark, which Windows PowerShell's UTF-8 writer puts at the start of a file.
-    parsed = JSON.parse(raw.replace(/^﻿/, ""));
+    parsed = JSON.parse(raw.replace(/^FEFF/, ""));
   } catch (e) {
     throw new CompileDbInvalidError(`${dbPath} is not valid JSON`, { cause: e });
   }

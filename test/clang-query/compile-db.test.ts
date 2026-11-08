@@ -83,7 +83,7 @@ describe("listTranslationUnits", () => {
 
   it("reads a database that starts with a byte-order mark", () => {
     const entry = { directory: ".", command: "c++", file: "a.cpp" };
-    writeFileSync(join(projectRoot, "compile_commands.json"), `﻿${JSON.stringify([entry])}`);
+    writeFileSync(join(projectRoot, "compile_commands.json"), `FEFF${JSON.stringify([entry])}`);
     expect(listTranslationUnits(projectRoot)).toEqual([resolve(".", "a.cpp")]);
   });
 });
