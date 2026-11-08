@@ -27,9 +27,9 @@ describe("listTranslationUnits", () => {
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
       JSON.stringify([
-        { directory: projectRoot, file: "a.cpp" },
-        { directory: projectRoot, file: "b.cpp" },
-        { directory: projectRoot, file: "a.cpp" },
+        { directory: projectRoot, command: "c++ -c", file: "a.cpp" },
+        { directory: projectRoot, command: "c++ -c", file: "b.cpp" },
+        { directory: projectRoot, command: "c++ -c", file: "a.cpp" },
       ]),
     );
     const tus = listTranslationUnits(projectRoot);
@@ -52,5 +52,39 @@ describe("listTranslationUnits", () => {
     expect(() => listTranslationUnits(projectRoot)).toThrow(
       `${dbPath} is not a compile database: `,
     );
+  });
+
+  // The shapes clangd 22.1.3 itself fails to load, each of which leaves it parsing on default flags.
+  it.each([
+    ["no command or arguments", { directory: ".", file: "a.cpp" }, 'missing key "command"'],
+    ["an unknown key", { directory: ".", command: "c++", file: "a.cpp", extra: 1 }, "extra"],
+    [
+      "arguments that are a string",
+      { directory: ".", arguments: "c++", file: "a.cpp" },
+      "arguments",
+    ],
+  ])("refuses the whole file over an entry with %s", (_shape, entry, named) => {
+    const good = { directory: ".", command: "c++", file: "b.cpp" };
+    writeFileSync(join(projectRoot, "compile_commands.json"), JSON.stringify([good, entry]));
+    const reading = (): string[] => listTranslationUnits(projectRoot);
+    expect(reading).toThrow(CompileDbInvalidError);
+    expect(reading).toThrow(named);
+  });
+
+  it.each([
+    ["arguments", { directory: ".", arguments: ["c++"], file: "a.cpp" }],
+    ["empty arguments", { directory: ".", arguments: [], file: "a.cpp" }],
+    ["an output key", { directory: ".", command: "c++", file: "a.cpp", output: "a.o" }],
+    ["a null output", { directory: ".", command: "c++", file: "a.cpp", output: null }],
+  ])("reads an entry with %s", (_shape, entry) => {
+    writeFileSync(join(projectRoot, "compile_commands.json"), JSON.stringify([entry]));
+    expect(listTranslationUnits(projectRoot)).toEqual([resolve(".", "a.cpp")]);
+  });
+
+  it("reads a database that starts with a byte-order mark", () => {
+    const entry = { directory: ".", command: "c++", file: "a.cpp" };
+    const text = String.fromCharCode(0xfeff) + JSON.stringify([entry]);
+    writeFileSync(join(projectRoot, "compile_commands.json"), text);
+    expect(listTranslationUnits(projectRoot)).toEqual([resolve(".", "a.cpp")]);
   });
 });

@@ -382,7 +382,7 @@ describe("cpp_find_references and cpp_find_callers against a real clangd binary"
       let first = await ask();
       const refused: string[] = [];
       const stopAt = Date.now() + 90_000;
-      while (first.structuredContent === undefined) {
+      while (first.isError === true) {
         refused.push(textOf(first));
         expect(Date.now(), refused.join(" then ")).toBeLessThan(stopAt);
         await sleep(400);
@@ -763,6 +763,26 @@ describe("cpp_find_references and cpp_find_callers against a real clangd binary"
       ).toBe(true);
       expect(payload.scope.limits).toEqual(["parsed-without-compile-database"]);
       expect(payload.symbols.length).toBeGreaterThan(0);
+    },
+    180_000,
+  );
+
+  itIfClangd(
+    "says a malformed database was not used, since clangd falls back to default flags over one without a word",
+    async () => {
+      writeFileSync(join(tmp, "compile_commands.json"), "{ not an array");
+
+      const answer = await runCppFileSymbols(freshManager(), {
+        projectRoot: tmp,
+        file: header,
+        sourceRoots: [sourceDir],
+      } as never);
+
+      expect(resultView(answer).isError).toBeUndefined();
+      expect(resultView(answer).structuredContent).toMatchObject({
+        scope: { limits: ["parsed-without-compile-database"] },
+      });
+      expect(textOf(resultView(answer))).toContain("is not valid JSON");
     },
     180_000,
   );

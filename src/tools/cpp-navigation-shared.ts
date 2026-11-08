@@ -88,7 +88,7 @@ export const CppAddressShape = {
   file: PathInput.optional().describe(
     "The declaring file (a .cpp resolves to its header): absolute, or relative - a relative path is " +
       "resolved against projectRoot and each sourceRoots entry, and must exist under exactly one of them. " +
-      "Omit it to search the files this session opened, then clangd's index.",
+      "Omit it to search the files this session opened, then clangd's index: all of it, not only sourceRoots.",
   ),
   sourceRoots: SourceRootsSchema,
   kind: SymbolKindFilterSchema.optional().describe(
@@ -343,6 +343,14 @@ export type CppResolution =
  */
 export const CLANGD_SYMBOL_CAP_WATERMARK = 100;
 
+/**
+ * How to read a C++ listing's count and coverage, for the two tools whose answer is a count over the index.
+ */
+export const CPP_LISTING_READING_TEXT =
+  "A count read while `scope.index.state` is `building` or `unknown` can still grow; only `quiescent` " +
+  "settles it. With `uncovered-sources-present` the answer does not cover the sources " +
+  "`scope.uncoveredSources` counts (`files` is capped) until a compile database compiles them.";
+
 /** One row of clangd's `workspace/symbol` answer, read as a candidate the outline branch would have found. */
 function readSymbolRow(
   tool: string,
@@ -560,12 +568,19 @@ export function noIndexDeclarationRefusal(
 /**
  * The rule every clangd-backed C++ tool shares: the compile database is proven readable
  * before a session exists, because clangd answers happily from a directory that holds none and says nothing
- * about it. `undefined` when `projectRoot/compile_commands.json` is a file this server can read; the refusal
- * text — the unchanged head plus the nearest directories under `projectRoot` that do hold one — when it is not.
+ * about it, and it falls back to default flags just as quietly over a malformed one. `undefined` when
+ * `projectRoot/compile_commands.json` is a compile database this server can read; the refusal when it is not. A
+ * missing one's text is the unchanged head plus the nearest directories under `projectRoot` that do hold one.
  */
-export async function missingCompileDbHint(projectRoot: string): Promise<string | undefined> {
-  if (await compileDbReadable(join(projectRoot, "compile_commands.json"))) return undefined;
-  return describeMissingCompileDb(projectRoot);
+export async function compileDbRefusal(projectRoot: string): Promise<CppRefusal | undefined> {
+  if (!(await compileDbReadable(join(projectRoot, "compile_commands.json"))))
+    return { error: await describeMissingCompileDb(projectRoot), reason: "compile-db-missing" };
+  try {
+    listTranslationUnits(projectRoot);
+    return undefined;
+  } catch (e) {
+    return { error: messageOf(e), reason: reasonOfError(e) };
+  }
 }
 
 /** A directory named `compile_commands.json` is present and unreadable, so the file test comes before the access test. */

@@ -43,7 +43,7 @@ function cppRoot(files: Record<string, string> = { "a.cpp": "class Foo {};\n" })
   for (const [name, body] of Object.entries(files)) writeFileSync(join(root, name), body);
   writeFileSync(
     join(root, "compile_commands.json"),
-    JSON.stringify([{ directory: root, file: "a.cpp" }]),
+    JSON.stringify([{ directory: root, command: "c++ -c", file: "a.cpp" }]),
   );
   return root;
 }
@@ -437,7 +437,7 @@ describe("what the sweep emits, from the clang-query seam", () => {
     for (const name of files) writeFileSync(join(root, name), "class Base {};\n");
     writeFileSync(
       join(root, "compile_commands.json"),
-      JSON.stringify(files.map((name) => ({ directory: root, file: name }))),
+      JSON.stringify(files.map((name) => ({ directory: root, command: "c++ -c", file: name }))),
     );
     return root;
   }

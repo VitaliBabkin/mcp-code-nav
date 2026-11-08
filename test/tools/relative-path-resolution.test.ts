@@ -33,7 +33,7 @@ describe("relative file resolution at the tool layer", () => {
     mkdirSync(sourceRoot);
     writeFileSync(
       join(buildRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: sourceRoot, file: "widget.h" }]),
+      JSON.stringify([{ directory: sourceRoot, command: "c++ -c", file: "widget.h" }]),
     );
   });
 
@@ -83,7 +83,7 @@ describe("relative file resolution at the tool layer", () => {
     // hands the handler when the caller omits it.
     writeFileSync(
       join(buildRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: buildRoot, file: "gen.cpp" }]),
+      JSON.stringify([{ directory: buildRoot, command: "c++ -c", file: "gen.cpp" }]),
     );
     const out = resultView(
       await runCppFileSymbols(sessions, {
