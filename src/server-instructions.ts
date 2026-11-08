@@ -37,8 +37,8 @@ const GO_INSTRUCTIONS =
 const TS_INSTRUCTIONS =
   "TS tools need the TypeScript 7 native server (global `typescript@7`, or MCP_CODE_NAV_TSGO set to its " +
   "executable) and answer for the npm workspace holding the path you name; files no tsconfig project " +
-  "includes, often tests, are not searched: an answer whose `scope.uncoveredSources.mentioning` lists files is " +
-  "incomplete until you grep them.";
+  "includes, often tests, are not searched: an answer whose `scope.uncoveredSources.mentioning` lists files " +
+  "(`matchingLines` is a count) is incomplete until you grep them.";
 
 export const SERVER_INSTRUCTIONS = [
   LANGUAGE_RULE,

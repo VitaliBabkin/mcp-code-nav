@@ -88,7 +88,7 @@ export const CppAddressShape = {
   file: PathInput.optional().describe(
     "The declaring file (a .cpp resolves to its header): absolute, or relative - a relative path is " +
       "resolved against projectRoot and each sourceRoots entry, and must exist under exactly one of them. " +
-      "Omit it to search the files this session opened, then clangd's index.",
+      "Omit it to search the files this session opened, then clangd's index: all of it, not only sourceRoots.",
   ),
   sourceRoots: SourceRootsSchema,
   kind: SymbolKindFilterSchema.optional().describe(
@@ -342,6 +342,14 @@ export type CppResolution =
  * query matching 150 classes came back with exactly this many rows.
  */
 export const CLANGD_SYMBOL_CAP_WATERMARK = 100;
+
+/**
+ * How to read a C++ listing's count and coverage, for the two tools whose answer is a count over the index.
+ */
+export const CPP_LISTING_READING_TEXT =
+  "A count read while `scope.index.state` is `building` or `unknown` can still grow; only `quiescent` " +
+  "settles it. With `uncovered-sources-present` the answer does not cover the sources " +
+  "`scope.uncoveredSources` counts (`files` is capped) until a compile database compiles them.";
 
 /** One row of clangd's `workspace/symbol` answer, read as a candidate the outline branch would have found. */
 function readSymbolRow(

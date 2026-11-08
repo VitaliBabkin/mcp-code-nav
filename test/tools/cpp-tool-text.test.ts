@@ -7,6 +7,7 @@ import { registerCppFindDerivedClasses } from "../../src/tools/cpp-find-derived-
 import { registerCppFindReferences } from "../../src/tools/cpp-find-references.js";
 import { registerCppFindSymbol, CppFindSymbolInput } from "../../src/tools/cpp-find-symbol.js";
 import { registerCppFileSymbols } from "../../src/tools/cpp-file-symbols.js";
+import { CPP_LISTING_READING_TEXT } from "../../src/tools/cpp-navigation-shared.js";
 import { CLANGD_DISK_CLAUSE } from "../../src/tools/shared.js";
 import { cleanExec } from "../helpers/cpp-find-derived-classes.js";
 
@@ -49,6 +50,25 @@ describe("what the C++ tools say about the caller's disk", () => {
 
     expect(text).not.toContain(".cache/clangd");
   });
+
+  it("says a new qualifiedName sweeps again, on cpp_find_derived_classes", () => {
+    const text = descriptionOf((server) =>
+      registerCppFindDerivedClasses(server, { exec: cleanExec, cache: new SweepCache() }),
+    );
+
+    expect(text).toContain("a new name sweeps again");
+  });
+});
+
+describe("what the C++ listing tools say about reading a count", () => {
+  const listingTools = clangdTools.filter(
+    ([name]) => name === "cpp_find_references" || name === "cpp_find_callers",
+  );
+  for (const [name, register] of listingTools) {
+    it(`${name} ties the count to the index state and uncovered sources to the database`, () => {
+      expect(descriptionOf(register)).toContain(CPP_LISTING_READING_TEXT);
+    });
+  }
 });
 
 /**
@@ -80,7 +100,7 @@ describe("what cpp_find_symbol says about the search it ran and the text it retu
 
   it("states where a name is looked for when no file is given, on the parameter that omits it", () => {
     expect(CppFindSymbolInput.shape.file.description).toContain(
-      "the files this session opened, then clangd's index",
+      "the files this session opened, then clangd's index: all of it, not only sourceRoots",
     );
   });
 

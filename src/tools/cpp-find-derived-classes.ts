@@ -457,7 +457,8 @@ export function registerCppFindDerivedClasses(server: McpServer, deps: CppFindDe
         "over the compile database - grep on `class X : public Y` and single-level lookups miss the " +
         "indirect ones. `derivation` picks transitive (default) or direct-only. One call returns the " +
         "complete answer even when it takes tens of seconds; do not retry a timed-out or truncated call " +
-        "expecting a different result. `counts` are matched source locations (one per template form, test " +
+        "expecting a different result. After a complete answer, repeating a `qualifiedName` on unchanged " +
+        "sources answers from cache; a new name sweeps again. `counts` are matched source locations (one per template form, test " +
         "fixtures included), not classes - count distinct `className` values in `matches`. " +
         "`sweep.uncoveredSources` names sources under `sourceRoots` that no compile-database entry compiles " +
         "- a class defined only there cannot appear. Its `count: 0` covers only the sources the walk visits " +
