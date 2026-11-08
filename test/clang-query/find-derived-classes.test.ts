@@ -163,7 +163,7 @@ describe("findDerivedClasses", () => {
   it("falls back to compile_commands.json when translationUnits is omitted", async () => {
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: projectRoot, file: "a.cpp" }]),
+      JSON.stringify([{ directory: projectRoot, command: "c++ -c", file: "a.cpp" }]),
     );
     const seenArgs: string[][] = [];
     const exec: ClangQueryExecFn = async (args) => {

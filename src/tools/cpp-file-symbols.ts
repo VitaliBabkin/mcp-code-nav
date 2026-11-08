@@ -7,9 +7,10 @@ import type { LspSessionManager } from "../lsp/session-manager.js";
 import { errorResult, successResult, withSummary } from "../mcp-response.js";
 import type { ResolvedPath } from "../paths/resolve-safe-path.js";
 import {
+  compileDbRefusal,
   declaredRoots,
-  missingCompileDbHint,
   resolveCppSourceRoots,
+  type CppRefusal,
 } from "./cpp-navigation-shared.js";
 import { PathInput } from "./input-limits.js";
 import type { NavigationLimit } from "./navigation-limits.js";
@@ -47,20 +48,20 @@ export const CppFileSymbolsInput = z.object({
 
 export type CppFileSymbolsInputType = z.infer<typeof CppFileSymbolsInput>;
 
-/** The first sentence of the summary; the full missing-database text follows it. */
+/** The first sentence of the summary; the text saying what is wrong with the database follows it. */
 const DEGRADED_SUMMARY_HEAD =
   "Parsed without a compile database: clangd used default flags, with no include paths or defines from a build, " +
   "so a declaration hidden behind a macro or a missing header may be absent or misnamed. ";
 
 /** A default-flags parse that found nothing proves nothing about the file, so it is not an answer. */
 function emptyDegradedParse(
-  missingDb: string,
+  noDb: CppRefusal,
   absoluteFile: string,
 ): ReturnType<typeof errorResult> {
   return errorResult(
-    `${missingDb} Without it, a default-flags parse of "${absoluteFile}" found no symbols, which does not show ` +
+    `${noDb.error} Without it, a default-flags parse of "${absoluteFile}" found no symbols, which does not show ` +
       "the file is empty.",
-    "compile-db-missing",
+    noDb.reason,
   );
 }
 
@@ -80,10 +81,9 @@ export async function runCppFileSymbols(
   let resolution: ResolvedPath | undefined;
   let sourceRoots: CppSourceRootsBlock | undefined;
   try {
-    const missingDb = await missingCompileDbHint(input.projectRoot);
-    const degraded = missingDb !== undefined;
-    if (degraded && !isDirectory(input.projectRoot))
-      return errorResult(missingDb, "compile-db-missing");
+    const noDb = await compileDbRefusal(input.projectRoot);
+    const degraded = noDb !== undefined;
+    if (degraded && !isDirectory(input.projectRoot)) return errorResult(noDb.error, noDb.reason);
 
     // Nothing is derived without a database: the degraded call resolves against projectRoot and what was declared.
     const block = degraded
@@ -115,7 +115,7 @@ export async function runCppFileSymbols(
     );
     const result = await session.documentSymbol(absoluteFile);
     if (result.state === "cold-empty") {
-      if (degraded) return emptyDegradedParse(missingDb, absoluteFile);
+      if (degraded) return emptyDegradedParse(noDb, absoluteFile);
       return errorResult(
         `cpp_file_symbols failed: "${absoluteFile}" produced no symbols while clangd's index for this ` +
           "project was not yet confirmed warm — this is not confirmed to be a genuinely empty file, retry once the index has warmed up.",
@@ -129,8 +129,8 @@ export async function runCppFileSymbols(
       // {...} objects, wrapped here under `symbols` to satisfy that constraint.
       return successResult({ symbols });
     }
-    if (symbols.length === 0) return emptyDegradedParse(missingDb, absoluteFile);
-    const summary = DEGRADED_SUMMARY_HEAD + missingDb;
+    if (symbols.length === 0) return emptyDegradedParse(noDb, absoluteFile);
+    const summary = DEGRADED_SUMMARY_HEAD + noDb.error;
     const scope = {
       projectRoot: input.projectRoot,
       limits: ["parsed-without-compile-database"] satisfies NavigationLimit[],
@@ -153,7 +153,8 @@ export function registerCppFileSymbols(server: McpServer, sessions: LspSessionMa
       description:
         "Outline one C++ file via clangd: its classes, functions, methods and fields. Use it to see what " +
         "a file declares before reading it. " +
-        "With no compile_commands.json in projectRoot it still answers from a default-flags parse and says so. " +
+        "With no valid compile_commands.json in projectRoot it still answers from a default-flags parse and says so; " +
+        "the other C++ tools refuse. " +
         CLANGD_DISK_CLAUSE,
       inputSchema: CppFileSymbolsInput.shape,
     },

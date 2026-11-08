@@ -74,7 +74,7 @@ describe("runCppFindSymbol", () => {
     writeFileSync(headerFile, "class Widget { void method(); };\n");
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: projectRoot, file: "widget.cpp" }]),
+      JSON.stringify([{ directory: projectRoot, command: "c++ -c", file: "widget.cpp" }]),
     );
   });
 
@@ -283,7 +283,7 @@ describe("runCppFindSymbol with sourceRoots (out-of-tree build layout)", () => {
     writeFileSync(sourceCppFile, "class Widget { void method(); };\n");
     writeFileSync(
       join(buildRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: sourceRoot, file: "widget.cpp" }]),
+      JSON.stringify([{ directory: sourceRoot, command: "c++ -c", file: "widget.cpp" }]),
     );
   });
 

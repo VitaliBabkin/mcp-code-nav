@@ -34,7 +34,7 @@ describe("runCppFileSymbols", () => {
     writeFileSync(join(projectRoot, "a.cpp"), "class Foo {};\n");
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: projectRoot, file: "a.cpp" }]),
+      JSON.stringify([{ directory: projectRoot, command: "c++ -c", file: "a.cpp" }]),
     );
   });
 
@@ -66,7 +66,7 @@ describe("runCppFileSymbols", () => {
       writeFileSync(join(repoRoot, "a.cpp"), "class Foo {};\n");
       writeFileSync(
         join(repoRoot, "build", "compile_commands.json"),
-        JSON.stringify([{ directory: repoRoot, file: "a.cpp" }]),
+        JSON.stringify([{ directory: repoRoot, command: "c++ -c", file: "a.cpp" }]),
       );
       const process = fakeProcess(() => [
         { name: "Foo", kind: 5, range: { start: { line: 0 }, end: { line: 0 } } },
@@ -168,7 +168,7 @@ describe("runCppFileSymbols with sourceRoots (out-of-tree build layout)", () => 
     writeFileSync(join(sourceRoot, "widget.cpp"), "class Widget {};\n");
     writeFileSync(
       join(buildRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: sourceRoot, file: "widget.cpp" }]),
+      JSON.stringify([{ directory: sourceRoot, command: "c++ -c", file: "widget.cpp" }]),
     );
   });
 

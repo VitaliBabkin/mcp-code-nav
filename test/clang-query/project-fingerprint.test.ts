@@ -101,6 +101,34 @@ describe("computeProjectFingerprint", () => {
     expect(after.fingerprint).not.toBe(before.fingerprint);
   });
 
+  it("hashes a build-named projectRoot inside a source root, without calling its sources uncovered", () => {
+    const build = join(projectRoot, "build");
+    const generated = join(build, "gen");
+    mkdirSync(generated, { recursive: true });
+    writeFileSync(join(generated, "api.h"), "class Api {};\n");
+    writeFileSync(join(generated, "api.cpp"), "class Impl {};\n");
+
+    const before = computeProjectFingerprint([build, projectRoot]);
+    writeFileSync(join(generated, "api.h"), "class Api : public Base {};\n");
+    const after = computeProjectFingerprint([build, projectRoot]);
+
+    expect(after.fingerprint).not.toBe(before.fingerprint);
+    expect(after.sourceTus).toEqual([]);
+  });
+
+  it("still collects a declared source root that sits inside that build-named projectRoot", () => {
+    const build = join(projectRoot, "build");
+    const inner = join(build, "src");
+    mkdirSync(inner, { recursive: true });
+    writeFileSync(join(build, "generated.cpp"), "class G {};\n");
+    writeFileSync(join(inner, "a.cpp"), "class A {};\n");
+
+    const result = computeProjectFingerprint([build, projectRoot, inner]);
+
+    expect(result.sourceTus).toEqual([join(inner, "a.cpp")]);
+    expect(result.unreachableSourceRoots).toEqual([]);
+  });
+
   it("walks a root nested inside another root only once (no double count, same fingerprint as the outer root alone)", () => {
     const nested = join(projectRoot, "nested");
     mkdirSync(nested);

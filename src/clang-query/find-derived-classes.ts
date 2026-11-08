@@ -398,6 +398,12 @@ interface TuLocation {
 // did parse have printed their own output, and stderr stays empty. These are the only lines that say why.
 const DIAGNOSTIC_LINE = /error|not found/i;
 
+// Written to stderr when clang-query cannot load the database; it then parses with no flags and exits 0. A live
+// test holds the wording.
+const FLAGLESS_RUN = "Running without flags";
+const FLAGLESS_ERROR =
+  "clang-query could not load compile_commands.json and parsed without its flags, so the result was discarded";
+
 /**
  * Why `clang-query` failed on this TU: stderr when it has anything, else the stdout diagnostics (the first
  * two lines — one bad matcher costs an `Error parsing argument` line plus a `Matcher not found` line), else
@@ -427,6 +433,10 @@ function computeFreshOutcome(
   projectRoot: string,
   result: ClangQueryExecResult,
 ): { outcome: TuOutcome; extractionFailures: FailedFile[] } {
+  // One fixed text, because a flagless sweep's per-file diagnostics differ and the failure must still read as uniform.
+  if (result.stderr.includes(FLAGLESS_RUN)) {
+    return { outcome: { kind: "failed", error: FLAGLESS_ERROR }, extractionFailures: [] };
+  }
   if (result.exitCode !== 0) {
     return { outcome: { kind: "failed", error: failureText(result) }, extractionFailures: [] };
   }

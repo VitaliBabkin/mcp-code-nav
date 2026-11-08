@@ -56,7 +56,10 @@ describe("the C++ tools' compile-database pre-check", () => {
     mkdirSync(buildDir, { recursive: true });
     mkdirSync(srcDir, { recursive: true });
     writeFileSync(widget, "class Widget {};\n");
-    writeFileSync(join(buildDir, DB), JSON.stringify([{ directory: srcDir, file: widget }]));
+    writeFileSync(
+      join(buildDir, DB),
+      JSON.stringify([{ directory: srcDir, command: "c++ -c", file: widget }]),
+    );
   });
 
   afterEach(() => {
