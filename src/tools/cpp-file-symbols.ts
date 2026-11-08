@@ -154,7 +154,7 @@ export function registerCppFileSymbols(server: McpServer, sessions: LspSessionMa
         "Outline one C++ file via clangd: its classes, functions, methods and fields. Use it to see what " +
         "a file declares before reading it. " +
         "With no compile_commands.json in projectRoot it still answers from a default-flags parse and says so; " +
-        "the other C++ tools refuse, except cpp_find_derived_classes given `files`. " +
+        "the other C++ tools refuse. " +
         CLANGD_DISK_CLAUSE,
       inputSchema: CppFileSymbolsInput.shape,
     },

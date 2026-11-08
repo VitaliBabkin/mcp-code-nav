@@ -92,6 +92,27 @@ describe("findDerivedClasses against a real clang-query binary", () => {
     ]);
   });
 
+  it("fails a database entry with no command, which the real binary runs without flags and exits 0", async () => {
+    writeFileSync(
+      join(projectRoot, "widget.cpp"),
+      '#include "base.h"\n\nclass Derived : public Base {};\n',
+    );
+    writeFileSync(
+      join(projectRoot, "compile_commands.json"),
+      JSON.stringify([{ directory: projectRoot, file: "widget.cpp" }]),
+    );
+
+    const out = resultView(
+      await runCppFindDerivedClasses(
+        { exec: defaultClangQueryExec, cache: new SweepCache() },
+        { qualifiedName: "Base", projectRoot, files: ["widget.cpp"] },
+      ),
+    );
+
+    expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "sweep-failed", retryable: false });
+  });
+
   it("finds the same real match when compile_commands.json uses an ABSOLUTE source-file spelling", async () => {
     const cppFile = join(projectRoot, "widget.cpp");
     writeFileSync(cppFile, '#include "base.h"\n\nclass Derived : public Base {};\n');

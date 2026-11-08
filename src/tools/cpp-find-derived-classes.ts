@@ -80,8 +80,7 @@ export const CppFindDerivedClassesInput = z.object({
   files: PathList.optional().describe(
     "TUs to sweep instead of the whole compile database (a full parallel sweep, tens of seconds on a " +
       "mid-size project) - absolute, or relative: a relative path is resolved against projectRoot and " +
-      "each sourceRoots entry, and must exist under exactly one of them. Results are cached per process " +
-      "until a source file changes.",
+      "each sourceRoots entry, and must exist under exactly one of them.",
   ),
   sourceRoots: SourceRootsSchema,
   timeBudgetMs: z
@@ -267,11 +266,11 @@ export async function runCppFindDerivedClasses(
   const reporter = makeProgressReporter(extra, ceilingMs);
 
   try {
-    // An unscoped sweep's scope *is* the database, so its read failure fails the call; a scoped call reads
-    // it only for the blind-spot checks and fails open.
-    if (translationUnits === undefined && "error" in listing) throw listing.error;
-    const db = "tus" in listing ? listing.tus : undefined;
-    const sweepScope = translationUnits ?? db ?? [];
+    // A scoped call needs the database as much as an unscoped one: without a usable one clang-query prints
+    // "Running without flags" and exits 0, so its rows or its empty `matches` would be a flagless parse.
+    if ("error" in listing) throw listing.error;
+    const db = listing.tus;
+    const sweepScope = translationUnits ?? db;
     const outcome = await findDerivedClasses({
       projectRoot: input.projectRoot,
       qualifiedName: input.qualifiedName,
@@ -338,11 +337,8 @@ function listDatabase(projectRoot: string): DatabaseListing {
 }
 
 /** The `files` entries the compile database's own TU list does not compile — `uncoveredSources` filters too much. */
-function unlistedNamedFiles(
-  files: string[] | undefined,
-  db: readonly string[] | undefined,
-): string[] {
-  if (files === undefined || db === undefined) return [];
+function unlistedNamedFiles(files: string[] | undefined, db: readonly string[]): string[] {
+  if (files === undefined) return [];
   return unlistedTranslationUnits(files, db);
 }
 
@@ -352,7 +348,7 @@ function sweepPayload(
   walk: ProjectFingerprint,
   scope: { readonly roots: readonly string[]; readonly sourceRoots: CppSourceRootsBlock },
   projectRoot: string,
-  db: readonly string[] | undefined,
+  db: readonly string[],
 ): SweepPayload {
   const cacheReason =
     outcome.sweep.cache === "disabled" && walk.reason !== undefined
@@ -371,7 +367,7 @@ function sweepPayload(
 function annotateFailedFiles(
   failedFiles: FailedFile[],
   files: string[] | undefined,
-  db: readonly string[] | undefined,
+  db: readonly string[],
 ): FailedFile[] {
   if (failedFiles.length === 0) return failedFiles;
   const unlisted = unlistedNamedFiles(files, db);
@@ -457,8 +453,8 @@ export function registerCppFindDerivedClasses(server: McpServer, deps: CppFindDe
         "over the compile database - grep on `class X : public Y` and single-level lookups miss the " +
         "indirect ones. `derivation` picks transitive (default) or direct-only. One call returns the " +
         "complete answer even when it takes tens of seconds; do not retry a timed-out or truncated call " +
-        "expecting a different result. After a complete answer, repeating a `qualifiedName` on unchanged " +
-        "sources answers from cache; a new name sweeps again. `counts` are matched source locations (one per template form, test " +
+        "expecting a different result. A repeated `qualifiedName` may come from cache (`sweep.cache` says so); " +
+        "a new name sweeps again. `counts` are matched source locations (one per template form, test " +
         "fixtures included), not classes - count distinct `className` values in `matches`. " +
         "`sweep.uncoveredSources` names sources under `sourceRoots` that no compile-database entry compiles " +
         "- a class defined only there cannot appear. Its `count: 0` covers only the sources the walk visits " +

@@ -237,7 +237,7 @@ config key, a comment.
 **C++ `projectRoot`.** Pass the directory that holds `compile_commands.json`, from a build run on this host. A
 database made in Docker, WSL or on another OS names paths this host cannot open: `cpp_find_derived_classes` then fails
 and the clangd tools degrade, so use grep for that project. Without a database `cpp_file_symbols` still answers from a
-default-flags parse and says so.
+default-flags parse and says so; the other C++ tools refuse.
 
 **Reading `scope`.** Every answer states what it could not see. Check it before trusting an empty or short result:
 

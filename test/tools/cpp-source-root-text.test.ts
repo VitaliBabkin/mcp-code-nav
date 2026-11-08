@@ -31,7 +31,7 @@ const SOURCE_ROOTS_DESCRIPTION =
 
 const FILE_SYMBOLS_SENTENCE =
   "With no compile_commands.json in projectRoot it still answers from a default-flags parse and says so; " +
-  "the other C++ tools refuse, except cpp_find_derived_classes given `files`.";
+  "the other C++ tools refuse.";
 
 interface Registered {
   readonly description: string;

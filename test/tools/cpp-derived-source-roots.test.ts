@@ -679,18 +679,15 @@ describe("cpp_find_derived_classes", () => {
     expect(sweepOf(result).sourceRoots).toEqual(derivedBlock(layout));
   });
 
-  it("sweeps a scoped call over an invalid-JSON database, deriving no root", async () => {
+  it("refuses a scoped call over an invalid-JSON database, naming the file", async () => {
     const layout = makeLayout("invalid");
     const inside = join(layout.build, "a.cpp");
     writeFileSync(inside, "class A {};\n");
 
-    const sweep = sweepOf(await run({ projectRoot: layout.build, files: [inside] }));
+    const result = resultView(await run({ projectRoot: layout.build, files: [inside] }));
 
-    expect(sweep.sourceRoots).toEqual({
-      origin: "project-root-only",
-      roots: [],
-      reason: "compile-db-unlistable",
-    });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain("compile_commands.json is not valid JSON");
   });
 
   it("names the derived root and the way out for a `files` entry beyond it", async () => {
