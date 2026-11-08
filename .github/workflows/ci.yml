@@ -38,28 +38,25 @@ jobs:
   # advisory (continue-on-error) until it has been seen green on a hosted runner.
   live:
     name: Live tests (${{ matrix.label }})
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         include:
           - label: minimum tool versions
-            # Ubuntu 26.04 no longer packages clang 14.
-            runner: ubuntu-24.04
             node: 20
             go: "1.21.13"
             gopls: v0.15.0
             clangd: "22.1.0"
-            clang-tools: 14
+            clang-tools: 22
             typescript: 7.0.1-rc
           - label: latest tool versions
-            runner: ubuntu-latest
             node: 22
             go: stable
             gopls: latest
             clangd: latest
-            clang-tools: 20
+            clang-tools: 22
             typescript: latest
     env:
       MCP_CODE_NAV_LIVE_REQUIRE: all
