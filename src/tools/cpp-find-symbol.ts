@@ -9,11 +9,11 @@ import { textDocumentId } from "../lsp/document-uri.js";
 import { readSymbolDescription, type SymbolDescription } from "./navigation-limits.js";
 import {
   CppAddressShape,
+  compileDbRefusal,
   compileDbTus,
   cppNavigationScope,
   cppQuestionDeclaration,
   indexBlock,
-  missingCompileDbHint,
   noIndexDeclarationRefusal,
   outsideEveryRoot,
   resolveCppDeclaration,
@@ -132,9 +132,8 @@ function indexScope(
 
 export async function runCppFindSymbol(sessions: LspSessionManager, raw: CppFindSymbolInputType) {
   try {
-    const missingDb = await missingCompileDbHint(raw.projectRoot);
-    if (missingDb !== undefined)
-      return errorResult(`${TOOL} failed: ${missingDb}`, "compile-db-missing");
+    const noDb = await compileDbRefusal(raw.projectRoot);
+    if (noDb !== undefined) return errorResult(`${TOOL} failed: ${noDb.error}`, noDb.reason);
 
     // The roots this call's containment uses, stated once: a declared list as given, otherwise the source tree
     // derived from the database, and "none" already means "projectRoot alone".

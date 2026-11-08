@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SweepCache } from "../../src/clang-query/sweep-cache.js";
 import type { ClangQueryExecFn, FailedFile } from "../../src/clang-query/find-derived-classes.js";
 import { inferredFlagsCaveat } from "../../src/clang-query/uncovered-sources.js";
@@ -38,7 +38,7 @@ const rowFor = (rows: FailedFile[] | undefined, file: string): string | undefine
 function writeDb(files: string[]): void {
   writeFileSync(
     join(buildRoot, "compile_commands.json"),
-    JSON.stringify(files.map((file) => ({ directory: sourceRoot, file }))),
+    JSON.stringify(files.map((file) => ({ directory: sourceRoot, command: "c++ -c", file }))),
   );
 }
 
@@ -49,7 +49,7 @@ function writeDb(files: string[]): void {
 function writeDbUnderProjectRoot(): void {
   writeFileSync(
     join(buildRoot, "compile_commands.json"),
-    JSON.stringify([{ directory: buildRoot, file: "gen.cpp" }]),
+    JSON.stringify([{ directory: buildRoot, command: "c++ -c", file: "gen.cpp" }]),
   );
 }
 
@@ -267,13 +267,13 @@ describe("sweep.uncoveredSourcesUnavailable", () => {
     expect(out.structuredContent?.sweep).not.toHaveProperty("uncoveredSources");
   });
 
-  it("says compile-db-unlistable on a files-scoped call whose database cannot be read, failing open", async () => {
+  it("refuses a files-scoped call whose database is missing, since clang-query would run without flags", async () => {
     rmSync(join(buildRoot, "compile_commands.json"));
-    const out = await run({ files: ["untouched.cpp"] });
-    expect(out.isError).toBeFalsy();
-    expect(out.structuredContent?.sweep).toMatchObject({
-      uncoveredSourcesUnavailable: "compile-db-unlistable",
-    });
+    const exec = vi.fn<ClangQueryExecFn>(cleanExec);
+    const out = await run({ files: ["untouched.cpp"], exec });
+    expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "compile-db-missing", retryable: false });
+    expect(exec).not.toHaveBeenCalled();
   });
 
   it("keeps the walk's own failure ahead of an unreadable config when both are true", async () => {
@@ -338,6 +338,15 @@ describe("a files-scoped call diagnoses its own entries against the database", (
     );
   });
 
+  it("names a successful file no entry compiles, and omits the key when every file has an entry", async () => {
+    const mixed = await run({ files: ["typo.cpp", "adapter.cpp"] });
+    expect(mixed.isError).toBeFalsy();
+    expect(mixed.structuredContent?.sweep.filesWithInferredFlags).toEqual([mistyped()]);
+
+    const listed = await run({ files: ["adapter.cpp"] });
+    expect(listed.structuredContent?.sweep).not.toHaveProperty("filesWithInferredFlags");
+  });
+
   it("needs no sourceRoots and no completed walk to make the diagnosis", async () => {
     writeDbUnderProjectRoot();
     const out = await run({
@@ -383,15 +392,24 @@ describe("a files-scoped call diagnoses its own entries against the database", (
     );
   });
 
-  it("fails open on a malformed compile_commands.json, and still answers", async () => {
+  it("refuses a files-scoped call on a malformed compile_commands.json, rather than an empty answer", async () => {
     writeFileSync(join(buildRoot, "compile_commands.json"), "{ not an array");
-    const out = await run({ files: ["adapter.cpp"] });
-    expect(out.isError).toBeFalsy();
-    expect(out.structuredContent?.matches).toEqual([]);
-    expect(out.structuredContent?.sweep).toMatchObject({
-      uncoveredSourcesUnavailable: "compile-db-unlistable",
+    const exec = vi.fn<ClangQueryExecFn>(cleanExec);
+    const out = await run({ files: ["adapter.cpp"], exec });
+    expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "compile-db-invalid", retryable: false });
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  it("fails the sweep when clang-query ran without flags, though each file exited 0 with its own stderr", async () => {
+    const flagless: ClangQueryExecFn = async (args) => ({
+      exitCode: 0,
+      stdout: "",
+      stderr: `Running without flags.\n${String(args[2])}: fatal error: 'vector' file not found\n`,
     });
-    expect(out.structuredContent?.sweep).not.toHaveProperty("uncoveredSources");
+    const out = await run({ files: ["adapter.cpp", "untouched.cpp"], exec: flagless });
+    expect(out.isError).toBe(true);
+    expect(out.structuredContent).toEqual({ reason: "sweep-failed", retryable: false });
   });
 
   it("creates no row for a file the caller did not name", async () => {

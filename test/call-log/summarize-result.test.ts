@@ -294,7 +294,7 @@ describe("each result-count selector against the payload its own tool answers wi
     writeFileSync(join(root, "a.cpp"), "class Base {};\n");
     writeFileSync(
       join(root, "compile_commands.json"),
-      JSON.stringify([{ directory: root, file: "a.cpp" }]),
+      JSON.stringify([{ directory: root, command: "c++ -c", file: "a.cpp" }]),
     );
 
     const payload = payloadOf(

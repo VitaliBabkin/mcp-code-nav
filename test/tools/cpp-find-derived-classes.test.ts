@@ -57,7 +57,7 @@ describe("runCppFindDerivedClasses", () => {
     cache = new SweepCache();
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: projectRoot, file: "a.cpp" }]),
+      JSON.stringify([{ directory: projectRoot, command: "c++ -c", file: "a.cpp" }]),
     );
   });
 
@@ -98,7 +98,7 @@ describe("runCppFindDerivedClasses", () => {
       mkdirSync(join(repoRoot, "build"), { recursive: true });
       writeFileSync(
         join(repoRoot, "build", "compile_commands.json"),
-        JSON.stringify([{ directory: repoRoot, file: "a.cpp" }]),
+        JSON.stringify([{ directory: repoRoot, command: "c++ -c", file: "a.cpp" }]),
       );
       const exec: ClangQueryExecFn = () => {
         throw new Error("clang-query must not run for a root that holds no database");
@@ -128,8 +128,8 @@ describe("runCppFindDerivedClasses", () => {
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
       JSON.stringify([
-        { directory: projectRoot, file: "a.cpp" },
-        { directory: projectRoot, file: "b.cpp" },
+        { directory: projectRoot, command: "c++ -c", file: "a.cpp" },
+        { directory: projectRoot, command: "c++ -c", file: "b.cpp" },
       ]),
     );
     const exec: ClangQueryExecFn = async (args) =>
@@ -277,7 +277,7 @@ describe("runCppFindDerivedClasses — derivation views", () => {
     execCalls = 0;
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: projectRoot, file: "a.cpp" }]),
+      JSON.stringify([{ directory: projectRoot, command: "c++ -c", file: "a.cpp" }]),
     );
     writeFileSync(header("MarketData.h"), "class MarketData : public IEngineCallback {};\n");
     writeFileSync(header("Trading.h"), "class Trading : public IEngineCallback {};\n");
@@ -408,8 +408,8 @@ describe("runCppFindDerivedClasses — derivation views", () => {
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
       JSON.stringify([
-        { directory: projectRoot, file: "a.cpp" },
-        { directory: projectRoot, file: "b.cpp" },
+        { directory: projectRoot, command: "c++ -c", file: "a.cpp" },
+        { directory: projectRoot, command: "c++ -c", file: "b.cpp" },
       ]),
     );
     const failing: ClangQueryExecFn = async (args) =>
@@ -462,8 +462,8 @@ describe("runCppFindDerivedClasses — uniform sweep failure", () => {
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
       JSON.stringify([
-        { directory: projectRoot, file: "a.cpp" },
-        { directory: projectRoot, file: "b.cpp" },
+        { directory: projectRoot, command: "c++ -c", file: "a.cpp" },
+        { directory: projectRoot, command: "c++ -c", file: "b.cpp" },
       ]),
     );
   });
@@ -527,7 +527,7 @@ describe("runCppFindDerivedClasses — uniform sweep failure", () => {
   it("is an error on a one-TU scope too, and names the file that failed", async () => {
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: projectRoot, file: "a.cpp" }]),
+      JSON.stringify([{ directory: projectRoot, command: "c++ -c", file: "a.cpp" }]),
     );
     const exec: ClangQueryExecFn = async () => ({
       exitCode: 1,
@@ -572,7 +572,7 @@ describe("runCppFindDerivedClasses with sourceRoots (out-of-tree build layout)",
     cache = new SweepCache();
     writeFileSync(
       join(buildRoot, "compile_commands.json"),
-      JSON.stringify([{ directory: sourceRoot, file: "a.cpp" }]),
+      JSON.stringify([{ directory: sourceRoot, command: "c++ -c", file: "a.cpp" }]),
     );
   });
 
@@ -657,8 +657,8 @@ describe("runCppFindDerivedClasses — progress reporting", () => {
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
       JSON.stringify([
-        { directory: projectRoot, file: "a.cpp" },
-        { directory: projectRoot, file: "b.cpp" },
+        { directory: projectRoot, command: "c++ -c", file: "a.cpp" },
+        { directory: projectRoot, command: "c++ -c", file: "b.cpp" },
       ]),
     );
   });
@@ -713,8 +713,8 @@ describe("runCppFindDerivedClasses — progress heartbeat and reporter lifetime"
     writeFileSync(
       join(projectRoot, "compile_commands.json"),
       JSON.stringify([
-        { directory: projectRoot, file: "a.cpp" },
-        { directory: projectRoot, file: "b.cpp" },
+        { directory: projectRoot, command: "c++ -c", file: "a.cpp" },
+        { directory: projectRoot, command: "c++ -c", file: "b.cpp" },
       ]),
     );
   });
