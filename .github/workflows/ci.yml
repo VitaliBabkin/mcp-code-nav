@@ -49,14 +49,14 @@ jobs:
             go: "1.21.13"
             gopls: v0.15.0
             clangd: "22.1.0"
-            clang-tools: 14
+            clang-tools: 22
             typescript: 7.0.1-rc
           - label: latest tool versions
             node: 22
             go: stable
             gopls: latest
             clangd: latest
-            clang-tools: 20
+            clang-tools: 22
             typescript: latest
     env:
       MCP_CODE_NAV_LIVE_REQUIRE: all

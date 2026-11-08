@@ -186,7 +186,7 @@ describe("cpp_file_symbols", () => {
     );
   });
 
-  it("outlines a file under projectRoot when the database is invalid JSON, with no derived root", async () => {
+  it("outlines a file under projectRoot when the database is invalid JSON, saying it parsed without one", async () => {
     const layout = makeLayout("invalid");
     const inside = join(layout.build, "a.cpp");
     writeFileSync(inside, "class Widget {};\n");
@@ -199,7 +199,10 @@ describe("cpp_file_symbols", () => {
       depth: 1,
     });
 
-    expect(structured(result)).toEqual(outline);
+    expect(structured(result)).toMatchObject({
+      ...outline,
+      scope: { limits: ["parsed-without-compile-database"] },
+    });
   });
 
   it("suggests the source tree when only projectRoot was a root", async () => {
@@ -442,7 +445,7 @@ describe("cpp_find_symbol, the index branch", () => {
   });
 
   it("names the search boundary for a missing file when only projectRoot was a root", async () => {
-    const layout = makeLayout("invalid");
+    const layout = makeLayout("docker");
     const sessions = sessionsFor(clangdFor(layout).process);
 
     const result = resultView(
@@ -679,18 +682,15 @@ describe("cpp_find_derived_classes", () => {
     expect(sweepOf(result).sourceRoots).toEqual(derivedBlock(layout));
   });
 
-  it("sweeps a scoped call over an invalid-JSON database, deriving no root", async () => {
+  it("refuses a scoped call over an invalid-JSON database, naming the file", async () => {
     const layout = makeLayout("invalid");
     const inside = join(layout.build, "a.cpp");
     writeFileSync(inside, "class A {};\n");
 
-    const sweep = sweepOf(await run({ projectRoot: layout.build, files: [inside] }));
+    const result = resultView(await run({ projectRoot: layout.build, files: [inside] }));
 
-    expect(sweep.sourceRoots).toEqual({
-      origin: "project-root-only",
-      roots: [],
-      reason: "compile-db-unlistable",
-    });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain("compile_commands.json is not valid JSON");
   });
 
   it("names the derived root and the way out for a `files` entry beyond it", async () => {

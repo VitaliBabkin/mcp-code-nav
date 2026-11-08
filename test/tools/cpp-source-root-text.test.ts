@@ -9,7 +9,11 @@ import { registerCppFindCallers } from "../../src/tools/cpp-find-callers.js";
 import { registerCppFindDerivedClasses } from "../../src/tools/cpp-find-derived-classes.js";
 import { registerCppFindReferences } from "../../src/tools/cpp-find-references.js";
 import { registerCppFindSymbol } from "../../src/tools/cpp-find-symbol.js";
-import { CLANGD_DISK_CLAUSE, SourceRootsSchema } from "../../src/tools/shared.js";
+import {
+  CLANGD_DISK_CLAUSE,
+  CPP_PROJECT_ROOT_DESCRIPTION,
+  SourceRootsSchema,
+} from "../../src/tools/shared.js";
 import { cleanExec } from "../helpers/cpp-find-derived-classes.js";
 
 // the three model-facing texts that state what a derived `sourceRoots` and the degraded outline
@@ -26,7 +30,8 @@ const SOURCE_ROOTS_DESCRIPTION =
   "derived from compile_commands.json.";
 
 const FILE_SYMBOLS_SENTENCE =
-  "With no compile_commands.json in projectRoot it still answers from a default-flags parse and says so.";
+  "With no valid compile_commands.json in projectRoot it still answers from a default-flags parse and says so; " +
+  "the other C++ tools refuse.";
 
 interface Registered {
   readonly description: string;
@@ -69,6 +74,16 @@ describe("the sourceRoots parameter", () => {
     it(`${name} carries that description`, () => {
       expect(registeredOf(register).inputSchema.sourceRoots?.description).toBe(
         SOURCE_ROOTS_DESCRIPTION,
+      );
+    });
+  }
+});
+
+describe("the projectRoot parameter", () => {
+  for (const [name, register] of tools) {
+    it(`${name} says an out-of-tree build is rooted at its build directory`, () => {
+      expect(registeredOf(register).inputSchema.projectRoot?.description).toBe(
+        CPP_PROJECT_ROOT_DESCRIPTION,
       );
     });
   }

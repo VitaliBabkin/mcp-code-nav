@@ -27,7 +27,8 @@ export const SourceRootsSchema = PathList.optional()
  * sits in, which for an out-of-tree build is not the source tree.
  */
 export const CPP_PROJECT_ROOT_DESCRIPTION =
-  "Absolute path of the directory holding compile_commands.json, from a native build on this host.";
+  "Absolute path of the directory holding compile_commands.json, from a native build on this host: for an " +
+  "out-of-tree build the build directory (e.g. `build/<preset>`), not the repo root.";
 
 export class IgnoredPathError extends Error {
   constructor(public readonly file: string) {

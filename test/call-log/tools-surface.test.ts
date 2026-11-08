@@ -404,7 +404,7 @@ describe("what only the transport can see", () => {
     writeFileSync(join(root, "a.cpp"), "class Foo {};\n");
     writeFileSync(
       join(root, "compile_commands.json"),
-      JSON.stringify([{ directory: root, file: "a.cpp" }]),
+      JSON.stringify([{ directory: root, command: "c++ -c", file: "a.cpp" }]),
     );
     const wire = await connectOverTap(
       true,

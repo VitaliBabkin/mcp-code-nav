@@ -49,10 +49,12 @@ interface WalkState {
   readonly maxEntries: number;
   /** Declared source roots, pre-dedupe: deduplication decides which directories are traversed, never which files qualify. */
   readonly sourceRoots: readonly string[];
-  /** `pathKey` of the dropped source roots; only their directories are recorded in `visited`. */
+  /** `pathKey` of the roots the dedupe dropped; only their directories are recorded in `visited`. */
   readonly droppedKeys: ReadonlySet<string>;
   readonly lines: string[];
   readonly sourceTus: string[];
+  /** The roots whose files count as sources; a build directory's own walk drops those enclosing it. */
+  claimingRoots: readonly string[];
   /** The `droppedKeys` a successful `readdir` entered. */
   readonly visited: Set<string>;
   entriesScanned: number;
@@ -79,7 +81,7 @@ function visitEntry(entry: Dirent, dir: string, state: WalkState, inSourceRoot: 
   if (entry.isDirectory()) {
     // A walk root's own name is never skipped, only a directory reached through a parent.
     if (!isSkippedDirName(entry.name)) {
-      visitDir(path, state, inSourceRoot || underSourceRoot(path, state.sourceRoots));
+      visitDir(path, state, inSourceRoot || underSourceRoot(path, state.claimingRoots));
     }
     return;
   }
@@ -138,8 +140,9 @@ function byProducts(
  *
  * The walk skips every directory `isSkippedDirName` names — `.git`, `.claude`, `node_modules`, `.cache`,
  * `.vs`, `.idea`, `vcpkg_installed`, `out`, and any name starting `build` or `cmake-build` — but never a
- * walk root itself, even if its own name matches (a build directory is the normal `projectRoot`).
- * Symlinked directories are not followed.
+ * walk root itself, even if its own name matches (a build directory is the normal `projectRoot`). A
+ * `projectRoot` inside a source root that the walk did not reach is walked on its own, so its generated
+ * headers count. Symlinked directories are not followed.
  *
  * The walk is bounded by `maxEntries` (default 20000), counted over every enumerated directory entry
  * so the walk's own cost is bounded regardless of what is skipped. Exceeding it disables the
@@ -159,17 +162,23 @@ export function computeProjectFingerprint(
   const dropped: DroppedRoot[] = sourceRoots
     .filter((root) => !walkedRoots.includes(root))
     .map((root) => ({ root, key: pathKey(root) }));
+  const projectRoot = resolvedRoots[0];
+  const nestedProjectRoot =
+    projectRoot !== undefined && !walkedRoots.includes(projectRoot) ? projectRoot : undefined;
   const state: WalkState = {
     maxEntries: options?.maxEntries ?? DEFAULT_MAX_ENTRIES,
     sourceRoots,
-    droppedKeys: new Set(dropped.map(({ key }) => key)),
+    droppedKeys: new Set([
+      ...dropped.map(({ key }) => key),
+      ...(nestedProjectRoot === undefined ? [] : [pathKey(nestedProjectRoot)]),
+    ]),
     lines: [],
     sourceTus: [],
+    claimingRoots: sourceRoots,
     visited: new Set<string>(),
     entriesScanned: 0,
     walkIncomplete: false,
   };
-  const projectRoot = resolvedRoots[0];
   if (projectRoot !== undefined) {
     state.lines.push(statLine(join(projectRoot, "compile_commands.json")));
   }
@@ -177,6 +186,10 @@ export function computeProjectFingerprint(
   for (const root of walkedRoots) {
     visitDir(root, state, underSourceRoot(root, sourceRoots));
     if (isBounded(state)) break;
+  }
+  if (nestedProjectRoot !== undefined && !state.visited.has(pathKey(nestedProjectRoot))) {
+    state.claimingRoots = sourceRoots.filter((root) => !escapesRoot(nestedProjectRoot, root));
+    visitDir(nestedProjectRoot, state, false);
   }
   const collected = byProducts(state, dropped);
 

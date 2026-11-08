@@ -114,7 +114,7 @@ missing, the result is an error that says how to install it. See [Using it](#usi
 | -------------------------- | ------------------------- | -------------------------------------------------------------- |
 | Node.js                    | 20                        | 20.20.2, 22                                                    |
 | `clangd`                   | 22.1.0                    | 22.1.0, 23.1.0                                                 |
-| `clang-query`              | 14                        | 14.0.6, 18.1.3, 20.1.2, 22.1.8                                 |
+| `clang-query`              | 22                        | 22.1.2, 22.1.3, 22.1.8                                         |
 | `gopls`                    | v0.15.0 (with Go 1.21)    | v0.15.0 with Go 1.21.13, v0.23.0 with Go 1.27.2                |
 | TypeScript 7 native server | `typescript@7.0.1-rc`     | 7.0.1-rc, 7.0.2                                                |
 
@@ -236,8 +236,8 @@ config key, a comment.
 
 **C++ `projectRoot`.** Pass the directory that holds `compile_commands.json`, from a build run on this host. A
 database made in Docker, WSL or on another OS names paths this host cannot open: `cpp_find_derived_classes` then fails
-and the clangd tools degrade, so use grep for that project. Without a database `cpp_file_symbols` still answers from a
-default-flags parse and says so.
+and the clangd tools degrade, so use grep for that project. Without a valid database `cpp_file_symbols` still answers
+from a default-flags parse and says so; the other C++ tools refuse.
 
 **Reading `scope`.** Every answer states what it could not see. Check it before trusting an empty or short result:
 
@@ -247,7 +247,8 @@ default-flags parse and says so.
   is an error, not a result; call again once indexing has settled. `scope.index` also reports sources that changed on
   disk since the index was read, and `scope.limits` names caps, for example a listing that hit its cap. For
   `cpp_find_derived_classes`, `sweep.uncoveredSources` names sources under `sourceRoots` that no compile-database entry
-  compiles.
+  compiles, and `sweep.filesWithInferredFlags` names `files` entries with no entry of their own, whose rows rest on flags
+  inferred from other entries.
 - Go: an answer covers one module, under this host's `GOOS` and `GOARCH`; a `go.work` beside it is reported, not
   spanned.
 - Counts are exact even when a listing is capped.

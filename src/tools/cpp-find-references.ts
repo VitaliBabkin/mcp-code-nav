@@ -8,9 +8,9 @@ import type { IndexState, LspSession } from "../lsp/session.js";
 import { errorResult, successResult } from "../mcp-response.js";
 import { budgetOf, type Budget } from "./budget.js";
 import {
+  compileDbRefusal,
   cppAnswerScope,
   cppQuestionDeclaration,
-  missingCompileDbHint,
   noIndexDeclarationRefusal,
   outsideEveryRoot,
   outsideSubjectText,
@@ -31,7 +31,7 @@ import {
 } from "./navigation-limits.js";
 import { capsText, type Step } from "./navigation-text.js";
 import { reasonOfError } from "./reason-of-error.js";
-import { CppAddressShape } from "./cpp-navigation-shared.js";
+import { CPP_LISTING_READING_TEXT, CppAddressShape } from "./cpp-navigation-shared.js";
 import { CLANGD_DISK_CLAUSE } from "./shared.js";
 import { messageOf } from "../error-message.js";
 
@@ -241,9 +241,8 @@ export async function runCppFindReferences(
   raw: CppFindReferencesInputType,
 ) {
   try {
-    const missingDb = await missingCompileDbHint(raw.projectRoot);
-    if (missingDb !== undefined)
-      return errorResult(`${TOOL} failed: ${missingDb}`, "compile-db-missing");
+    const noDb = await compileDbRefusal(raw.projectRoot);
+    if (noDb !== undefined) return errorResult(`${TOOL} failed: ${noDb.error}`, noDb.reason);
 
     const { roots, input } = withEffectiveRoots(raw);
     const session = sessions.get(input.projectRoot, clangdConfig);
@@ -337,6 +336,7 @@ const TOOL_DESCRIPTION =
   "Find every use of a C++ symbol from clangd's index - unlike grep, it tells real uses from comments, " +
   "strings and same-named identifiers. The declaration itself is excluded, and counts are exact even when " +
   "the listing is capped. An empty listing comes only from a settled index. " +
+  `${CPP_LISTING_READING_TEXT} ` +
   CLANGD_DISK_CLAUSE;
 
 export function registerCppFindReferences(server: McpServer, sessions: LspSessionManager) {

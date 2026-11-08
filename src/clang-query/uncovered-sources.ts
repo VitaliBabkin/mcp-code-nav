@@ -15,8 +15,8 @@ import type { ProjectFingerprint } from "./project-fingerprint.js";
 export type UncoveredSources = CappedList;
 
 /** Why the set could not be determined; first match in this order wins. Exactly one of this and
- *  `UncoveredSources` is present on every response carrying `sweep`. `compile-db-unlistable` is reachable
- *  only on a `files`-scoped call — an unscoped one already fails on a missing database. */
+ *  `UncoveredSources` is present on every response carrying `sweep`. `compile-db-unlistable` is a database
+ *  that vanished after the call's own check: a call with none readable is refused before this runs. */
 export type UncoveredSourcesUnavailable =
   | "no-source-roots"
   | "walk-bounded"
