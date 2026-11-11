@@ -25,6 +25,7 @@ import {
   resolveAndCheckIgnored,
   resolutionNote,
   SourceRootsSchema,
+  READ_ONLY_ANNOTATIONS,
 } from "./shared.js";
 import { messageOf } from "../error-message.js";
 
@@ -157,6 +158,7 @@ export function registerCppFileSymbols(server: McpServer, sessions: LspSessionMa
         "the other C++ tools refuse. " +
         CLANGD_DISK_CLAUSE,
       inputSchema: CppFileSymbolsInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args) => runCppFileSymbols(sessions, args as CppFileSymbolsInputType),
   );

@@ -93,6 +93,14 @@ export const READ_ONLY_CLANGD_SENTENCE =
 export const CLANGD_DISK_CLAUSE = "Read-only, except clangd's own index under `.cache/clangd`.";
 
 /**
+ * The MCP annotations every tool declares. `readOnlyHint` holds for the clangd tools too: the index under
+ * `.cache/clangd` is a derived cache clangd rebuilds at will and the descriptions name it, so no call
+ * changes anything a user would approve. Every tool reads only local files and local language servers,
+ * hence `openWorldHint: false`. `idempotentHint` is left out: the spec gives it meaning only for a tool that writes.
+ */
+export const READ_ONLY_ANNOTATIONS = { readOnlyHint: true, openWorldHint: false } as const;
+
+/**
  * The `Resolved "a/b.h" to "<winner>" (tried: "<r1>/a/b.h", "<r2>/a/b.h").` sentence appended
  * to a failure text, empty unless the winner was one of several spellings — an absolute input or a
  * single-root caller has nothing tried to report. Only the two tools with a file-not-found text of their

@@ -24,7 +24,7 @@ import { CALLERS_LIMIT, REFERENCE_SITES_PER_FILE_LIMIT } from "./navigation-limi
 import { candidateText, capsText, type Step } from "./navigation-text.js";
 import { NameInput, PathInput } from "./input-limits.js";
 import { reasonOfError } from "./reason-of-error.js";
-import { resolutionNote } from "./shared.js";
+import { resolutionNote, READ_ONLY_ANNOTATIONS } from "./shared.js";
 import {
   OUTSIDE_WORKSPACE_REASON,
   mentionNameOf,
@@ -453,6 +453,7 @@ export function registerTsFindCallers(
       title: "Find who calls a TypeScript function or method",
       description: TOOL_DESCRIPTION,
       inputSchema: TsFindCallersInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args) => runTsFindCallers(sessions, args as TsFindCallersInputType, deps),
   );

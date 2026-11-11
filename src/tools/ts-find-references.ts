@@ -11,7 +11,7 @@ import { REFERENCE_FILES_LIMIT, REFERENCE_SITES_PER_FILE_LIMIT } from "./navigat
 import { capsText } from "./navigation-text.js";
 import { NameInput, PathInput } from "./input-limits.js";
 import { reasonOfError } from "./reason-of-error.js";
-import { resolutionNote } from "./shared.js";
+import { resolutionNote, READ_ONLY_ANNOTATIONS } from "./shared.js";
 import {
   OUTSIDE_WORKSPACE_REASON,
   mentionNameOf,
@@ -307,6 +307,7 @@ export function registerTsFindReferences(
       title: "Find every use of a TypeScript symbol",
       description: TOOL_DESCRIPTION,
       inputSchema: TsFindReferencesInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args) => runTsFindReferences(sessions, args as TsFindReferencesInputType, deps),
   );

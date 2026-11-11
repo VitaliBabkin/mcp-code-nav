@@ -8,7 +8,7 @@ import type { LspSessionManager } from "../lsp/session-manager.js";
 import { errorResult, successResult } from "../mcp-response.js";
 import type { ResolvedPath } from "../paths/resolve-safe-path.js";
 import { NameInput } from "./input-limits.js";
-import { resolutionNote } from "./shared.js";
+import { resolutionNote, READ_ONLY_ANNOTATIONS } from "./shared.js";
 import { reasonOfError } from "./reason-of-error.js";
 import type { Budget } from "./budget.js";
 import { GoDeclaringFileSchema, GoSourceRootsSchema, timeBudgetSchema } from "./go-shared.js";
@@ -397,6 +397,7 @@ export function registerGoFindCallers(
       title: "Find who calls a Go function or method",
       description: TOOL_DESCRIPTION,
       inputSchema: GoFindCallersInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args) => runGoFindCallers(sessions, args as GoFindCallersInputType, deps),
   );

@@ -8,7 +8,7 @@ import type { LspSessionManager } from "../lsp/session-manager.js";
 import { errorResult, successResult } from "../mcp-response.js";
 import type { ResolvedPath } from "../paths/resolve-safe-path.js";
 import { NameInput } from "./input-limits.js";
-import { resolutionNote } from "./shared.js";
+import { resolutionNote, READ_ONLY_ANNOTATIONS } from "./shared.js";
 import { reasonOfError } from "./reason-of-error.js";
 import type { Budget } from "./budget.js";
 import { GoDeclaringFileSchema, GoSourceRootsSchema, timeBudgetSchema } from "./go-shared.js";
@@ -219,6 +219,7 @@ export function registerGoFindImplementations(
         "gopls's type checker - Go satisfies interfaces implicitly, so grep has nothing to key on. The " +
         "direction follows from what `symbol` names and is echoed as `direction`.",
       inputSchema: GoFindImplementationsInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args) =>
       runGoFindImplementations(sessions, args as GoFindImplementationsInputType, deps),

@@ -42,6 +42,7 @@ import {
   isPathResolutionError,
   pathFixHint,
   SourceRootsSchema,
+  READ_ONLY_ANNOTATIONS,
 } from "./shared.js";
 import { messageOf } from "../error-message.js";
 
@@ -477,6 +478,7 @@ export function registerCppFindDerivedClasses(server: McpServer, deps: CppFindDe
         "(not build, vendored, VCS or `.claude` directories, `ignoredPaths` matches or symlinks) and says " +
         "nothing about which TUs were swept.",
       inputSchema: CppFindDerivedClassesInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: RequestHandlerExtra<ServerRequest, ServerNotification>) =>
       runCppFindDerivedClasses(deps, args as CppFindDerivedClassesInputType, {

@@ -13,7 +13,7 @@ import { IMPLEMENTATIONS_LIMIT } from "./navigation-limits.js";
 import { capsText, type Step, withArticle } from "./navigation-text.js";
 import { NameInput, PathInput } from "./input-limits.js";
 import { reasonOfError } from "./reason-of-error.js";
-import { resolutionNote } from "./shared.js";
+import { resolutionNote, READ_ONLY_ANNOTATIONS } from "./shared.js";
 import { implementationsSubject, type TsSubject } from "./ts-addressing.js";
 import {
   OUTSIDE_WORKSPACE_REASON,
@@ -241,6 +241,7 @@ export function registerTsFindImplementations(
       title: "Find the TypeScript types implementing an interface",
       description: TOOL_DESCRIPTION,
       inputSchema: TsFindImplementationsInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args) =>
       runTsFindImplementations(sessions, args as TsFindImplementationsInputType, deps),

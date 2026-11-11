@@ -207,6 +207,21 @@ describe("the wire surface that must not have changed", () => {
     );
     await wire.close();
   });
+
+  it("serves every tool as read-only and closed-world, so a new tool cannot land without its annotations", async () => {
+    const wire = await connectOverTap(false);
+    await wire.initialize();
+
+    const tools = wire.listTools();
+    expect(tools.length).toBeGreaterThan(0);
+    for (const tool of tools) {
+      expect(tool.annotations, String(tool.name)).toEqual({
+        readOnlyHint: true,
+        openWorldHint: false,
+      });
+    }
+    await wire.close();
+  });
 });
 
 describe("the drift guard, read off the schemas the server actually registered", () => {

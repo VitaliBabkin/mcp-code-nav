@@ -41,7 +41,7 @@ import {
 import type { Step } from "./navigation-text.js";
 import type { SymbolDescription } from "./navigation-limits.js";
 import { NameInput, PathInput } from "./input-limits.js";
-import { resolutionNote } from "./shared.js";
+import { resolutionNote, READ_ONLY_ANNOTATIONS } from "./shared.js";
 import { reasonOfError } from "./reason-of-error.js";
 import { messageOf } from "../error-message.js";
 
@@ -474,6 +474,7 @@ export function registerGoFindSymbol(
       title: "Find where a Go name is declared",
       description: TOOL_DESCRIPTION,
       inputSchema: GoFindSymbolInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args) => runGoFindSymbol(sessions, args as GoFindSymbolInputType, deps),
   );
