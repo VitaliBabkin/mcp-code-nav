@@ -20,7 +20,7 @@ import type { SymbolDescription } from "./navigation-limits.js";
 import { containerOf, type Step } from "./navigation-text.js";
 import { NameInput, PathInput } from "./input-limits.js";
 import { reasonOfError } from "./reason-of-error.js";
-import { resolutionNote } from "./shared.js";
+import { resolutionNote, READ_ONLY_ANNOTATIONS } from "./shared.js";
 import { matchingEntries, type ReachedEntry } from "./ts-addressing.js";
 import {
   anchorProjects,
@@ -691,6 +691,7 @@ export function registerTsFindSymbol(
       title: "Find where a TypeScript name is declared",
       description: TOOL_DESCRIPTION,
       inputSchema: TsFindSymbolInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args) => runTsFindSymbol(sessions, args as TsFindSymbolInputType, deps),
   );

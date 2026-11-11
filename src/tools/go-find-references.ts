@@ -8,7 +8,7 @@ import type { LspSessionManager } from "../lsp/session-manager.js";
 import { errorResult, successResult } from "../mcp-response.js";
 import type { ResolvedPath } from "../paths/resolve-safe-path.js";
 import { NameInput } from "./input-limits.js";
-import { resolutionNote } from "./shared.js";
+import { resolutionNote, READ_ONLY_ANNOTATIONS } from "./shared.js";
 import { reasonOfError } from "./reason-of-error.js";
 import type { Budget } from "./budget.js";
 import { GoDeclaringFileSchema, GoSourceRootsSchema, timeBudgetSchema } from "./go-shared.js";
@@ -286,6 +286,7 @@ export function registerGoFindReferences(
       title: "Find every use of a Go symbol",
       description: TOOL_DESCRIPTION,
       inputSchema: GoFindReferencesInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args) => runGoFindReferences(sessions, args as GoFindReferencesInputType, deps),
   );

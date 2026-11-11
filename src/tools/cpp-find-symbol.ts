@@ -26,7 +26,7 @@ import {
 import type { CppSourceRootsBlock } from "../clang-query/derived-source-roots.js";
 import type { Step } from "./navigation-text.js";
 import type { BoundaryTest } from "./lsp-locations.js";
-import { CLANGD_DISK_CLAUSE } from "./shared.js";
+import { CLANGD_DISK_CLAUSE, READ_ONLY_ANNOTATIONS } from "./shared.js";
 import { reasonOfError } from "./reason-of-error.js";
 import { messageOf } from "../error-message.js";
 
@@ -196,6 +196,7 @@ export function registerCppFindSymbol(server: McpServer, sessions: LspSessionMan
       title: "Find a C++ symbol",
       description: TOOL_DESCRIPTION,
       inputSchema: CppFindSymbolInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args) => runCppFindSymbol(sessions, args as CppFindSymbolInputType),
   );

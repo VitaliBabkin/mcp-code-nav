@@ -222,7 +222,10 @@ directory with `compile_commands.json`); for them `sourceRoots` is optional and 
 | `ts_find_callers`           | Who calls this TypeScript function or method                           | `{"sourceRoots": ["/src/web"], "file": "src/store.ts", "symbol": "Store.save"}`             |
 | `ts_find_implementations`   | Who implements this interface or extends this class                    | `{"sourceRoots": ["/src/web"], "file": "src/store.ts", "symbol": "Storage"}`                |
 
-The authoritative argument schemas and descriptions are what the server publishes through `tools/list`.
+The authoritative argument schemas and descriptions are what the server publishes through `tools/list`. Every tool
+declares the annotations `readOnlyHint: true` and `openWorldHint: false`. No tool writes to the analysed sources; the
+C++ tools leave clangd's own index cache under `.cache/clangd` in `projectRoot`, and the opt-in
+[call log](#call-log-and-privacy) writes only to its own directory.
 
 ## Using it
 

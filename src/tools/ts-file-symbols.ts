@@ -17,7 +17,7 @@ import type { SymbolDescription } from "./navigation-limits.js";
 import { containerOf } from "./navigation-text.js";
 import { PathInput } from "./input-limits.js";
 import { reasonOfError } from "./reason-of-error.js";
-import { resolutionNote } from "./shared.js";
+import { resolutionNote, READ_ONLY_ANNOTATIONS } from "./shared.js";
 import { CONTAINER_KINDS } from "./ts-addressing.js";
 import {
   TsSourceRootsSchema,
@@ -214,6 +214,7 @@ export function registerTsFileSymbols(server: McpServer, sessions: LspSessionMan
         "imports and re-exports are listed apart, in `bindings`. Use it to see what a file declares before " +
         "reading it.",
       inputSchema: TsFileSymbolsInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args) => runTsFileSymbols(sessions, args as TsFileSymbolsInputType),
   );

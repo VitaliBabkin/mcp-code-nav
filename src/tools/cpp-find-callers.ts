@@ -48,7 +48,7 @@ import {
 import { candidateText, capsText, type Step, withArticle } from "./navigation-text.js";
 import { reasonOfError } from "./reason-of-error.js";
 import { CPP_LISTING_READING_TEXT, CppAddressShape } from "./cpp-navigation-shared.js";
-import { CLANGD_DISK_CLAUSE } from "./shared.js";
+import { CLANGD_DISK_CLAUSE, READ_ONLY_ANNOTATIONS } from "./shared.js";
 import { messageOf } from "../error-message.js";
 
 const TOOL = "cpp_find_callers";
@@ -478,6 +478,7 @@ export function registerCppFindCallers(server: McpServer, sessions: LspSessionMa
       title: "Find who calls a C++ function or method",
       description: TOOL_DESCRIPTION,
       inputSchema: CppFindCallersInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args) => runCppFindCallers(sessions, args as CppFindCallersInputType),
   );

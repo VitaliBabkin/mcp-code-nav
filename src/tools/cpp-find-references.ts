@@ -32,7 +32,7 @@ import {
 import { capsText, type Step } from "./navigation-text.js";
 import { reasonOfError } from "./reason-of-error.js";
 import { CPP_LISTING_READING_TEXT, CppAddressShape } from "./cpp-navigation-shared.js";
-import { CLANGD_DISK_CLAUSE } from "./shared.js";
+import { CLANGD_DISK_CLAUSE, READ_ONLY_ANNOTATIONS } from "./shared.js";
 import { messageOf } from "../error-message.js";
 
 const TOOL = "cpp_find_references";
@@ -346,6 +346,7 @@ export function registerCppFindReferences(server: McpServer, sessions: LspSessio
       title: "Find every use of a C++ symbol",
       description: TOOL_DESCRIPTION,
       inputSchema: CppFindReferencesInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args) => runCppFindReferences(sessions, args as CppFindReferencesInputType),
   );

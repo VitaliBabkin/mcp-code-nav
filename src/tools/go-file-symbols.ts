@@ -7,7 +7,7 @@ import type { ResolvedPath } from "../paths/resolve-safe-path.js";
 import { withinBudget } from "./budget.js";
 import { GoSourceRootsSchema, resolveGoTarget, timeBudgetSchema } from "./go-shared.js";
 import { PathInput } from "./input-limits.js";
-import { resolutionNote } from "./shared.js";
+import { resolutionNote, READ_ONLY_ANNOTATIONS } from "./shared.js";
 import { reasonOfError } from "./reason-of-error.js";
 import { messageOf } from "../error-message.js";
 
@@ -76,6 +76,7 @@ export function registerGoFileSymbols(server: McpServer, sessions: LspSessionMan
         "Use it to see what a file declares before reading it. Syntactic only - it answers no type " +
         "question, such as who implements an interface.",
       inputSchema: GoFileSymbolsInput.shape,
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args) => runGoFileSymbols(sessions, args as GoFileSymbolsInputType),
   );
